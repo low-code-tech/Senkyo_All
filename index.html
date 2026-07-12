@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>選挙情報管理</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
   :root{
     --navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --card:#FFFFFF;
@@ -147,6 +149,28 @@
   .modal .actions{display:flex; gap:8px; margin-top:8px;}
   .btn.danger{background:#fff; color:var(--red); border:1.5px solid var(--red);}
 
+  /* ===== 地図ビュー ===== */
+  #viewMap.show{display:block;}
+  .legend{
+    display:flex; gap:6px; overflow-x:auto; padding:2px 0 8px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .legend::-webkit-scrollbar{display:none;}
+  .lg{
+    flex:none; display:flex; align-items:center; gap:5px;
+    background:#fff; border:1.5px solid var(--line); border-radius:99px;
+    padding:7px 11px; font-size:12.5px; font-weight:700; color:var(--text);
+    cursor:pointer; user-select:none; white-space:nowrap;
+  }
+  .lg .sw{width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.25); flex:none;}
+  .lg.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
+  #map{
+    width:100%; height:calc(100dvh - 158px);
+    border:1px solid var(--line); border-radius:10px; background:#DDE3EE;
+  }
+  #mapCount{font-size:12px; color:var(--sub); margin:6px 2px 0;}
+  .pin-ico{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+
   /* トースト */
   #toast{
     position:fixed; left:50%; bottom:28px; transform:translateX(-50%);
@@ -186,6 +210,7 @@
 <header>
   <button class="hbtn" onclick="openConfirm()">確認</button>
   <button class="hbtn" id="hList" onclick="switchView('list')">一覧</button>
+  <button class="hbtn" id="hMap" onclick="switchView('map')">地図</button>
   <button class="hbtn" onclick="switchView('shoot'); pickMedia('video')">動画</button>
   <button class="hbtn primary" onclick="switchView('shoot'); pickMedia('photo')">&#128247; 写真撮影</button>
 </header>
@@ -235,6 +260,13 @@
     <div class="count-line" id="countLine"></div>
     <div class="grid" id="grid"></div>
     <div class="empty" id="emptyMsg" style="display:none;">データがありません。<br>「写真撮影」から保存してください。</div>
+  </section>
+
+  <!-- ===== 地図ビュー（All Display Map） ===== -->
+  <section id="viewMap" class="view">
+    <div class="legend" id="legend"></div>
+    <div id="map"></div>
+    <div id="mapCount"></div>
   </section>
 </main>
 
@@ -291,13 +323,14 @@ const MAX_IMG_PX        = 1600;
 /* ================================================================ */
 
 const CATS = [
-  {key:"cat_sano",  id:"catSano",  eid:"eSano",  label:"佐野"},
-  {key:"cat_other", id:"catOther", eid:"eOther", label:"他候補"},
-  {key:"cat_region",id:"catRegion",eid:"eRegion",label:"地域情報"},
-  {key:"cat_card",  id:"catCard",  eid:"eCard",  label:"名刺"},
-  {key:"cat_talk",  id:"catTalk",  eid:"eTalk",  label:"後援者会話"},
-  {key:"cat_misc",  id:"catMisc",  eid:"eMisc",  label:"その他"}
+  {key:"cat_sano",  id:"catSano",  eid:"eSano",  label:"佐野",     color:"#D93025"},
+  {key:"cat_other", id:"catOther", eid:"eOther", label:"他候補",   color:"#757575"},
+  {key:"cat_region",id:"catRegion",eid:"eRegion",label:"地域情報", color:"#9C27B0"},
+  {key:"cat_card",  id:"catCard",  eid:"eCard",  label:"名刺",     color:"#7CB342"},
+  {key:"cat_talk",  id:"catTalk",  eid:"eTalk",  label:"後援者会話",color:"#F4C513"},
+  {key:"cat_misc",  id:"catMisc",  eid:"eMisc",  label:"その他",   color:"#266489"}
 ];
+const ALL_COLOR = "#F0A500";   // 「全部」の凡例色
 
 const $ = id => document.getElementById(id);
 const sb = (path, opt={}) => fetch(SUPABASE_URL + path, {
@@ -337,8 +370,11 @@ function toast(msg, err){
 function switchView(v){
   $("viewShoot").classList.toggle("show", v==="shoot");
   $("viewList").classList.toggle("show", v==="list");
+  $("viewMap").classList.toggle("show", v==="map");
   $("hList").classList.toggle("active", v==="list");
+  $("hMap").classList.toggle("active", v==="map");
   if(v==="list") loadList(!listLoaded);
+  if(v==="map"){ initMap(); loadList(true); }   // 地図は開くたびに自動で最新取得（更新ボタン不要）
 }
 
 /* ---------- 位置情報（起動時から先読み） ---------- */
@@ -511,6 +547,7 @@ async function loadList(force){
     rows=await res.json();
     listLoaded=true;
     renderList();
+    if(map) renderMarkers();
   }catch(e){
     console.error(e);
     $("countLine").textContent="";
@@ -543,6 +580,87 @@ function renderList(){
   }).join("");
 }
 
+/* ---------- 地図（All Display Map） ---------- */
+let map=null, markerLayer=null, mapFilter="all", didFit=false;
+
+function initMap(){
+  if(map){ setTimeout(()=>map.invalidateSize(), 60); return; }
+  buildLegend();
+  map = L.map("map", {zoomControl:true});
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  // 初期表示：現在地があればそこ、なければ東京駅付近
+  if(curPos) map.setView([curPos.lat, curPos.lon], 14);
+  else map.setView([35.681, 139.767], 12);
+  setTimeout(()=>map.invalidateSize(), 60);
+  renderMarkers();
+}
+
+function buildLegend(){
+  const lg=$("legend");
+  const chips=[...CATS.map(c=>({key:c.key,label:c.label,color:c.color})),
+               {key:"all",label:"全部",color:ALL_COLOR}];
+  lg.innerHTML=chips.map(c=>
+    `<div class="lg${c.key===mapFilter?" active":""}" data-key="${c.key}" onclick="setMapFilter('${c.key}')">
+       <span class="sw" style="background:${c.color}"></span>${c.label}
+     </div>`).join("");
+}
+
+function setMapFilter(key){
+  mapFilter=key;
+  buildLegend();
+  didFit=false;           // 絞り込み変更時は旗の範囲にズームし直す
+  renderMarkers();
+}
+
+function pinIcon(color){
+  return L.divIcon({
+    className:"pin-ico",
+    html:`<svg width="26" height="36" viewBox="0 0 26 36" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 1C6.4 1 1 6.4 1 13c0 8.8 12 22 12 22s12-13.2 12-22C25 6.4 19.6 1 13 1z"
+                  fill="${color}" stroke="#fff" stroke-width="1.6"/>
+            <circle cx="13" cy="13" r="4.4" fill="#fff"/>
+          </svg>`,
+    iconSize:[26,36], iconAnchor:[13,35]
+  });
+}
+
+function primaryColor(r){
+  const c=CATS.find(c=>r[c.key]);
+  return c? c.color : ALL_COLOR;
+}
+
+function renderMarkers(){
+  if(!map || !markerLayer) return;
+  markerLayer.clearLayers();
+  const list=rows.filter(r=>
+    r.latitude!=null && r.longitude!=null &&
+    (mapFilter==="all" || r[mapFilter])
+  );
+  const pts=[];
+  list.forEach(r=>{
+    const color = mapFilter==="all" ? primaryColor(r) : (CATS.find(c=>c.key===mapFilter)||{}).color || ALL_COLOR;
+    const m=L.marker([r.latitude, r.longitude], {icon:pinIcon(color)});
+    m.on("click", ()=>openDetail(r.id));   // 旗クリック → 選挙情報管理画面
+    markerLayer.addLayer(m);
+    pts.push([r.latitude, r.longitude]);
+  });
+  const flabel = mapFilter==="all" ? "全部" : (CATS.find(c=>c.key===mapFilter)||{}).label;
+  $("mapCount").textContent=`${flabel}: ${list.length} 件（旗をタップすると詳細・修正画面が開きます）`;
+  if(pts.length && !didFit){
+    map.fitBounds(pts, {padding:[36,36], maxZoom:16});
+    didFit=true;
+  }
+}
+
+/* 地図表示中は60秒ごとに自動で最新化（更新操作不要） */
+setInterval(()=>{
+  if($("viewMap").classList.contains("show")) loadList(true);
+}, 60000);
+
 /* ---------- 詳細・修正 ---------- */
 let editId=null;
 function openDetail(id){
@@ -571,7 +689,8 @@ async function updateRecord(){
   if(res.ok){
     const upd=(await res.json())[0];
     rows=rows.map(r=>r.id===editId? upd:r);
-    renderList(); closeModal("mDetail"); toast("修正を保存しました");
+    renderList(); if(map) renderMarkers();
+    closeModal("mDetail"); toast("修正を保存しました");
   }else{
     toast("修正に失敗しました", true);
   }
@@ -584,7 +703,8 @@ async function deleteRecord(){
   if(res.ok){
     if(r) sb(`/storage/v1/object/${BUCKET}/${r.media_path}`,{method:"DELETE"}).catch(()=>{});
     rows=rows.filter(x=>x.id!==editId);
-    renderList(); closeModal("mDetail"); toast("削除しました");
+    renderList(); if(map) renderMarkers();
+    closeModal("mDetail"); toast("削除しました");
   }else{
     toast("削除に失敗しました", true);
   }

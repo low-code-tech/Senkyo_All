@@ -30,7 +30,9 @@
 <div style="height:8px"></div>
 <button class="btn" id="runOcr" onclick="startOcr()" style="background:#2E5496;">② AI読み取り一括実行（過去分OCR）</button>
 <div style="height:8px"></div>
-<button class="btn" id="runGeo" onclick="startGeo()" style="background:#2E7D52;">③ 住所・郵便番号の一括再取得</button>
+<button class="btn" id="runGeo" onclick="startGeo()" style="background:#2E7D52;">③ 住所・郵便番号の一括再取得（全件上書き）</button>
+<div style="height:8px"></div>
+<button class="btn" id="runName" onclick="startName()" style="background:#9C27B0;">④ 人名の再抽出（佐野・他候補のOCR済み分）</button>
 <div id="bar"><div id="barIn"></div></div>
 <div id="stat">待機中</div>
 <div id="log"></div>
@@ -176,16 +178,19 @@ async function startOcr(){
   }
 }
 
-/* ===== ③ 住所・郵便番号の一括再取得（無料） ===== */
+/* ===== ③ 住所・郵便番号の一括再取得（全件上書き） ===== */
 async function startGeo(){
   $("runGeo").disabled=true;
   try{
-    log("郵便番号が未取得の記録を検索中…");
-    const res=await sb(`/rest/v1/${TABLE}?select=id,latitude,longitude,media_path&latitude=not.is.null&postal_code=is.null&order=created_at.asc&limit=1000`);
+    log("位置情報がある記録を検索中…");
+    const res=await sb(`/rest/v1/${TABLE}?select=id,latitude,longitude,media_path&latitude=not.is.null&order=created_at.asc&limit=1000`);
     if(!res.ok) throw new Error(await res.text());
     const list=await res.json();
-    if(!list.length){ $("stat").textContent="対象なし（すべて取得済みです）"; log("対象 0 件"); return; }
-    log(`対象 ${list.length} 件。1秒間隔で取得します（無料）…`);
+    if(!list.length){ $("stat").textContent="対象なし"; log("対象 0 件"); return; }
+    if(!confirm(`対象 ${list.length} 件の住所・郵便番号を取り直します（既存の住所は上書きされます）。\n実行しますか？`)){
+      $("stat").textContent="キャンセルしました"; return;
+    }
+    log(`対象 ${list.length} 件。順番に取得します…`);
     let ok=0, ng=0;
     for(let i=0;i<list.length;i++){
       const r=list[i];
@@ -208,6 +213,43 @@ async function startGeo(){
     $("stat").textContent="中断しました";
   }finally{
     $("runGeo").disabled=false;
+  }
+}
+
+/* ===== ④ 人名の再抽出（既存OCRテキストから・低コスト） ===== */
+async function startName(){
+  $("runName").disabled=true;
+  try{
+    log("人名が未抽出の記録（佐野・他候補・OCR済み）を検索中…");
+    const res=await sb(`/rest/v1/${TABLE}?select=id,person_name,media_path&or=(cat_sano.eq.true,cat_other.eq.true)&ocr_text=not.is.null&order=created_at.asc&limit=1000`);
+    if(!res.ok) throw new Error(await res.text());
+    const list=(await res.json()).filter(r=>!r.person_name);
+    if(!list.length){ $("stat").textContent="対象なし（すべて人名抽出済みです）"; log("対象 0 件"); return; }
+    if(!confirm(`対象 ${list.length} 件の人名を既存OCRテキストから抽出します（写真の再読み取りはせず低コスト。1件0.1円未満目安）。\n実行しますか？`)){
+      $("stat").textContent="キャンセルしました"; return;
+    }
+    let ok=0, ng=0;
+    for(let i=0;i<list.length;i++){
+      const r=list[i];
+      $("stat").textContent=`人名抽出中 ${i+1} / ${list.length}（成功${ok}・失敗${ng}）`;
+      $("barIn").style.width=Math.round(i/list.length*100)+"%";
+      try{
+        const fr=await sb(`/functions/v1/ocr`,{
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({id:r.id, from_text:true})});
+        const j=await fr.json().catch(()=>({}));
+        if(!fr.ok || j.error) throw new Error(j.error||("HTTP "+fr.status));
+        ok++; log(`OK  ${j.person_name||"（人名なし）"}`,"ok");
+      }catch(e){ ng++; log(`NG  ${r.media_path} … ${e.message}`,"ng"); }
+    }
+    $("barIn").style.width="100%";
+    $("stat").textContent=`完了：成功 ${ok} ／ 失敗 ${ng}`;
+    log("posters.html で「検索」を押すと人名列に反映されます。");
+  }catch(e){
+    log("エラー: "+e.message,"ng");
+    $("stat").textContent="中断しました";
+  }finally{
+    $("runName").disabled=false;
   }
 }
 </script>

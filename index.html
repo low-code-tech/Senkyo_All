@@ -104,12 +104,38 @@
   #btnSave{flex:1; font-size:17px; padding:15px;}
 
   /* ===== 一覧画面 ===== */
-  .search-bar{display:flex; gap:8px; margin-bottom:10px;}
+  .search-bar{
+    display:flex; gap:8px; margin-bottom:10px;
+    position:sticky; top:var(--hh,56px); z-index:40;   /* スクロールしても上部固定 */
+    background:var(--bg); padding:8px 0;
+  }
   .search-bar input{
     flex:1; border:1.5px solid var(--line); border-radius:8px; padding:11px 12px;
-    font-size:15px; background:#fff;
+    font-size:15px; background:#fff; min-width:0;
   }
   .search-bar input:focus{outline:2px solid var(--navy2);}
+  .mic-btn.inline{position:static; flex:none;}
+
+  /* ===== 画像拡大ビューア（ピンチで拡大） ===== */
+  #zoom{
+    display:none; position:fixed; inset:0; z-index:1500; background:#000;
+    touch-action:none; overflow:hidden;
+  }
+  #zoom.show{display:block;}
+  #zoomImg{
+    position:absolute; left:0; top:0; width:100%; height:100%;
+    object-fit:contain; transform-origin:0 0; will-change:transform;
+    user-select:none; -webkit-user-drag:none;
+  }
+  #zoomClose{
+    position:absolute; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:2;
+    width:42px; height:42px; border-radius:50%; border:none;
+    background:rgba(255,255,255,.22); color:#fff; font-size:20px; cursor:pointer;
+  }
+  #zoomHint{
+    position:absolute; bottom:calc(14px + env(safe-area-inset-bottom)); left:0; right:0;
+    text-align:center; color:rgba(255,255,255,.75); font-size:12px; pointer-events:none;
+  }
   .count-line{font-size:12px; color:var(--sub); margin:0 2px 8px;}
   .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
   .card{
@@ -256,6 +282,7 @@
   <section id="viewList" class="view">
     <div class="search-bar">
       <input id="q" placeholder="メモ・日時・住所・分類のフリー検索" oninput="renderList()">
+      <button class="mic-btn inline" id="micSearch" onclick="toggleMic('q','micSearch')" title="音声入力">&#127908;</button>
       <button class="btn sub" onclick="loadList(true)">更新</button>
     </div>
     <div class="count-line" id="countLine"></div>
@@ -310,6 +337,13 @@
 
 <div id="toast"></div>
 
+<!-- ===== 画像拡大ビューア ===== -->
+<div id="zoom">
+  <img id="zoomImg" draggable="false">
+  <button id="zoomClose" onclick="closeZoom()">&#10005;</button>
+  <div id="zoomHint">ピンチで拡大／ダブルタップで切替</div>
+</div>
+
 <script>
 /* ================================================================
    設定
@@ -357,6 +391,12 @@ if(!PASSCODE || localStorage.getItem("poster_gate")==="ok"){
   $("gate").style.display="none";
 }
 $("gateInput").addEventListener("keydown", e=>{ if(e.key==="Enter") checkGate(); });
+
+/* ---------- ヘッダー高さ → 検索窓の固定位置に反映 ---------- */
+function setHH(){
+  document.documentElement.style.setProperty("--hh", document.querySelector("header").offsetHeight + "px");
+}
+setHH(); window.addEventListener("resize", setHH);
 
 /* ---------- トースト ---------- */
 let toastTimer;
@@ -409,19 +449,43 @@ function setMedia(f, type){
     : `<span class="badge-media">動画</span><video src="${url}" controls playsinline muted></video>`;
 }
 
-/* 画像を長辺 MAX_IMG_PX に縮小して JPEG 化 */
-async function compressImage(file){
+/* 画像を長辺 maxPx に縮小して JPEG 化 */
+async function compressImage(file, maxPx = MAX_IMG_PX, quality = 0.85){
   try{
     const bmp = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_IMG_PX / Math.max(bmp.width, bmp.height));
-    if(scale >= 1 && file.type === "image/jpeg") return file;
+    const scale = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
+    if(scale >= 1 && file.type === "image/jpeg" && maxPx === MAX_IMG_PX) return file;
     const cv = document.createElement("canvas");
-    cv.width  = Math.round(bmp.width * scale);
-    cv.height = Math.round(bmp.height * scale);
+    cv.width  = Math.max(1, Math.round(bmp.width * scale));
+    cv.height = Math.max(1, Math.round(bmp.height * scale));
     cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
-    const blob = await new Promise(r=>cv.toBlob(r, "image/jpeg", 0.85));
+    const blob = await new Promise(r=>cv.toBlob(r, "image/jpeg", quality));
     return blob || file;
   }catch(e){ return file; }
+}
+
+/* 動画の先頭フレームからサムネイルJPEGを生成（失敗時は null） */
+function videoThumb(file){
+  return new Promise(resolve=>{
+    try{
+      const v=document.createElement("video");
+      v.muted=true; v.playsInline=true; v.preload="auto";
+      v.src=URL.createObjectURL(file);
+      const giveup=setTimeout(()=>resolve(null), 5000);
+      v.onloadeddata=()=>{ try{ v.currentTime=0.1; }catch(e){} };
+      v.onseeked=()=>{
+        try{
+          const scale=Math.min(1, 480/Math.max(v.videoWidth, v.videoHeight));
+          const cv=document.createElement("canvas");
+          cv.width=Math.max(1, Math.round(v.videoWidth*scale));
+          cv.height=Math.max(1, Math.round(v.videoHeight*scale));
+          cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height);
+          cv.toBlob(b=>{ clearTimeout(giveup); resolve(b); }, "image/jpeg", 0.7);
+        }catch(e){ clearTimeout(giveup); resolve(null); }
+      };
+      v.onerror=()=>{ clearTimeout(giveup); resolve(null); };
+    }catch(e){ resolve(null); }
+  });
 }
 
 /* ---------- 音声入力（撮影メモ／修正メモ 共用） ---------- */
@@ -439,6 +503,7 @@ function toggleMic(targetId, btnId){
       if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
     if(txt && recTarget){
       recTarget.value = recTarget.value ? (recTarget.value.replace(/\s+$/,"") + " " + txt) : txt;
+      recTarget.dispatchEvent(new Event("input"));   // 検索窓なら即絞り込み
     }
   };
   recog.onstart=()=>{ recBtn.classList.add("rec"); };
@@ -462,12 +527,19 @@ async function save(){
   const btn=$("btnSave");
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>保存中…';
   try{
-    /* 1) メディアをアップロード */
-    let blob=curFile, ext;
-    if(curType==="image"){ blob=await compressImage(curFile); ext="jpg"; }
-    else{ ext=(curFile.name.split(".").pop()||"mp4").toLowerCase(); }
+    /* 1) メディア＋サムネイルをアップロード */
+    let blob=curFile, ext, thumbBlob=null;
+    if(curType==="image"){
+      blob=await compressImage(curFile, MAX_IMG_PX, 0.85);
+      thumbBlob=await compressImage(curFile, 420, 0.7);   // 一覧用サムネイル
+      ext="jpg";
+    }else{
+      ext=(curFile.name.split(".").pop()||"mp4").toLowerCase();
+      thumbBlob=await videoThumb(curFile);                 // 動画は先頭フレーム
+    }
     const now=new Date();
-    const path=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getTime()}.${ext}`;
+    const base=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getTime()}`;
+    const path=`${base}.${ext}`;
     const up=await sb(`/storage/v1/object/${BUCKET}/${path}`,{
       method:"POST",
       headers:{"Content-Type": blob.type || (curType==="image"?"image/jpeg":"video/mp4")},
@@ -475,10 +547,20 @@ async function save(){
     });
     if(!up.ok) throw new Error("アップロード失敗: "+await up.text());
 
+    let thumbPath=null;
+    if(thumbBlob){
+      thumbPath=`${base}_t.jpg`;
+      const upT=await sb(`/storage/v1/object/${BUCKET}/${thumbPath}`,{
+        method:"POST", headers:{"Content-Type":"image/jpeg"}, body:thumbBlob
+      });
+      if(!upT.ok) thumbPath=null;   // サムネ失敗は本体保存を妨げない
+    }
+
     /* 2) レコード INSERT */
     const rec={
       media_path: path,
       media_type: curType,
+      thumb_path: thumbPath,
       latitude:  curPos ? curPos.lat : null,
       longitude: curPos ? curPos.lon : null,
       memo: $("memo").value.trim()
@@ -566,9 +648,18 @@ function renderList(){
   $("countLine").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
   $("emptyMsg").style.display=list.length? "none":"block";
   $("grid").innerHTML=list.map(r=>{
+    /* サムネイル優先。旧データ（thumb_path無し）は従来表示にフォールバック */
+    let inner;
+    if(r.thumb_path){
+      inner=`<img class="thumb" src="${pubUrl(r.thumb_path)}" loading="lazy">`;
+    }else if(r.media_type==="video"){
+      inner=`<video class="thumb" src="${pubUrl(r.media_path)}#t=0.1" preload="metadata" muted playsinline></video>`;
+    }else{
+      inner=`<img class="thumb" src="${pubUrl(r.media_path)}" loading="lazy">`;
+    }
     const thumb = r.media_type==="video"
-      ? `<div class="thumb-wrap"><span class="vbadge">&#9654; 動画</span><video class="thumb" src="${pubUrl(r.media_path)}#t=0.1" preload="metadata" muted playsinline></video></div>`
-      : `<img class="thumb" src="${pubUrl(r.media_path)}" loading="lazy">`;
+      ? `<div class="thumb-wrap"><span class="vbadge">&#9654; 動画</span>${inner}</div>`
+      : inner;
     return `<div class="card" onclick="openDetail('${r.id}')">
       ${thumb}
       <div class="meta">
@@ -702,7 +793,10 @@ async function deleteRecord(){
   const r=rows.find(x=>x.id===editId);
   const res=await sb(`/rest/v1/${TABLE}?id=eq.${editId}`,{method:"DELETE"});
   if(res.ok){
-    if(r) sb(`/storage/v1/object/${BUCKET}/${r.media_path}`,{method:"DELETE"}).catch(()=>{});
+    if(r){
+      sb(`/storage/v1/object/${BUCKET}/${r.media_path}`,{method:"DELETE"}).catch(()=>{});
+      if(r.thumb_path) sb(`/storage/v1/object/${BUCKET}/${r.thumb_path}`,{method:"DELETE"}).catch(()=>{});
+    }
     rows=rows.filter(x=>x.id!==editId);
     renderList(); if(map) renderMarkers();
     closeModal("mDetail"); toast("削除しました");
@@ -727,8 +821,95 @@ function catTags(r){
 function mediaTag(r, cls){
   return r.media_type==="video"
     ? `<video class="${cls}" src="${pubUrl(r.media_path)}" controls playsinline></video>`
-    : `<img class="${cls}" src="${pubUrl(r.media_path)}">`;
+    : `<img class="${cls}" src="${pubUrl(r.media_path)}" onclick="openZoom('${pubUrl(r.media_path)}')" style="cursor:zoom-in;" title="タップで拡大">`;
 }
+
+/* ---------- 画像拡大ビューア（ピンチ・パン・ダブルタップ） ---------- */
+const zoomEl=$("zoom"), zoomImg=$("zoomImg");
+let zs=1, zx=0, zy=0;                 // scale / translate
+const ptrs=new Map();
+let gStart=null, lastTap=0;
+
+function applyZoom(){ zoomImg.style.transform=`translate(${zx}px,${zy}px) scale(${zs})`; }
+function openZoom(url){
+  zs=1; zx=0; zy=0; applyZoom();
+  zoomImg.src=url;
+  zoomEl.classList.add("show");
+}
+function closeZoom(){ zoomEl.classList.remove("show"); zoomImg.src=""; }
+
+zoomEl.addEventListener("pointerdown", e=>{
+  if(e.target.id==="zoomClose") return;
+  zoomEl.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(ptrs.size===1){
+    const now=Date.now();
+    if(now-lastTap<300){                       // ダブルタップで等倍⇔2.5倍
+      if(zs>1){ zs=1; zx=0; zy=0; }
+      else{
+        zs=2.5;
+        zx=e.clientX-(e.clientX-zx)*2.5;
+        zy=e.clientY-(e.clientY-zy)*2.5;
+      }
+      applyZoom();
+    }
+    lastTap=now;
+  }
+  snapGesture();
+});
+zoomEl.addEventListener("pointermove", e=>{
+  if(!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(!gStart) return;
+  const pts=[...ptrs.values()];
+  if(pts.length>=2){
+    const d=Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    const mx=(pts[0].x+pts[1].x)/2, my=(pts[0].y+pts[1].y)/2;
+    const ns=Math.min(6, Math.max(1, gStart.s * d/gStart.d));
+    const k=ns/gStart.s;
+    zs=ns;
+    zx=mx - k*(gStart.mx - gStart.x);   // 2本指の中点を基準に拡大＋移動
+    zy=my - k*(gStart.my - gStart.y);
+    applyZoom();
+  }else if(pts.length===1 && zs>1){
+    zx=gStart.x + (pts[0].x-gStart.mx);
+    zy=gStart.y + (pts[0].y-gStart.my);
+    applyZoom();
+  }
+});
+function endPtr(e){
+  ptrs.delete(e.pointerId);
+  if(zs<=1.02){ zs=1; zx=0; zy=0; applyZoom(); }
+  snapGesture();
+}
+zoomEl.addEventListener("pointerup", endPtr);
+zoomEl.addEventListener("pointercancel", endPtr);
+function snapGesture(){
+  const pts=[...ptrs.values()];
+  if(pts.length>=2){
+    gStart={
+      d:Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
+      mx:(pts[0].x+pts[1].x)/2, my:(pts[0].y+pts[1].y)/2,
+      s:zs, x:zx, y:zy
+    };
+  }else if(pts.length===1){
+    gStart={mx:pts[0].x, my:pts[0].y, s:zs, x:zx, y:zy};
+  }else{
+    gStart=null;
+  }
+}
+/* PCでも確認できるようホイールで拡大縮小 */
+zoomEl.addEventListener("wheel", e=>{
+  e.preventDefault();
+  const ns=Math.min(6, Math.max(1, zs*(e.deltaY<0?1.15:0.87)));
+  const k=ns/zs;
+  zx=e.clientX - k*(e.clientX-zx);
+  zy=e.clientY - k*(e.clientY-zy);
+  zs=ns;
+  if(zs<=1.02){ zs=1; zx=0; zy=0; }
+  applyZoom();
+},{passive:false});
+
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }

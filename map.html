@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>選挙情報マップ（PC）</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{--navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --line:#C8D2E4; --text:#1A2333; --sub:#5A6B8C; --red:#B5403B;}
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+       background:var(--bg); color:var(--text); font-size:14px;
+       display:flex; flex-direction:column; overflow:hidden;}
+
+  /* ===== 上部バー：タイトル・検索・凡例 ===== */
+  .topbar{
+    background:var(--navy); color:#fff; padding:8px 14px;
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  }
+  .topbar h1{font-size:16px; font-weight:700; letter-spacing:.05em; white-space:nowrap;}
+  .search{display:flex; align-items:center; gap:8px; flex:1; min-width:320px; max-width:640px;}
+  .search input{
+    flex:1; border:none; border-radius:8px; padding:10px 12px; font-size:14px;
+  }
+  .search input:focus{outline:2px solid #9FB6E0;}
+  .mic{width:38px; height:38px; flex:none; border-radius:50%;
+    border:1.5px solid #fff; background:transparent; font-size:16px; color:#fff; cursor:pointer;}
+  .mic.rec{background:var(--red); border-color:var(--red); animation:pulse 1.1s infinite;}
+  @keyframes pulse{50%{box-shadow:0 0 0 8px rgba(181,64,59,.35);}}
+  .btn{border:none; border-radius:8px; font-weight:700; font-size:13px;
+       padding:10px 16px; cursor:pointer; color:var(--navy); background:#fff; white-space:nowrap;}
+  .legend{display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
+  .lg{display:flex; align-items:center; gap:6px;
+    background:rgba(255,255,255,.12); border:1.5px solid rgba(255,255,255,.45); border-radius:99px;
+    padding:6px 12px; font-size:12.5px; font-weight:700; color:#fff; cursor:pointer; user-select:none; white-space:nowrap;}
+  .lg .sw{width:12px; height:12px; border-radius:3px; border:1px solid rgba(0,0,0,.3);}
+  .lg.active{background:#fff; color:var(--navy); border-color:#fff;}
+  #count{font-size:12px; color:#C9D6EE; white-space:nowrap;}
+
+  /* ===== 地図 ===== */
+  #map{flex:1; position:relative; z-index:0; background:#DDE3EE;}
+
+  /* サムネイルマーカー */
+  .pm{
+    width:60px; height:60px; border-radius:8px; overflow:hidden;
+    border:3px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.45);
+    background:#fff; cursor:pointer;
+  }
+  .pm img,.pm .vph{width:100%; height:100%; object-fit:cover; display:block;}
+  .pm .vph{display:flex; align-items:center; justify-content:center; font-size:22px; background:#333; color:#fff;}
+  .pin-ico{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+
+  /* ===== 右側 詳細パネル ===== */
+  #panel{
+    position:absolute; top:0; right:0; bottom:0; width:400px; max-width:92vw;
+    background:#fff; z-index:1200; box-shadow:-4px 0 18px rgba(0,0,0,.22);
+    transform:translateX(105%); transition:transform .22s; display:flex; flex-direction:column;
+  }
+  #panel.show{transform:none;}
+  #panel .ph{
+    background:var(--navy); color:#fff; padding:10px 14px; font-size:14px; font-weight:700;
+    display:flex; align-items:center;
+  }
+  #panel .ph .x{margin-left:auto; border:none; background:none; color:#fff; font-size:20px; cursor:pointer;}
+  #panel .pb{flex:1; overflow-y:auto; padding:12px;}
+  #panel img.main, #panel video.main{width:100%; max-height:46vh; object-fit:contain; background:#000; border-radius:8px; cursor:zoom-in;}
+  .meta{font-size:13px; color:var(--sub); line-height:1.9; margin:10px 2px;}
+  .meta b{color:var(--text);}
+  .tag{display:inline-block; font-size:11px; font-weight:700; color:#fff;
+    border-radius:99px; padding:2px 9px; margin:1px 3px 1px 0;}
+  .meta a{color:var(--navy2);}
+
+  #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:var(--navy); color:#fff; font-size:13px; font-weight:700;
+    padding:10px 18px; border-radius:99px; display:none; z-index:1300;}
+  #toast.err{background:var(--red);}
+  #toast.show{display:block;}
+
+  #gate{position:fixed; inset:0; z-index:1400; background:var(--navy);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:20px;}
+  #gate h1{color:#fff; font-size:18px; letter-spacing:.1em;}
+  #gate input{font-size:20px; padding:12px; border-radius:8px; border:none; text-align:center; width:240px; letter-spacing:.2em;}
+  #gate button{font-size:15px; background:#fff; color:var(--navy);}
+  #gate .msg{color:#FFC7C2; font-size:13px; min-height:1.2em;}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>選挙情報マップ（PC）</h1>
+  <input id="gateInput" type="password" placeholder="パスコード" autocomplete="off">
+  <button class="btn" onclick="checkGate()">開く</button>
+  <div class="msg" id="gateMsg"></div>
+</div>
+
+<div class="topbar">
+  <h1>選挙情報マップ</h1>
+  <div class="search">
+    <input id="q" placeholder="人名・住所・メモなどのフリー検索" oninput="renderMarkers()">
+    <button class="mic" id="micQ" onclick="toggleMic()" title="音声入力">&#127908;</button>
+    <button class="btn" onclick="reload()">検索</button>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div id="count"></div>
+</div>
+
+<div id="map">
+  <!-- 詳細パネル -->
+  <div id="panel">
+    <div class="ph">詳細 <button class="x" onclick="closePanel()">&#10005;</button></div>
+    <div class="pb" id="panelBody"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ==== 設定（アプリ本体と同じ値） ==== */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const BUCKET     = "poster-media";
+const TABLE      = "posters";
+const PASSCODE   = "sano2026";
+const THUMB_ZOOM = 17;    // このズーム以上で旗→サムネイル表示に切替
+/* ==================================== */
+
+const CATS = [
+  {key:"cat_sano",  label:"佐野",      color:"#D93025"},
+  {key:"cat_other", label:"他候補",    color:"#757575"},
+  {key:"cat_region",label:"地域情報",  color:"#9C27B0"},
+  {key:"cat_card",  label:"名刺",      color:"#7CB342"},
+  {key:"cat_talk",  label:"後援者会話",color:"#F4C513"},
+  {key:"cat_misc",  label:"その他",    color:"#266489"}
+];
+const ALL_COLOR="#F0A500";
+
+const $=id=>document.getElementById(id);
+const sb=(p,o={})=>fetch(SUPABASE_URL+p,{...o,headers:{
+  "apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,...(o.headers||{})}});
+const pubUrl=p=>`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- パスコード ---------- */
+function checkGate(){
+  if($("gateInput").value===PASSCODE){
+    localStorage.setItem("poster_gate","ok");
+    $("gate").style.display="none";
+  }else $("gateMsg").textContent="パスコードが違います";
+}
+if(!PASSCODE || localStorage.getItem("poster_gate")==="ok") $("gate").style.display="none";
+$("gateInput").addEventListener("keydown",e=>{ if(e.key==="Enter") checkGate(); });
+
+let toastTimer;
+function toast(m,err){const t=$("toast");t.textContent=m;t.className=err?"err show":"show";
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2400);}
+
+/* ---------- 音声入力 ---------- */
+let recog=null;
+function toggleMic(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ toast("このブラウザは音声入力に非対応です（Chrome/Edge推奨）",true); return; }
+  if(recog){ recog.stop(); return; }
+  recog=new SR();
+  recog.lang="ja-JP"; recog.interimResults=false; recog.continuous=true;
+  recog.onresult=ev=>{
+    let txt="";
+    for(let i=ev.resultIndex;i<ev.results.length;i++)
+      if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
+    if(txt){
+      const q=$("q");
+      q.value=q.value? (q.value.replace(/\s+$/,"")+" "+txt): txt;
+      renderMarkers();
+    }
+  };
+  recog.onstart=()=>$("micQ").classList.add("rec");
+  const done=()=>{ $("micQ").classList.remove("rec"); recog=null; };
+  recog.onend=done; recog.onerror=done;
+  recog.start();
+}
+
+/* ---------- 凡例 ---------- */
+let mapFilter="all";
+function buildLegend(){
+  const chips=[...CATS.map(c=>({key:c.key,label:c.label,color:c.color})),
+               {key:"all",label:"全部",color:ALL_COLOR}];
+  $("legend").innerHTML=chips.map(c=>
+    `<div class="lg${c.key===mapFilter?" active":""}" onclick="setFilter('${c.key}')">
+       <span class="sw" style="background:${c.color}"></span>${c.label}</div>`).join("");
+}
+function setFilter(k){ mapFilter=k; buildLegend(); didFit=false; renderMarkers(); }
+
+/* ---------- 地図 ---------- */
+let map=L.map("map",{zoomControl:true}).setView([35.681,139.767],12);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+let markerLayer=L.layerGroup().addTo(map);
+map.on("zoomend", ()=>renderMarkers(true));   // ズームで 旗⇔サムネ を切替
+
+function pinIcon(color){
+  return L.divIcon({
+    className:"pin-ico",
+    html:`<svg width="26" height="36" viewBox="0 0 26 36" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 1C6.4 1 1 6.4 1 13c0 8.8 12 22 12 22s12-13.2 12-22C25 6.4 19.6 1 13 1z"
+                  fill="${color}" stroke="#fff" stroke-width="1.6"/>
+            <circle cx="13" cy="13" r="4.4" fill="#fff"/></svg>`,
+    iconSize:[26,36], iconAnchor:[13,35]
+  });
+}
+function thumbIcon(r,color){
+  const src=r.thumb_path? pubUrl(r.thumb_path): (r.media_type==="image"? pubUrl(r.media_path): "");
+  const inner=src
+    ? `<img src="${src}" loading="lazy">`
+    : `<div class="vph">&#127909;</div>`;
+  return L.divIcon({
+    className:"",
+    html:`<div class="pm" style="border-color:${color}">${inner}</div>`,
+    iconSize:[60,60], iconAnchor:[30,30]
+  });
+}
+function primaryColor(r){ const c=CATS.find(c=>r[c.key]); return c? c.color: ALL_COLOR; }
+
+/* ---------- データ ---------- */
+let rows=[], meiboMap={}, didFit=false;
+async function reload(){
+  try{
+    const res=await sb(`/rest/v1/${TABLE}?select=*&order=created_at.desc&limit=1000`);
+    if(!res.ok) throw new Error(await res.text());
+    rows=await res.json();
+    try{
+      const cols=["poster_id","氏名","会社団体","役職","住所"].map(encodeURIComponent).join(",");
+      const mres=await sb(`/rest/v1/meibo?select=${cols}&limit=3000`);
+      if(mres.ok){
+        meiboMap={};
+        (await mres.json()).forEach(m=>{
+          const t=[m.氏名,m.会社団体,m.役職,m.住所].filter(Boolean).join(" ");
+          if(m.poster_id) meiboMap[m.poster_id]=((meiboMap[m.poster_id]||"")+" "+t).trim();
+        });
+      }
+    }catch(e){}
+    renderMarkers();
+  }catch(e){ console.error(e); toast("データ取得に失敗しました",true); }
+}
+
+function fmtDT(iso){ const d=new Date(iso); const z=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
+function catText(r){ return CATS.filter(c=>r[c.key]).map(c=>c.label).join("・"); }
+function catTags(r){ return CATS.filter(c=>r[c.key]).map(c=>`<span class="tag" style="background:${c.color}">${c.label}</span>`).join(""); }
+
+/* ---------- マーカー描画（旗⇔サムネ切替＋検索＋凡例絞り込み） ---------- */
+function renderMarkers(zoomOnly){
+  markerLayer.clearLayers();
+  const q=$("q").value.trim().toLowerCase();
+  const terms=q? q.split(/\s+/):[];
+  const list=rows.filter(r=>{
+    if(r.latitude==null || r.longitude==null) return false;
+    if(mapFilter!=="all" && !r[mapFilter]) return false;
+    if(!terms.length) return true;
+    const hay=[r.memo||"", r.address||"", r.postal_code||"", r.person_name||"",
+               r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r)].join(" ").toLowerCase();
+    return terms.every(t=>hay.includes(t));
+  });
+  const useThumb=map.getZoom()>=THUMB_ZOOM;
+  const pts=[];
+  list.forEach(r=>{
+    const color=mapFilter==="all"? primaryColor(r): (CATS.find(c=>c.key===mapFilter)||{}).color||ALL_COLOR;
+    const icon=useThumb? thumbIcon(r,color): pinIcon(color);
+    const m=L.marker([r.latitude,r.longitude],{icon});
+    m.on("click",()=>openPanel(r.id));
+    markerLayer.addLayer(m);
+    pts.push([r.latitude,r.longitude]);
+  });
+  const flabel=mapFilter==="all"? "全部": (CATS.find(c=>c.key===mapFilter)||{}).label;
+  $("count").textContent=`${flabel}: ${list.length} 件（ズーム${map.getZoom()}／${useThumb?"サムネイル表示":"旗表示・拡大でサムネイル"}）`;
+  buildLegend();
+  if(pts.length && !didFit && !zoomOnly){
+    map.fitBounds(pts,{padding:[50,50],maxZoom:16});
+    didFit=true;
+  }
+}
+
+/* ---------- 詳細パネル ---------- */
+function openPanel(id){
+  const r=rows.find(x=>x.id===id); if(!r) return;
+  const media=r.media_type==="video"
+    ? `<video class="main" src="${pubUrl(r.media_path)}" controls playsinline></video>`
+    : `<img class="main" src="${pubUrl(r.media_path)}" onclick="window.open('${pubUrl(r.media_path)}','_blank')" title="クリックで原寸表示">`;
+  $("panelBody").innerHTML=`
+    ${media}
+    <div class="meta">
+      <b>${fmtDT(r.created_at)}</b><br>
+      ${catTags(r)}<br>
+      ${r.postal_code? "〒"+esc(r.postal_code)+"　":""}${r.address? esc(r.address): "（住所 取得待ち）"}
+      ${r.latitude!=null? ` ／ <a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">Googleマップ</a>`:""}<br>
+      ${r.person_name? `<b>人名（AI）:</b> ${esc(r.person_name)}<br>`:""}
+      ${r.memo? `<b>メモ:</b> ${esc(r.memo)}<br>`:""}
+      ${meiboMap[r.id]? `<b>名簿:</b> ${esc(meiboMap[r.id])}<br>`:""}
+    </div>
+    ${r.ocr_text? `<details><summary style="cursor:pointer;font-weight:700;color:var(--navy);">AI読み取りテキスト</summary>
+      <div style="font-size:12.5px;line-height:1.7;white-space:pre-wrap;background:#F7F9FD;border:1px solid var(--line);border-radius:8px;padding:10px;margin-top:6px;">${esc(r.ocr_text)}</div></details>`:""}
+  `;
+  $("panel").classList.add("show");
+  map.panTo([r.latitude,r.longitude]);
+}
+function closePanel(){ $("panel").classList.remove("show"); }
+
+/* 60秒ごとに自動更新 */
+setInterval(reload, 60000);
+
+buildLegend();
+reload();
+</script>
+</body>
+</html>

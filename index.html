@@ -642,7 +642,7 @@ document.querySelectorAll(".modal").forEach(m=>{
 });
 
 /* ---------- 一覧 ---------- */
-let rows=[], listLoaded=false;
+let rows=[], listLoaded=false, meiboMap={};
 async function loadList(force){
   if(listLoaded && !force) return;
   $("countLine").textContent="読み込み中…";
@@ -650,6 +650,19 @@ async function loadList(force){
     const res=await sb(`/rest/v1/${TABLE}?select=*&order=created_at.desc&limit=500`);
     if(!res.ok) throw new Error(await res.text());
     rows=await res.json();
+    /* 名簿（名刺のAI抽出結果）も取得して検索対象に含める */
+    try{
+      const cols=["poster_id","氏名","会社団体","役職","住所","電話","メール","備考"]
+        .map(encodeURIComponent).join(",");
+      const mres=await sb(`/rest/v1/meibo?select=${cols}&limit=3000`);
+      if(mres.ok){
+        meiboMap={};
+        (await mres.json()).forEach(m=>{
+          const t=[m.氏名,m.会社団体,m.役職,m.住所,m.電話,m.メール,m.備考].filter(Boolean).join(" ");
+          if(m.poster_id) meiboMap[m.poster_id]=((meiboMap[m.poster_id]||"")+" "+t).trim();
+        });
+      }
+    }catch(e){ /* 名簿が無くても一覧は表示する */ }
     listLoaded=true;
     renderList();
     if(map) renderMarkers();
@@ -664,7 +677,7 @@ function renderList(){
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(!terms.length) return true;
-    const hay=[ r.memo||"", r.address||"", r.ocr_text||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
+    const hay=[ r.memo||"", r.address||"", r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
     return terms.every(t=>hay.includes(t));
   });
   $("countLine").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;

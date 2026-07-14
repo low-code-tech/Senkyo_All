@@ -93,7 +93,7 @@ let rows=[];
 async function load(){
   $("count").textContent="読み込み中…";
   try{
-    const res=await sb(`/rest/v1/meibo?select=*,posters(created_at,media_path)&order=created_at.desc&limit=2000`);
+    const res=await sb(`/rest/v1/meibo?select=*,posters(created_at,media_path,thumb_path)&order=created_at.desc&limit=2000`);
     if(!res.ok) throw new Error(await res.text());
     rows=await res.json();
     render();
@@ -117,10 +117,14 @@ function render(){
   $("tb").innerHTML=list.map(r=>{
     const cells=COLS.map(c=>
       `<td contenteditable data-id="${r.id}" data-col="${c}">${esc(r[c])}</td>`).join("");
-    const photo=r.posters&&r.posters.media_path
-      ? `<a href="${pubUrl(r.posters.media_path)}" target="_blank" rel="noopener">開く</a>` : "";
+    const p=r.posters||{};
+    const full=p.media_path? pubUrl(p.media_path):"";
+    const th=p.thumb_path? pubUrl(p.thumb_path): full;
+    const photo=full
+      ? `<a href="${full}" target="_blank" rel="noopener"><img src="${th}" style="width:46px;height:46px;object-fit:cover;border-radius:6px;border:1px solid var(--line);" onerror="this.outerHTML='写真なし';"></a>`
+      : "写真なし";
     return `<tr>${cells}
-      <td class="ro">${fmtD(r.posters&&r.posters.created_at)}</td>
+      <td class="ro">${fmtD(p.created_at)}</td>
       <td class="ro">${photo}</td>
       <td class="ro"><button class="del" onclick="del('${r.id}')">削除</button></td></tr>`;
   }).join("");

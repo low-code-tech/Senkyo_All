@@ -29,6 +29,8 @@
 <button class="btn" id="run" onclick="start()">① サムネイル一括生成</button>
 <div style="height:8px"></div>
 <button class="btn" id="runOcr" onclick="startOcr()" style="background:#2E5496;">② AI読み取り一括実行（過去分OCR）</button>
+<div style="height:8px"></div>
+<button class="btn" id="runGeo" onclick="startGeo()" style="background:#2E7D52;">③ 住所・郵便番号の一括再取得</button>
 <div id="bar"><div id="barIn"></div></div>
 <div id="stat">待機中</div>
 <div id="log"></div>
@@ -171,6 +173,41 @@ async function startOcr(){
     $("stat").textContent="中断しました";
   }finally{
     $("runOcr").disabled=false; $("run").disabled=false;
+  }
+}
+
+/* ===== ③ 住所・郵便番号の一括再取得（無料） ===== */
+async function startGeo(){
+  $("runGeo").disabled=true;
+  try{
+    log("郵便番号が未取得の記録を検索中…");
+    const res=await sb(`/rest/v1/${TABLE}?select=id,latitude,longitude,media_path&latitude=not.is.null&postal_code=is.null&order=created_at.asc&limit=1000`);
+    if(!res.ok) throw new Error(await res.text());
+    const list=await res.json();
+    if(!list.length){ $("stat").textContent="対象なし（すべて取得済みです）"; log("対象 0 件"); return; }
+    log(`対象 ${list.length} 件。1秒間隔で取得します（無料）…`);
+    let ok=0, ng=0;
+    for(let i=0;i<list.length;i++){
+      const r=list[i];
+      $("stat").textContent=`住所取得中 ${i+1} / ${list.length}（成功${ok}・失敗${ng}）`;
+      $("barIn").style.width=Math.round(i/list.length*100)+"%";
+      try{
+        const fr=await sb(`/functions/v1/geocode`,{
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({id:r.id, lat:r.latitude, lon:r.longitude})});
+        const j=await fr.json().catch(()=>({}));
+        if(!fr.ok || j.error) throw new Error(j.error||("HTTP "+fr.status));
+        ok++; log(`OK  ${j.postal_code||""} ${j.address||""}`,"ok");
+      }catch(e){ ng++; log(`NG  ${r.media_path} … ${e.message}`,"ng"); }
+      await new Promise(s=>setTimeout(s,1100));   // 地図サービスの利用規約（1req/秒）順守
+    }
+    $("barIn").style.width="100%";
+    $("stat").textContent=`完了：成功 ${ok} ／ 失敗 ${ng}`;
+  }catch(e){
+    log("エラー: "+e.message,"ng");
+    $("stat").textContent="中断しました";
+  }finally{
+    $("runGeo").disabled=false;
   }
 }
 </script>

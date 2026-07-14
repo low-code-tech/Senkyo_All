@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ポスター一覧</title>
+<style>
+  :root{--navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --line:#C8D2E4; --text:#1A2333; --sub:#5A6B8C; --red:#B5403B;}
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+       background:var(--bg); color:var(--text); font-size:14px; padding:12px;}
+  h1{font-size:17px; color:var(--navy); border-bottom:2px solid var(--navy);
+     padding-bottom:8px; margin-bottom:10px;}
+  .bar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; align-items:center;}
+  .bar input{flex:1; min-width:200px; border:1.5px solid var(--line); border-radius:8px;
+             padding:10px 12px; font-size:15px; background:#fff;}
+  .btn{border:none; border-radius:8px; font-weight:700; font-size:13px;
+       padding:10px 14px; cursor:pointer; color:#fff; background:var(--navy); white-space:nowrap;}
+  .btn.sub{background:#fff; color:var(--navy); border:1.5px solid var(--navy);}
+  .mic{width:42px; height:42px; flex:none; border-radius:50%;
+    border:1.5px solid var(--navy); background:#fff; font-size:18px; color:var(--navy); cursor:pointer;}
+  .mic.rec{background:var(--red); border-color:var(--red); color:#fff; animation:pulse 1.1s infinite;}
+  @keyframes pulse{50%{box-shadow:0 0 0 8px rgba(181,64,59,.25);}}
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;}
+  .chip{background:#fff; border:1.5px solid var(--line); border-radius:99px;
+    padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--sub); cursor:pointer; user-select:none;}
+  .chip.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
+  #count{font-size:12px; color:var(--sub); margin-bottom:8px;}
+  .tbl-wrap{overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; min-width:1080px;}
+  th,td{border-bottom:1px solid var(--line); padding:8px 9px; font-size:13px; text-align:left; vertical-align:top;}
+  th{background:var(--navy); color:#fff; font-size:12px; white-space:nowrap; position:sticky; top:0;}
+  td[contenteditable]{min-width:90px; outline:none;}
+  td[contenteditable]:focus{background:#E9EFFA; box-shadow:inset 0 0 0 2px var(--navy2); border-radius:4px;}
+  td.ro{color:var(--sub); font-size:12px; white-space:nowrap;}
+  td a{color:var(--navy2);}
+  .tag{display:inline-block; font-size:10px; font-weight:700; color:#fff;
+    border-radius:99px; padding:2px 8px; margin:1px 2px 1px 0;}
+  .del{border:none; background:none; color:var(--red); font-weight:700; cursor:pointer; font-size:12px;}
+  .empty{color:var(--sub); text-align:center; padding:40px 0; line-height:1.8;}
+  .note{font-size:12px; color:var(--sub); margin-top:10px; line-height:1.8;}
+  #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
+    background:var(--navy); color:#fff; font-size:13px; font-weight:700;
+    padding:10px 18px; border-radius:99px; display:none; z-index:100;}
+  #toast.err{background:var(--red);}
+  #toast.show{display:block;}
+</style>
+</head>
+<body>
+<h1>ポスター一覧</h1>
+<div class="bar">
+  <input id="q" placeholder="人名・住所・メモなどで検索" oninput="render()">
+  <button class="mic" id="micQ" onclick="toggleMic()" title="音声入力">&#127908;</button>
+  <button class="btn sub" onclick="load()">検索</button>
+  <button class="btn" onclick="csv()">CSV出力</button>
+</div>
+<div class="chips" id="chips"></div>
+<div id="count"></div>
+<div class="tbl-wrap">
+  <table>
+    <thead><tr>
+      <th>写真</th><th>日時</th><th>インデックス</th><th>郵便番号</th><th>住所</th>
+      <th>人名（AI読み取り）</th><th>メモ</th><th>地図</th><th></th>
+    </tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+</div>
+<div class="empty" id="empty" style="display:none;">
+  対象のデータがありません。<br>
+  アプリで「佐野」「他候補」「地域情報」のいずれかにチェックを入れて保存すると、ここに表示されます。
+</div>
+<p class="note">
+  ・郵便番号・住所・人名・メモのセルはタップでその場修正でき、別のセルに移ると自動保存されます。<br>
+  ・住所・郵便番号はGPSの緯度経度から自動取得のため、番地レベルでは前後することがあります（気になる箇所はセルで直接修正してください）。
+</p>
+<div id="toast"></div>
+
+<script>
+/* ==== 設定（アプリ本体と同じ値） ==== */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const BUCKET   = "poster-media";
+const PASSCODE = "sano2026";
+/* ==================================== */
+
+/* Posterグループのインデックス定義 */
+const IDX=[
+  {key:"cat_sano",  label:"佐野",     color:"#D93025"},
+  {key:"cat_other", label:"他候補",   color:"#757575"},
+  {key:"cat_region",label:"地域情報", color:"#9C27B0"}
+];
+/* 編集可能セル：表示名 → posters の列名 */
+const EDIT_COLS=[
+  {col:"postal_code", label:"郵便番号"},
+  {col:"address",     label:"住所"},
+  {col:"person_name", label:"人名"},
+  {col:"memo",        label:"メモ"}
+];
+
+const $=id=>document.getElementById(id);
+const sb=(p,o={})=>fetch(SUPABASE_URL+p,{...o,headers:{
+  "apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,...(o.headers||{})}});
+const pubUrl=p=>`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+if(PASSCODE && localStorage.getItem("poster_gate")!=="ok"){
+  const v=prompt("パスコードを入力してください");
+  if(v===PASSCODE) localStorage.setItem("poster_gate","ok");
+  else{ document.body.innerHTML="<p style='padding:20px'>パスコードが違います。</p>"; throw new Error("gate"); }
+}
+
+let toastTimer;
+function toast(m,err){const t=$("toast");t.textContent=m;t.className=err?"err show":"show";
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2400);}
+
+/* 音声入力（検索窓） */
+let recog=null;
+function toggleMic(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ toast("この端末は音声入力に非対応です",true); return; }
+  if(recog){ recog.stop(); return; }
+  recog=new SR();
+  recog.lang="ja-JP"; recog.interimResults=false; recog.continuous=true;
+  recog.onresult=ev=>{
+    let txt="";
+    for(let i=ev.resultIndex;i<ev.results.length;i++)
+      if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
+    if(txt){
+      const q=$("q");
+      q.value=q.value? (q.value.replace(/\s+$/,"")+" "+txt): txt;
+      render();
+    }
+  };
+  recog.onstart=()=>$("micQ").classList.add("rec");
+  const done=()=>{ $("micQ").classList.remove("rec"); recog=null; };
+  recog.onend=done; recog.onerror=done;
+  recog.start();
+}
+
+/* インデックス絞り込みチップ */
+let idxFilter="all";
+function buildChips(){
+  const chips=[{key:"all",label:"全部"},...IDX];
+  $("chips").innerHTML=chips.map(c=>
+    `<div class="chip${c.key===idxFilter?" active":""}" onclick="setIdx('${c.key}')">${c.label}</div>`).join("");
+}
+function setIdx(k){ idxFilter=k; buildChips(); render(); }
+
+let rows=[];
+async function load(){
+  $("count").textContent="読み込み中…";
+  try{
+    /* Posterグループのいずれかにチェックがある記録のみ */
+    const res=await sb(`/rest/v1/posters?select=*&or=(cat_sano.eq.true,cat_other.eq.true,cat_region.eq.true)&order=created_at.desc&limit=1000`);
+    if(!res.ok) throw new Error(await res.text());
+    rows=await res.json();
+    render();
+  }catch(e){ console.error(e); $("count").textContent=""; toast("読み込みに失敗しました",true); }
+}
+
+function fmtDT(iso){ const d=new Date(iso); const z=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
+function idxTags(r){
+  return IDX.filter(c=>r[c.key]).map(c=>`<span class="tag" style="background:${c.color}">${c.label}</span>`).join("")||"—";
+}
+function idxText(r){ return IDX.filter(c=>r[c.key]).map(c=>c.label).join("・"); }
+
+function render(){
+  buildChips();
+  const q=$("q").value.trim().toLowerCase();
+  const terms=q? q.split(/\s+/):[];
+  const list=rows.filter(r=>{
+    if(idxFilter!=="all" && !r[idxFilter]) return false;
+    if(!terms.length) return true;
+    const hay=[r.person_name||"", r.address||"", r.postal_code||"", r.memo||"",
+               r.ocr_text||"", idxText(r), fmtDT(r.created_at)].join(" ").toLowerCase();
+    return terms.every(t=>hay.includes(t));
+  });
+  $("count").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
+  $("empty").style.display=rows.length? "none":"block";
+  $("tb").innerHTML=list.map(r=>{
+    const th=r.thumb_path? pubUrl(r.thumb_path): pubUrl(r.media_path);
+    const photo=`<a href="${pubUrl(r.media_path)}" target="_blank" rel="noopener">
+      <img src="${th}" style="width:52px;height:66px;object-fit:cover;border-radius:6px;border:1px solid var(--line);" onerror="this.outerHTML='—';"></a>`;
+    const cells=EDIT_COLS.map(c=>
+      `<td contenteditable data-id="${r.id}" data-col="${c.col}">${esc(r[c.col])}</td>`).join("");
+    const mapLink=r.latitude!=null
+      ? `<a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">地図</a>` : "";
+    return `<tr>
+      <td class="ro">${photo}</td>
+      <td class="ro">${fmtDT(r.created_at)}</td>
+      <td class="ro">${idxTags(r)}</td>
+      ${cells}
+      <td class="ro">${mapLink}</td>
+      <td class="ro"><button class="del" onclick="del('${r.id}')">削除</button></td></tr>`;
+  }).join("");
+}
+
+/* セル編集 → フォーカスが外れたら自動保存 */
+document.addEventListener("focusout", async e=>{
+  const td=e.target;
+  if(!(td.tagName==="TD" && td.dataset.id)) return;
+  const id=td.dataset.id, col=td.dataset.col, val=td.textContent.trim();
+  const r=rows.find(x=>x.id===id);
+  if(!r || (r[col]||"")===val) return;
+  const res=await sb(`/rest/v1/posters?id=eq.${id}`,{
+    method:"PATCH",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({[col]:val})
+  });
+  if(res.ok){ r[col]=val; toast("保存しました"); }
+  else toast("保存に失敗しました",true);
+});
+
+async function del(id){
+  if(!confirm("この記録を削除します（アプリ側からも消えます）。よろしいですか？")) return;
+  const r=rows.find(x=>x.id===id);
+  const res=await sb(`/rest/v1/posters?id=eq.${id}`,{method:"DELETE"});
+  if(res.ok){
+    if(r){
+      sb(`/storage/v1/object/${BUCKET}/${r.media_path}`,{method:"DELETE"}).catch(()=>{});
+      if(r.thumb_path) sb(`/storage/v1/object/${BUCKET}/${r.thumb_path}`,{method:"DELETE"}).catch(()=>{});
+    }
+    rows=rows.filter(x=>x.id!==id); render(); toast("削除しました");
+  }else toast("削除に失敗しました",true);
+}
+
+/* CSV出力（BOM付きUTF-8） */
+function csv(){
+  const q=(s)=>`"${String(s??"").replace(/"/g,'""')}"`;
+  const head=["日時","インデックス","郵便番号","住所","人名","メモ","緯度","経度"];
+  const body=rows.map(r=>[
+    fmtDT(r.created_at), idxText(r), r.postal_code, r.address,
+    r.person_name, r.memo, r.latitude, r.longitude]);
+  const text="\uFEFF"+[head,...body].map(a=>a.map(q).join(",")).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"}));
+  const d=new Date(), z=n=>String(n).padStart(2,"0");
+  a.download=`posters_${d.getFullYear()}${z(d.getMonth()+1)}${z(d.getDate())}.csv`;
+  a.click();
+}
+
+load();
+</script>
+</body>
+</html>

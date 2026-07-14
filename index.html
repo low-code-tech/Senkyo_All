@@ -17,11 +17,12 @@
   body{
     font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
     background:var(--bg); color:var(--text); font-size:15px;
+    padding-top:var(--hh,56px);              /* 固定ヘッダー分の余白 */
     padding-bottom:env(safe-area-inset-bottom);
   }
-  /* ===== ヘッダー（1行・ボタン4つ：確認 一覧 動画 写真撮影） ===== */
+  /* ===== ヘッダー（1行・常に最上部に固定） ===== */
   header{
-    position:sticky; top:0; z-index:50;
+    position:fixed; top:0; left:0; right:0; z-index:50;
     background:var(--navy);
     display:flex; align-items:center; gap:6px;
     padding:8px 10px;
@@ -191,7 +192,7 @@
   .lg .sw{width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.25); flex:none;}
   .lg.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
   #map{
-    width:100%; height:calc(100dvh - 158px);
+    width:100%; height:calc(100dvh - var(--hh,56px) - 108px);
     border:1px solid var(--line); border-radius:10px; background:#DDE3EE;
     position:relative; z-index:0;   /* Leaflet内部のz-indexをこの枠内に閉じ込める */
   }

@@ -677,7 +677,7 @@ function renderList(){
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(!terms.length) return true;
-    const hay=[ r.memo||"", r.address||"", r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
+    const hay=[ r.memo||"", r.address||"", r.postal_code||"", r.person_name||"", r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
     return terms.every(t=>hay.includes(t));
   });
   $("countLine").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
@@ -796,8 +796,9 @@ function openDetail(id){
   $("detailMedia").innerHTML=mediaTag(r,"media");
   $("detailMeta").innerHTML=
     `${fmtDT(r.created_at)}<br>` +
-    `${r.address? escapeHtml(r.address):"住所 取得待ち"}` +
-    (r.latitude!=null? ` ／ <a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">地図で開く</a>`:"");
+    `${r.postal_code? "〒"+escapeHtml(r.postal_code)+"　":""}${r.address? escapeHtml(r.address):"住所 取得待ち"}` +
+    (r.latitude!=null? ` ／ <a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">地図で開く</a>`:"") +
+    (r.person_name? `<br>人名（AI）: ${escapeHtml(r.person_name)}`:"");
   $("editMemo").value=r.memo||"";
   /* AI読み取り（画像のみ） */
   if(r.media_type==="image"){

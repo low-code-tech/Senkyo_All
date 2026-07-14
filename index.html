@@ -172,6 +172,17 @@
   .modal .box h2 .x{margin-left:auto; border:none; background:none; font-size:20px; color:var(--sub); cursor:pointer;}
   .modal .media{width:100%; max-height:48dvh; object-fit:contain; background:#000; border-radius:8px; display:block;}
   .detail-meta{font-size:12px; color:var(--sub); margin:8px 2px; line-height:1.8;}
+  .ocr-box{margin:0 0 8px;}
+  .ocr-box summary{
+    font-size:12.5px; font-weight:700; color:var(--navy); cursor:pointer;
+    padding:8px 10px; background:#E9EFFA; border-radius:8px; user-select:none;
+  }
+  .ocr-text{
+    font-size:12.5px; line-height:1.7; color:var(--text); white-space:pre-wrap;
+    background:#F7F9FD; border:1px solid var(--line); border-radius:8px;
+    padding:10px; margin-top:6px; max-height:180px; overflow-y:auto;
+  }
+  .ocr-run{width:100%; margin:0 0 8px;}
   .modal .memo-wrap textarea{min-height:110px; padding-right:52px;}
   .modal .actions{display:flex; gap:8px; margin-top:8px;}
   .btn.danger{background:#fff; color:var(--red); border:1.5px solid var(--red);}
@@ -313,6 +324,7 @@
     <h2>修正・追加 <button class="x" onclick="closeModal('mDetail')">&#10005;</button></h2>
     <div id="detailMedia"></div>
     <div class="detail-meta" id="detailMeta"></div>
+    <div id="detailOcr"></div>
     <div class="memo-wrap">
       <textarea id="editMemo" placeholder="メモ（音声入力できます）"></textarea>
       <button class="mic-btn" id="micEdit" onclick="toggleMic('editMemo','micEdit')" title="音声入力">&#127908;</button>
@@ -585,6 +597,15 @@ async function save(){
       }).catch(()=>{});
     }
 
+    /* 3.5) AI読み取り（画像のみ・サーバー側・待たない） */
+    if(curType==="image"){
+      sb(`/functions/v1/ocr`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id:row.id})
+      }).catch(()=>{});
+    }
+
     /* 4) リセット（プレビューは残す） */
     curFile=null; $("fileP").value=""; $("fileV").value="";
     $("memo").value="";
@@ -643,7 +664,7 @@ function renderList(){
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(!terms.length) return true;
-    const hay=[ r.memo||"", r.address||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
+    const hay=[ r.memo||"", r.address||"", r.ocr_text||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
     return terms.every(t=>hay.includes(t));
   });
   $("countLine").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
@@ -765,6 +786,16 @@ function openDetail(id){
     `${r.address? escapeHtml(r.address):"住所 取得待ち"}` +
     (r.latitude!=null? ` ／ <a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">地図で開く</a>`:"");
   $("editMemo").value=r.memo||"";
+  /* AI読み取り（画像のみ） */
+  if(r.media_type==="image"){
+    $("detailOcr").innerHTML =
+      (r.ocr_text
+        ? `<details class="ocr-box"><summary>AI読み取りテキストを表示</summary><div class="ocr-text">${escapeHtml(r.ocr_text)}</div></details>`
+        : "") +
+      `<button class="btn sub ocr-run" onclick="runOcr('${r.id}')">&#129302; AI読み取り${r.ocr_text?"を再実行":"を実行"}${r.cat_card?"（名刺→名簿登録）":""}</button>`;
+  }else{
+    $("detailOcr").innerHTML="";
+  }
   CATS.forEach(c=>setCat(c.eid, r[c.key]));
   $("mDetail").classList.add("show");
 }
@@ -803,6 +834,26 @@ async function deleteRecord(){
     closeModal("mDetail"); toast("削除しました");
   }else{
     toast("削除に失敗しました", true);
+  }
+}
+
+/* ---------- AI読み取り（手動実行） ---------- */
+async function runOcr(id){
+  toast("AI読み取りを開始しました（十数秒かかります）");
+  try{
+    const res=await sb(`/functions/v1/ocr`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({id})
+    });
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok || j.error) throw new Error(j.error||("HTTP "+res.status));
+    await loadList(true);
+    if($("mDetail").classList.contains("show")) openDetail(id);
+    toast(j.cards ? `読み取り完了（名簿に ${j.cards} 件登録）` : "読み取り完了");
+  }catch(e){
+    console.error(e);
+    toast("AI読み取りに失敗しました（Edge Functionのログを確認）", true);
   }
 }
 

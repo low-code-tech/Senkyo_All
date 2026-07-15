@@ -1,7 +1,9 @@
 {
   "name": "選挙情報マップ",
   "short_name": "マップ",
+  "id": "/map.html",
   "start_url": "/map.html",
+  "scope": "/map.html",
   "display": "standalone",
   "background_color": "#1F3864",
   "theme_color": "#1F3864",

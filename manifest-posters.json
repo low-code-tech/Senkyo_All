@@ -1,0 +1,20 @@
+{
+  "name": "ポスター一覧",
+  "short_name": "ポスター",
+  "start_url": "/posters.html",
+  "display": "standalone",
+  "background_color": "#1F3864",
+  "theme_color": "#1F3864",
+  "icons": [
+    {
+      "src": "/posters-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/posters-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

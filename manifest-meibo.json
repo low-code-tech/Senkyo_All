@@ -1,7 +1,9 @@
 {
   "name": "名簿（AI読み取り）",
   "short_name": "名簿",
+  "id": "/meibo.html",
   "start_url": "/meibo.html",
+  "scope": "/meibo.html",
   "display": "standalone",
   "background_color": "#1F3864",
   "theme_color": "#1F3864",

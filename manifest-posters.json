@@ -1,7 +1,9 @@
 {
   "name": "ポスター一覧",
   "short_name": "ポスター",
+  "id": "/posters.html",
   "start_url": "/posters.html",
+  "scope": "/posters.html",
   "display": "standalone",
   "background_color": "#1F3864",
   "theme_color": "#1F3864",

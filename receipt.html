@@ -254,6 +254,7 @@
       <div class="chk">
         <label><input type="checkbox" id="eChonan"> 徴難</label>
         <label><input type="checkbox" id="ePaid"> 返金済</label>
+        <label><input type="checkbox" id="eExported"> 帳簿出力済<span id="eExpDate" style="font-size:11px;color:var(--sub);"></span></label>
       </div>
     </div>
     <div id="detailOcr"></div>
@@ -517,6 +518,7 @@ function renderList(){
         <div class="tags">
           <span class="tag">${esc(r.kamoku_chu)}</span>
           <span class="tag ${r.paid?"paid":"unpaid"}">${r.paid?"返金済":"未返金"}</span>
+          <span class="tag" style="background:${r.exported_at?"#266489":"#8FA3C8"}">${r.exported_at?"帳簿済":"帳簿未"}</span>
         </div>
       </div></div>`;
   }).join("");
@@ -545,6 +547,8 @@ function openDetail(id){
   $("eMemo").value=r.memo||"";
   $("eChonan").checked=!!r.chonan;
   $("ePaid").checked=!!r.paid;
+  $("eExported").checked=!!r.exported_at;
+  $("eExpDate").textContent=r.exported_at? `（${new Date(r.exported_at).toLocaleDateString("ja-JP")}）`:"";
   $("detailOcr").innerHTML=
     (r.ocr_text? `<details class="ocr-box"><summary>AI読み取りテキストを表示</summary><div class="ocr-text">${esc(r.ocr_text)}</div></details>`:"")+
     `<button class="btn sub" style="width:100%;margin:8px 0 0;" onclick="runOcr('${r.id}')">&#129302; AI解析${r.ocr_text?"を再実行":"を実行"}</button>`;
@@ -552,6 +556,7 @@ function openDetail(id){
 }
 async function updateRecord(){
   if(!editId) return;
+  const cur=rows.find(x=>x.id===editId)||{};
   const body={
     hizuke: $("eHizuke").value||null,
     kamoku_chu: $("eChu").value, kamoku_dai: $("eDai").value,
@@ -560,7 +565,8 @@ async function updateRecord(){
     shiharaisaki: $("eSaki").value.trim(), jusho: $("eJusho").value.trim(),
     ryoshusho_no: $("eRyoNo").value.trim(), shishutsusha: $("eWho").value.trim(),
     memo: $("eMemo").value.trim(),
-    chonan: $("eChonan").checked, paid: $("ePaid").checked
+    chonan: $("eChonan").checked, paid: $("ePaid").checked,
+    exported_at: $("eExported").checked ? (cur.exported_at || new Date().toISOString()) : null
   };
   const res=await sb(`/rest/v1/${TABLE}?id=eq.${editId}`,{
     method:"PATCH", headers:{"Content-Type":"application/json","Prefer":"return=representation"},
@@ -640,17 +646,32 @@ function wareki(iso){  // yyyy-mm-dd → R{n}/MM/DD
 }
 const xesc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 
+let exportItems=null, exportMark=false;   // 今回出力する明細と、出力済みマークを付けるか
 function pickBaseXml(){
   if(!rows.length){ toast("データがありません", true); return; }
   const valid=rows.filter(r=>r.hizuke && r.kingaku>0);
   const skip=rows.length-valid.length;
+  const pend=valid.filter(r=>!r.exported_at);          // 未出力
+  const done=valid.length-pend.length;                 // 出力済み
   if(!valid.length){ toast("年月日と金額が入った明細がありません（一覧で修正してください）", true); return; }
-  if(!confirm(
-    `会計帳簿ソフトから出力した「元XMLファイル」を選択してください。\n`+
-    `元XMLの内容はそのままに、このアプリの明細 ${valid.length} 件を追記し、`+
-    `各科目の小計・経常経費計・政治活動費計・支出総額・翌年繰越を再計算した完全版XMLを作ります。\n`+
-    (skip? `※日付または金額が未入力の ${skip} 件は追記されません。\n`:"")+
-    `※二重計上を防ぐため、必ず「追記前の元XML」を選んでください。`)) return;
+
+  if(pend.length){
+    /* 通常：未出力だけを追記（二重登録防止） */
+    if(!confirm(
+      `未出力の明細 ${pend.length} 件を追記します。\n`+
+      (done? `※出力済みの ${done} 件は二重登録防止のため自動的にスキップします。\n`:"")+
+      (skip? `※日付または金額が未入力の ${skip} 件も追記されません。\n`:"")+
+      `\n会計帳簿ソフトから出力した「元XMLファイル」を選択してください。\n`+
+      `出力に成功すると、追記した明細に「帳簿出力済み」の印が付きます。`)) return;
+    exportItems=pend; exportMark=true;
+  }else{
+    /* 全件出力済み：帳簿を作り直す場合の再出力 */
+    if(!confirm(
+      `未出力の明細はありません（全 ${done} 件が出力済み）。\n\n`+
+      `帳簿を最初から作り直す場合などのために、出力済みを含む全件を再出力しますか？\n`+
+      `※必ず「まだ追記していない元XML」を選んでください。出力済みの印はそのまま維持されます。`)) return;
+    exportItems=valid; exportMark=false;
+  }
   $("baseXml").value="";
   $("baseXml").click();
 }
@@ -666,8 +687,8 @@ function mergeXml(bytes){
   let xml=Encoding.codeToString(Encoding.convert(bytes,{to:"UNICODE",from:"SJIS"}));
   if(!xml.includes("<BOOK>")) throw new Error("会計帳簿ソフトのXML形式ではありません（<BOOK>が見つかりません）");
 
-  const valid=rows.filter(r=>r.hizuke && r.kingaku>0)
-    .sort((a,b)=>(a.hizuke<b.hizuke?-1:1));
+  const valid=(exportItems||rows.filter(r=>r.hizuke && r.kingaku>0))
+    .slice().sort((a,b)=>(a.hizuke<b.hizuke?-1:1));
 
   /* 形式を自動判別：補助簿データ or 会計帳簿データ */
   if(xml.includes("<HOJYOBO_VALUE>")) mergeHojyobo(xml, valid);
@@ -886,7 +907,7 @@ function mergeKaikei(xml, valid){
     (kurikoshi<0? "\n\n※繰越額がマイナスです。収入の入力漏れがないか会計帳簿側をご確認ください。":""));
 }
 
-/* ====== Shift_JIS で保存＋結果表示（共通） ====== */
+/* ====== Shift_JIS で保存＋結果表示＋出力済みマーク（共通） ====== */
 function saveXml(xml, prefix, added, summary){
   const sjis=Encoding.convert(Encoding.stringToCode(xml),{to:"SJIS",from:"UNICODE"});
   const a=document.createElement("a");
@@ -894,7 +915,20 @@ function saveXml(xml, prefix, added, summary){
   const d=new Date(), z=n=>String(n).padStart(2,"0");
   a.download=`${prefix}_${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}.xml`;
   a.click();
-  alert(`完全版XMLを出力しました。\n追記明細: ${added} 件\n${summary}`);
+  alert(`完全版XMLを出力しました。\n追記明細: ${added} 件\n${summary}`+
+    (exportMark? "\n\n追記した明細に「帳簿出力済み」の印を付けます。":""));
+  /* 二重登録防止：出力した明細に印を付ける */
+  if(exportMark && exportItems && exportItems.length){
+    const ids=exportItems.map(r=>r.id).join(",");
+    sb(`/rest/v1/${TABLE}?id=in.(${ids})`,{
+      method:"PATCH", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({exported_at:new Date().toISOString()})
+    }).then(res=>{
+      if(res.ok){ loadList(true); toast("帳簿出力済みの印を付けました"); }
+      else toast("出力済みマークの更新に失敗しました（一覧で手動設定してください）", true);
+    }).catch(()=>toast("出力済みマークの更新に失敗しました", true));
+  }
+  exportItems=null; exportMark=false;
 }
 
 /* ---------- CSV出力 ---------- */

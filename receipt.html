@@ -156,8 +156,16 @@
   .frm input,.frm select,.frm textarea{
     border:1.5px solid var(--line); border-radius:8px; padding:9px 10px; font-size:15px; background:#fff; width:100%; font-family:inherit;
   }
-  .frm .chk{display:flex; gap:16px; align-items:center; font-size:13.5px;}
+  .frm .chk{display:flex; gap:16px; align-items:center; font-size:13.5px; flex-wrap:wrap;}
   .frm .chk input{width:18px; height:18px; accent-color:var(--navy);}
+  .jopt{
+    display:block; width:100%; text-align:left;
+    border:1.5px solid var(--line); background:#fff; border-radius:8px;
+    padding:8px 10px; margin-bottom:5px; cursor:pointer; font-size:12.5px; line-height:1.5;
+  }
+  .jopt b{color:var(--navy); font-size:11px; display:block;}
+  .jopt.sel{border-color:var(--navy); background:#E9EFFA;}
+  .jopt.none{color:var(--sub); cursor:default; background:#F5F7FB;}
   .ocr-box summary{font-size:12.5px; font-weight:700; color:var(--navy); cursor:pointer;
     padding:8px 10px; background:#E9EFFA; border-radius:8px; user-select:none;}
   .ocr-text{font-size:12.5px; line-height:1.7; white-space:pre-wrap;
@@ -266,7 +274,9 @@
       <label>適用</label><input id="eTekiyou" placeholder="支出理由">
       <label>金額（税込）</label><input type="number" id="eKingaku" inputmode="numeric">
       <label>支払先名</label><input id="eSaki">
+      <label>名称候補</label><div id="sakiOpts"></div>
       <label>住所</label><input id="eJusho">
+      <label>住所候補</label><div id="jushoOpts"></div>
       <label>領収書番号</label><input id="eRyoNo">
       <label>支出者</label><input id="eWho">
       <label>メモ</label><textarea id="eMemo" rows="2"></textarea>
@@ -562,6 +572,7 @@ function openDetail(id){
   $("eKingaku").value=r.kingaku??"";
   $("eSaki").value=r.shiharaisaki||"";
   $("eJusho").value=r.jusho||"";
+  renderJushoOpts(r);
   $("eRyoNo").value=r.ryoshusho_no||"";
   $("eWho").value=r.shishutsusha||"";
   $("eMemo").value=r.memo||"";
@@ -574,6 +585,35 @@ function openDetail(id){
     `<button class="btn sub" style="width:100%;margin:8px 0 0;" onclick="runOcr('${r.id}')">&#129302; AI解析${r.ocr_text?"を再実行":"を実行"}</button>`;
   $("mDetail").classList.add("show");
 }
+/* 候補（レシート記載／本社）の表示と選択：支払先名・住所で共用 */
+function renderPickOpts(containerId, inputId, opts, note){
+  const cur=($(inputId).value||"").trim();
+  $(containerId).innerHTML=opts.map(o=>{
+    if(!o.val) return `<div class="jopt none"><b>${o.label}</b>（見つかりませんでした）</div>`;
+    const sel=cur && cur===o.val ? " sel":"";
+    return `<button type="button" class="jopt${sel}" onclick="pickOpt(this,'${inputId}','${containerId}')" data-val="${esc(o.val)}"><b>${o.label}${sel?"（採用中）":""}</b>${esc(o.val)}</button>`;
+  }).join("")+
+  `<div style="font-size:11px;color:var(--sub);margin-top:2px;">${note}</div>`;
+}
+function pickOpt(btn, inputId, containerId){
+  $(inputId).value=btn.dataset.val;
+  document.querySelectorAll(`#${containerId} .jopt`).forEach(b=>{
+    b.classList.toggle("sel", b===btn);
+    const bb=b.querySelector("b");
+    if(bb) bb.textContent=bb.textContent.replace("（採用中）","")+(b===btn?"（採用中）":"");
+  });
+}
+function renderJushoOpts(r){
+  renderPickOpts("sakiOpts","eSaki",[
+    {label:"レシート記載の名称", val:(r.saki_receipt||"").trim()},
+    {label:"本社の正式名称（AI検索）", val:(r.saki_honsha||"").trim()}
+  ],"タップすると上の「支払先名」欄に入ります（収支報告書XMLにはこの欄の値が出力されます）。");
+  renderPickOpts("jushoOpts","eJusho",[
+    {label:"レシート記載の住所", val:(r.jusho_receipt||"").trim()},
+    {label:"本社・本部の住所（AI検索）", val:(r.jusho_honsha||"").trim()}
+  ],"タップすると上の「住所」欄に入ります。直接編集も可能です。");
+}
+
 async function updateRecord(){
   if(!editId) return;
   const cur=rows.find(x=>x.id===editId)||{};

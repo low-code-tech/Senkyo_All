@@ -110,14 +110,37 @@
   .tag.unpaid{background:var(--red);}
   .empty{color:var(--sub); text-align:center; padding:40px 0; font-size:13px; line-height:1.8;}
 
-  /* 集計 */
-  .agg-tbl{width:100%; border-collapse:collapse; background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden;}
-  .agg-tbl th,.agg-tbl td{border-bottom:1px solid var(--line); padding:9px 8px; font-size:13px; text-align:left;}
-  .agg-tbl th{background:var(--navy); color:#fff; font-size:12px; white-space:nowrap;}
-  .agg-tbl td.num{text-align:right; font-weight:700;}
+  /* 集計（支出者別の明細と合計） */
+  .agg-person{background:#fff; border:1px solid var(--line); border-radius:10px; overflow:hidden; margin-bottom:12px;}
+  .agg-phead{
+    background:var(--navy); color:#fff; padding:10px 12px;
+    display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;
+  }
+  .agg-phead .nm{font-size:15px; font-weight:700; flex:1;}
+  .agg-phead .tt{font-size:14px; font-weight:700;}
+  .agg-phead .up{font-size:12px; color:#FFD9D6;}
+  .agg-phead .up.ok{color:#BFE8CF;}
+  .agg-mrow{
+    display:flex; align-items:center; gap:8px;
+    background:#E9EFFA; padding:7px 12px; border-top:1px solid var(--line);
+    font-size:12.5px; font-weight:700; color:var(--navy);
+  }
+  .agg-mrow .msum{margin-left:auto;}
   .paybtn{border:1.5px solid var(--green); background:#fff; color:var(--green);
-    border-radius:8px; font-size:12px; font-weight:700; padding:6px 10px; cursor:pointer;}
+    border-radius:8px; font-size:11.5px; font-weight:700; padding:5px 9px; cursor:pointer; flex:none;}
   .paybtn.done{background:var(--green); color:#fff;}
+  .agg-drow{
+    display:flex; align-items:center; gap:8px;
+    padding:8px 12px; border-top:1px solid #EDF1F8; cursor:pointer; font-size:13px;
+  }
+  .agg-drow:active{background:#F3F6FC;}
+  .agg-drow .dd{flex:none; width:44px; color:var(--sub); font-size:12px;}
+  .agg-drow .dm{flex:1; min-width:0; overflow:hidden;}
+  .agg-drow .dm .p1{font-weight:700; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  .agg-drow .dm .p2{color:var(--sub); font-size:11.5px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  .agg-drow .dy{flex:none; font-weight:700; color:var(--navy);}
+  .agg-drow .st{flex:none; width:9px; height:9px; border-radius:50%; background:var(--red);}
+  .agg-drow .st.ok{background:var(--green);}
 
   .modal{display:none; position:fixed; inset:0; z-index:1200; background:rgba(20,30,55,.55);
     padding:14px; align-items:center; justify-content:center;}
@@ -214,13 +237,10 @@
     <div class="empty" id="emptyMsg" style="display:none;">データがありません。<br>「写真撮影」から保存してください。</div>
   </section>
 
-  <!-- ===== 集計ビュー（支出者別×月別・立替金返金管理） ===== -->
+  <!-- ===== 集計ビュー（支出者別の明細と合計・立替金返金管理） ===== -->
   <section id="viewAgg" class="view">
-    <div class="count-line" style="margin-top:6px;">支出者別・月別の立替金集計（「返金済にする」でその月の明細を一括チェック）</div>
-    <table class="agg-tbl">
-      <thead><tr><th>支出者</th><th>月</th><th>件数</th><th>合計</th><th>未返金</th><th></th></tr></thead>
-      <tbody id="aggBody"></tbody>
-    </table>
+    <div class="count-line" style="margin-top:6px;">支出者ごとの明細と合計（月の「返金済にする」でその月の明細を一括チェック。明細タップで修正画面）</div>
+    <div id="aggBody"></div>
     <div class="empty" id="aggEmpty" style="display:none;">データがありません。</div>
   </section>
 </main>
@@ -604,29 +624,55 @@ async function runOcr(id){
   }catch(e){ console.error(e); toast("AI解析に失敗しました", true); }
 }
 
-/* ---------- 集計（支出者別×月別・返金管理） ---------- */
+/* ---------- 集計（支出者別の明細と合計・返金管理） ---------- */
 function renderAgg(){
-  const g={};
+  /* 支出者 → 月 → 明細 に整理 */
+  const people={};
   rows.forEach(r=>{
     const who=r.shishutsusha||"（支出者未設定）";
     const mo=(r.hizuke||r.created_at.slice(0,10)).slice(0,7).replace("-","/");
-    const key=who+"|"+mo;
-    if(!g[key]) g[key]={who,mo,cnt:0,sum:0,unpaid:0,ids:[]};
-    g[key].cnt++; g[key].sum+=(r.kingaku||0);
-    if(!r.paid) g[key].unpaid+=(r.kingaku||0);
-    g[key].ids.push(r.id);
+    people[who]=people[who]||{sum:0,unpaid:0,months:{}};
+    people[who].sum+=(r.kingaku||0);
+    if(!r.paid) people[who].unpaid+=(r.kingaku||0);
+    people[who].months[mo]=people[who].months[mo]||[];
+    people[who].months[mo].push(r);
   });
-  const list=Object.values(g).sort((a,b)=> a.who===b.who? (a.mo<b.mo?1:-1) : (a.who<b.who?-1:1));
-  $("aggEmpty").style.display=list.length? "none":"block";
-  $("aggBody").innerHTML=list.map((x,i)=>{
-    const done=x.unpaid===0;
-    return `<tr>
-      <td>${esc(x.who)}</td><td>${x.mo}</td>
-      <td class="num">${x.cnt}</td>
-      <td class="num">¥${x.sum.toLocaleString()}</td>
-      <td class="num" style="color:${done?"var(--green)":"var(--red)"};">¥${x.unpaid.toLocaleString()}</td>
-      <td><button class="paybtn${done?" done":""}" onclick='markPaid(${JSON.stringify(x.ids)})'>${done?"返金済":"返金済にする"}</button></td>
-    </tr>`;
+  const names=Object.keys(people).sort();
+  $("aggEmpty").style.display=names.length? "none":"block";
+  $("aggBody").innerHTML=names.map(who=>{
+    const p=people[who];
+    const months=Object.keys(p.months).sort().reverse();
+    const monthHtml=months.map(mo=>{
+      const rs=p.months[mo].slice().sort((a,b)=>((a.hizuke||a.created_at)<(b.hizuke||b.created_at)?-1:1));
+      const msum=rs.reduce((s,r)=>s+(r.kingaku||0),0);
+      const munpaid=rs.filter(r=>!r.paid).reduce((s,r)=>s+(r.kingaku||0),0);
+      const ids=rs.map(r=>r.id);
+      const detail=rs.map(r=>{
+        const d=r.hizuke? r.hizuke.slice(5).replace("-","/") : "--/--";
+        return `<div class="agg-drow" onclick="openDetail('${r.id}')">
+          <span class="dd">${d}</span>
+          <span class="dm">
+            <span class="p1">${esc(r.shiharaisaki)||"（支払先 解析待ち）"}</span>
+            <span class="p2">${esc(r.tekiyou)||esc(r.kamoku_chu)}</span>
+          </span>
+          <span class="dy">${r.kingaku!=null? "¥"+r.kingaku.toLocaleString():"—"}</span>
+          <span class="st${r.paid?" ok":""}" title="${r.paid?"返金済":"未返金"}"></span>
+        </div>`;
+      }).join("");
+      return `<div class="agg-mrow">
+          <span>${mo}</span>
+          <button class="paybtn${munpaid===0?" done":""}" onclick='markPaid(${JSON.stringify(ids)})'>${munpaid===0?"返金済":"返金済にする"}</button>
+          <span class="msum">${rs.length}件　小計 ¥${msum.toLocaleString()}${munpaid? `（未返金 ¥${munpaid.toLocaleString()}）`:""}</span>
+        </div>${detail}`;
+    }).join("");
+    return `<div class="agg-person">
+      <div class="agg-phead">
+        <span class="nm">${esc(who)}</span>
+        <span class="tt">合計 ¥${p.sum.toLocaleString()}</span>
+        <span class="up${p.unpaid===0?" ok":""}">${p.unpaid===0? "返金完了":"未返金 ¥"+p.unpaid.toLocaleString()}</span>
+      </div>
+      ${monthHtml}
+    </div>`;
   }).join("");
 }
 async function markPaid(ids){

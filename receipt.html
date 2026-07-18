@@ -205,8 +205,9 @@
       <button class="btn sub" onclick="loadList(true)">検索</button>
     </div>
     <div class="export-row">
-      <button class="btn sub" onclick="exportXml()">会計帳簿XML出力</button>
+      <button class="btn sub" onclick="pickBaseXml()">会計帳簿XML出力（元XMLに明細追記）</button>
       <button class="btn sub" onclick="exportCsv()">CSV出力</button>
+      <input type="file" id="baseXml" accept=".xml" hidden>
     </div>
     <div class="count-line" id="countLine"></div>
     <div class="grid" id="grid"></div>
@@ -274,17 +275,24 @@ const TABLE    = "receipts";
 const PASSCODE = "sano2026";
 const OCR_FN   = "ocr-receipt";
 const MAX_IMG_PX = 1600;
-/* 科目分類：中項目（画面インデックス）→ 大項目（支出項目の区分に準拠） */
+/* 科目分類：中項目（画面インデックス）→ 大項目・帳簿セクション・帳簿費目
+   ※元XML（会計帳簿作成ソフト）の実際の計上実績に合わせたマッピング */
 const KAMOKU = [
-  {chu:"交通費",   dai:"事務所費"},
-  {chu:"消耗品費", dai:"備品・消耗品費"},
-  {chu:"雑費",     dai:"事務所費"},
-  {chu:"備品費",   dai:"備品・消耗品費"},
-  {chu:"通信費",   dai:"事務所費"},
-  {chu:"会費",     dai:"組織活動費"},
-  {chu:"会食費",   dai:"組織活動費"},
-  {chu:"その他",   dai:"その他の経費"}
+  {chu:"交通費",   dai:"組織活動費",     himoku:"交通費"},
+  {chu:"消耗品費", dai:"備品・消耗品費", himoku:"消耗品"},
+  {chu:"雑費",     dai:"事務所費",       himoku:"雑費"},
+  {chu:"備品費",   dai:"備品・消耗品費", himoku:"備品"},
+  {chu:"通信費",   dai:"事務所費",       himoku:"通信費"},
+  {chu:"会費",     dai:"組織活動費",     himoku:"渉外費"},
+  {chu:"会食費",   dai:"組織活動費",     himoku:"会議費"},
+  {chu:"その他",   dai:"その他の経費",   himoku:"その他"}
 ];
+const SEC_BY_DAI = {
+  "人件費":"KAIKEI_OUT01_1","光熱水費":"KAIKEI_OUT01_2","備品・消耗品費":"KAIKEI_OUT01_3",
+  "事務所費":"KAIKEI_OUT01_4","組織活動費":"KAIKEI_OUT02_1","選挙関係費":"KAIKEI_OUT02_2",
+  "機関紙誌の発行その他の事業費":"KAIKEI_OUT02_3_2","調査研究費":"KAIKEI_OUT02_4",
+  "寄附・交付金":"KAIKEI_OUT02_5","その他の経費":"KAIKEI_OUT02_6"
+};
 const DAI_LIST = ["人件費","光熱水費","備品・消耗品費","事務所費","組織活動費","選挙関係費","機関紙誌の発行その他の事業費","調査研究費","寄附・交付金","その他の経費"];
 /* ================================================================ */
 
@@ -611,62 +619,156 @@ async function markPaid(ids){
   else toast("更新に失敗しました", true);
 }
 
-/* ---------- 会計帳簿XML出力（Shift_JIS・和暦・ROW形式） ---------- */
+/* ---------- 会計帳簿XML出力：元XMLに明細を追記した完全版を生成 ---------- */
 function wareki(iso){  // yyyy-mm-dd → R{n}/MM/DD
   if(!iso) return "";
   const [y,m,d]=iso.split("-").map(Number);
   return `R${y-2018}/${String(m).padStart(2,"0")}/${String(d).padStart(2,"0")}`;
 }
 const xesc=s=>String(s??"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
-function exportXml(){
+
+function pickBaseXml(){
   if(!rows.length){ toast("データがありません", true); return; }
-  /* 大項目→中項目(HIMOKU)→ROW の順に整形 */
-  const byDai={};
-  [...rows].sort((a,b)=>(a.serial_no||0)-(b.serial_no||0)).forEach(r=>{
-    const dai=r.kamoku_dai||"その他の経費", chu=r.kamoku_chu||"その他";
-    byDai[dai]=byDai[dai]||{};
-    byDai[dai][chu]=byDai[dai][chu]||[];
-    byDai[dai][chu].push(r);
-  });
-  let x='<?xml version="1.0" encoding="Shift_JIS"?>\r\n<SISYUTU_MEISAI>\r\n';
-  for(const dai in byDai){
-    x+=`\t<KUBUN NAME="${xesc(dai)}">\r\n`;
-    for(const chu in byDai[dai]){
-      const rs=byDai[dai][chu];
-      const skei=rs.reduce((s,r)=>s+(r.kingaku||0),0);
-      x+=`\t\t<GROUP>\r\n\t\t\t<HIMOKU>${xesc(chu)}</HIMOKU>\r\n\t\t\t<GROUP_SKEI>${skei}</GROUP_SKEI>\r\n\t\t\t<GROUP_SKEI_KOUFU>0</GROUP_SKEI_KOUFU>\r\n\t\t\t<GROUP_SKEI_KIKIN>0</GROUP_SKEI_KIKIN>\r\n`;
-      rs.forEach(r=>{
-        x+=`\t\t\t<ROW>\r\n`+
-           `\t\t\t\t<ICHIREN_NO>${r.serial_no??""}</ICHIREN_NO>\r\n`+
-           `\t\t\t\t<TEKIYOU>${xesc(r.tekiyou)}</TEKIYOU>\r\n`+
-           `\t\t\t\t<KINGAKU>${r.kingaku??0}</KINGAKU>\r\n`+
-           `\t\t\t\t<KINGAKU_KOUFU>0</KINGAKU_KOUFU>\r\n`+
-           `\t\t\t\t<KINGAKU_KIKIN>0</KINGAKU_KIKIN>\r\n`+
-           `\t\t\t\t<DT>${wareki(r.hizuke)}</DT>\r\n`+
-           `\t\t\t\t<KOUFU_UMU>0</KOUFU_UMU>\r\n`+
-           `\t\t\t\t<NM>${xesc(r.shiharaisaki)}</NM>\r\n`+
-           `\t\t\t\t<ADR>${xesc(r.jusho)}</ADR>\r\n`+
-           `\t\t\t\t<BIKOU></BIKOU>\r\n`+
-           `\t\t\t\t<SEQ_NO></SEQ_NO>\r\n`+
-           `\t\t\t\t<RYOUSYU_NO>${xesc(r.ryoshusho_no)}</RYOUSYU_NO>\r\n`+
-           `\t\t\t\t<RYOUSYU>${r.chonan?1:0}</RYOUSYU>\r\n`+
-           `\t\t\t\t<JIJYOU>${r.chonan? xesc(r.memo):""}</JIJYOU>\r\n`+
-           `\t\t\t\t<MEMO>${xesc(r.memo)}</MEMO>\r\n`+
-           `\t\t\t\t<ROWKBN>0</ROWKBN>\r\n`+
-           `\t\t\t</ROW>\r\n`;
-      });
-      x+=`\t\t</GROUP>\r\n`;
+  const valid=rows.filter(r=>r.hizuke && r.kingaku>0);
+  const skip=rows.length-valid.length;
+  if(!valid.length){ toast("年月日と金額が入った明細がありません（一覧で修正してください）", true); return; }
+  if(!confirm(
+    `会計帳簿ソフトから出力した「元XMLファイル」を選択してください。\n`+
+    `元XMLの内容はそのままに、このアプリの明細 ${valid.length} 件を追記し、`+
+    `各科目の小計・経常経費計・政治活動費計・支出総額・翌年繰越を再計算した完全版XMLを作ります。\n`+
+    (skip? `※日付または金額が未入力の ${skip} 件は追記されません。\n`:"")+
+    `※二重計上を防ぐため、必ず「追記前の元XML」を選んでください。`)) return;
+  $("baseXml").value="";
+  $("baseXml").click();
+}
+$("baseXml").addEventListener("change", e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const fr=new FileReader();
+  fr.onload=()=>{ try{ mergeXml(new Uint8Array(fr.result)); }catch(err){ console.error(err); alert("XMLの処理に失敗しました：\n"+err.message); } };
+  fr.readAsArrayBuffer(f);
+});
+
+function mergeXml(bytes){
+  /* Shift_JIS → Unicode 文字列 */
+  let xml=Encoding.codeToString(Encoding.convert(bytes,{to:"UNICODE",from:"SJIS"}));
+  if(!xml.includes("<BOOK>")) throw new Error("会計帳簿ソフトのXML形式ではありません（<BOOK>が見つかりません）");
+
+  const valid=rows.filter(r=>r.hizuke && r.kingaku>0)
+    .sort((a,b)=>(a.hizuke<b.hizuke?-1:1));
+
+  /* 明細を セクション→費目 に振り分け */
+  const plan={};   // sec -> himoku -> rows[]
+  valid.forEach(r=>{
+    const k=KAMOKU.find(x=>x.chu===r.kamoku_chu);
+    let sec, himoku;
+    if(k && (r.kamoku_dai===k.dai || !r.kamoku_dai)){
+      sec=SEC_BY_DAI[k.dai]; himoku=k.himoku;          // 標準ルート
+    }else{
+      sec=SEC_BY_DAI[r.kamoku_dai] || SEC_BY_DAI["その他の経費"];  // 大項目を手動変更した場合
+      himoku=(k? k.himoku : r.kamoku_chu) || "その他";
     }
-    x+=`\t</KUBUN>\r\n`;
+    plan[sec]=plan[sec]||{}; plan[sec][himoku]=plan[sec][himoku]||[];
+    plan[sec][himoku].push(r);
+  });
+
+  const ROWXML=(no,r)=>
+    `\t\t\t\t<ROW>\r\n`+
+    `\t\t\t\t\t<ICHIREN_NO>${no}</ICHIREN_NO>\r\n`+
+    `\t\t\t\t\t<TEKIYOU>${xesc(r.tekiyou||r.kamoku_chu)}</TEKIYOU>\r\n`+
+    `\t\t\t\t\t<KINGAKU>${r.kingaku}</KINGAKU>\r\n`+
+    `\t\t\t\t\t<KINGAKU_KOUFU>0</KINGAKU_KOUFU>\r\n`+
+    `\t\t\t\t\t<KINGAKU_KIKIN>0</KINGAKU_KIKIN>\r\n`+
+    `\t\t\t\t\t<DT>${wareki(r.hizuke)}</DT>\r\n`+
+    `\t\t\t\t\t<KOUFU_UMU>0</KOUFU_UMU>\r\n`+
+    `\t\t\t\t\t<NM>${xesc(r.shiharaisaki)}</NM>\r\n`+
+    `\t\t\t\t\t<ADR>${xesc(r.jusho)}</ADR>\r\n`+
+    `\t\t\t\t\t<BIKOU></BIKOU>\r\n`+
+    `\t\t\t\t\t<SEQ_NO></SEQ_NO>\r\n`+
+    `\t\t\t\t\t<RYOUSYU_NO>${xesc(r.ryoshusho_no)}</RYOUSYU_NO>\r\n`+
+    `\t\t\t\t\t<RYOUSYU>${r.chonan?1:0}</RYOUSYU>\r\n`+
+    `\t\t\t\t\t<JIJYOU>${r.chonan? xesc(r.memo):""}</JIJYOU>\r\n`+
+    `\t\t\t\t\t<MEMO>${xesc(r.memo)}</MEMO>\r\n`+
+    `\t\t\t\t\t<ROWKBN>0</ROWKBN>\r\n`+
+    `\t\t\t\t</ROW>\r\n`;
+
+  let added=0;
+  for(const sec in plan){
+    const re=new RegExp(`<${sec}>([\\s\\S]*?)</${sec}>`);
+    const m=xml.match(re);
+    if(!m) throw new Error(`セクション ${sec} が元XMLに見つかりません`);
+    let body=m[1];
+
+    /* セクション内の既存 一連番号 の最大値（セクションごとの連番） */
+    let no=0;
+    (body.match(/<ICHIREN_NO>(\d+)<\/ICHIREN_NO>/g)||[])
+      .forEach(s=>{ const n=parseInt(s.replace(/\D/g,""),10); if(n>no) no=n; });
+
+    let secAdd=0;
+    for(const himoku in plan[sec]){
+      const rs=plan[sec][himoku];
+      const sum=rs.reduce((s,r)=>s+r.kingaku,0);
+      secAdd+=sum; added+=rs.length;
+      let rowXml=""; rs.forEach(r=>{ no++; rowXml+=ROWXML(no,r); });
+
+      /* 既存グループ（同じ費目）を探す */
+      const groups=body.match(/<GROUP>[\s\S]*?<\/GROUP>/g)||[];
+      const target=groups.find(g=>{
+        const hm=g.match(/<HIMOKU>([\s\S]*?)<\/HIMOKU>/);
+        return hm && hm[1]===himoku;
+      });
+      if(target){
+        /* 既存グループに行を追記し、小計を加算 */
+        let ng=target.replace(/\t\t\t<\/GROUP>$/, rowXml+`\t\t\t</GROUP>`);
+        ng=ng.replace(/<GROUP_SKEI>(\d+)<\/GROUP_SKEI>/,
+          (s,v)=>`<GROUP_SKEI>${parseInt(v,10)+sum}</GROUP_SKEI>`);
+        body=body.replace(target,ng);
+      }else{
+        /* 空のひな形グループ（費目が空・明細なし）があれば置き換え、無ければ末尾に追加 */
+        const placeholder=groups.find(g=>/<HIMOKU><\/HIMOKU>/.test(g) && !/<ROW>/.test(g));
+        const ng=`<GROUP>\r\n`+
+          `\t\t\t\t<HIMOKU>${xesc(himoku)}</HIMOKU>\r\n`+
+          `\t\t\t\t<GROUP_SKEI>${sum}</GROUP_SKEI>\r\n`+
+          `\t\t\t\t<GROUP_SKEI_KOUFU>0</GROUP_SKEI_KOUFU>\r\n`+
+          `\t\t\t\t<GROUP_SKEI_KIKIN>0</GROUP_SKEI_KIKIN>\r\n`+
+          rowXml+`\t\t\t</GROUP>`;
+        if(placeholder) body=body.replace(placeholder,ng);
+        else body=body.replace(/\t\t<\/SHEET>/, `\t\t\t${ng}\r\n\t\t</SHEET>`);
+      }
+    }
+    /* セクション合計（SHEET先頭の KINGAKU_GK）を加算 */
+    body=body.replace(/<KINGAKU_GK>(\d+)<\/KINGAKU_GK>/,
+      (s,v)=>`<KINGAKU_GK>${parseInt(v,10)+secAdd}</KINGAKU_GK>`);
+    xml=xml.replace(m[0], `<${sec}>${body}</${sec}>`);
   }
-  x+='</SISYUTU_MEISAI>\r\n';
-  /* Shift_JIS に変換して保存 */
-  const sjis=Encoding.convert(Encoding.stringToCode(x), {to:"SJIS", from:"UNICODE"});
+
+  /* 総計の再計算：経常経費計・政治活動費計・支出総額・翌年繰越 */
+  const secGK=name=>{
+    const m2=xml.match(new RegExp(`<${name}>[\\s\\S]*?<KINGAKU_GK>(\\d+)</KINGAKU_GK>`));
+    return m2? parseInt(m2[1],10):0;
+  };
+  const keihi=["KAIKEI_OUT01_1","KAIKEI_OUT01_2","KAIKEI_OUT01_3","KAIKEI_OUT01_4"]
+    .reduce((s,n)=>s+secGK(n),0);
+  const katsudou=["KAIKEI_OUT02_1","KAIKEI_OUT02_2","KAIKEI_OUT02_3_1","KAIKEI_OUT02_3_2",
+    "KAIKEI_OUT02_3_3","KAIKEI_OUT02_3_4","KAIKEI_OUT02_4","KAIKEI_OUT02_5","KAIKEI_OUT02_6"]
+    .reduce((s,n)=>s+secGK(n),0);
+  xml=xml.replace(/<KEIHI_SOUKEI_GK>\d+<\/KEIHI_SOUKEI_GK>/, `<KEIHI_SOUKEI_GK>${keihi}</KEIHI_SOUKEI_GK>`);
+  xml=xml.replace(/<KATUDOU_SOUKEI_GK>\d+<\/KATUDOU_SOUKEI_GK>/, `<KATUDOU_SOUKEI_GK>${katsudou}</KATUDOU_SOUKEI_GK>`);
+  const sisyutu=keihi+katsudou;
+  const syunyuM=xml.match(/<SYUNYU_SGK>(\d+)<\/SYUNYU_SGK>/);
+  const syunyu=syunyuM? parseInt(syunyuM[1],10):0;
+  xml=xml.replace(/<SISYUTU_SGK>\d+<\/SISYUTU_SGK>/, `<SISYUTU_SGK>${sisyutu}</SISYUTU_SGK>`);
+  const kurikoshi=syunyu-sisyutu;
+  xml=xml.replace(/<YOKUNEN_KKS_GK>-?\d+<\/YOKUNEN_KKS_GK>/, `<YOKUNEN_KKS_GK>${kurikoshi}</YOKUNEN_KKS_GK>`);
+
+  /* Shift_JIS で保存 */
+  const sjis=Encoding.convert(Encoding.stringToCode(xml),{to:"SJIS",from:"UNICODE"});
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([new Uint8Array(sjis)],{type:"application/xml"}));
-  a.download=`支出明細_${new Date().toISOString().slice(0,10)}.xml`;
+  const d=new Date(), z=n=>String(n).padStart(2,"0");
+  a.download=`会計帳簿データ_明細追記_${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}.xml`;
   a.click();
-  toast("会計帳簿XML（Shift_JIS）を出力しました");
+  alert(`完全版XMLを出力しました。\n追記明細: ${added} 件\n経常経費計: ¥${keihi.toLocaleString()}\n政治活動費計: ¥${katsudou.toLocaleString()}\n支出総額: ¥${sisyutu.toLocaleString()}\n翌年への繰越額: ¥${kurikoshi.toLocaleString()}`+
+    (kurikoshi<0? "\n\n※繰越額がマイナスです。収入の入力漏れがないか会計帳簿側をご確認ください。":""));
 }
 
 /* ---------- CSV出力 ---------- */

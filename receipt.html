@@ -661,7 +661,7 @@ async function runOcr(id){
     await loadList(true);
     if($("mDetail").classList.contains("show")) openDetail(id);
     toast("AI解析が完了しました");
-  }catch(e){ console.error(e); toast("AI解析に失敗しました", true); }
+  }catch(e){ console.error(e); toast("AI解析に失敗: "+String(e.message||e).slice(0,60), true); }
 }
 
 /* ---------- 集計（支出者別の明細と合計・返金管理） ---------- */

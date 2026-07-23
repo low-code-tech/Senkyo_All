@@ -266,7 +266,8 @@
     <div class="preview" id="previewI" style="max-height:30dvh;">
       <div class="ph"><span class="ico">&#128461;</span>寄付申込書・振込書・名刺などを撮影<br>（名刺は「名刺」をチェック）</div>
     </div>
-    <div class="kg-label">種別（1つ選択）</div>
+    <div class="chk-line"><input type="checkbox" id="incCard" onchange="buildIncTypes()"><label for="incCard">名刺（名簿にも自動登録します）</label></div>
+    <div class="kg-label">収入の種別（寄付等がある場合に1つ選択）</div>
     <div class="inc-grid" id="incTypes"></div>
     <div class="num-row" id="incAmtRow"><label>金額</label><input type="number" id="incAmt" inputmode="numeric" placeholder="円（AIが読み取れれば自動）"></div>
     <div class="chk-line" id="incWatashiRow"><input type="checkbox" id="incWatashi"><label for="incWatashi">領収書お渡し済み</label></div>
@@ -435,8 +436,7 @@ const INCOME_TYPES=[
  {label:"法人・団体様", code:"1211002", k1:"[収入]2の1　寄附（政党匿名寄附を除く。）", k2:"(2)法人その他の団体からの寄附", roll:"2の1　寄附（政党匿名寄附を除く。）"},
  {label:"個人様",       code:"1211001", k1:"[収入]2の1　寄附（政党匿名寄附を除く。）", k2:"(1)個人からの寄附", roll:"2の1　寄附（政党匿名寄附を除く。）"},
  {label:"パーティ券",   code:"1321001", k1:"[収入]3　機関紙誌の発行その他の事業による収入", k2:"(2) 政治資金パーティー開催事業", roll:"3　機関紙誌の発行その他の事業による収入"},
- {label:"その他",       code:"1611001", k1:"[収入]6　その他の収入", k2:"", roll:null},
- {label:"名刺",         card:true}
+ {label:"その他",       code:"1611001", k1:"[収入]6　その他の収入", k2:"", roll:null}
 ];
 
 /* 権限：種別ごとの支出参照・入力可能な大項目（null=全て） */
@@ -512,7 +512,6 @@ function switchView(v){
   const tb=$("tab_"+v); if(tb) tb.classList.add("active");
   if(v==="list"||v==="incomeList"||v==="balance") loadAll(!loaded);
 }
-if(session) startApp();
 
 let toastTimer;
 function toast(msg,err){ const t=$("toast"); t.textContent=msg; t.className=err?"err show":"show";
@@ -645,18 +644,17 @@ function buildIncTypes(){
     const on=selInc===t.label;
     return `<div class="cat${on?" on":""}" onclick="tapInc('${esc(t.label)}')">${esc(t.label)}</div>`;
   }).join("");
-  const isCard=selInc==="名刺";
-  $("incAmtRow").style.display=isCard?"none":"";
-  $("incWatashiRow").style.display=isCard?"none":"";
 }
 function tapInc(l){ selInc=(selInc===l? null:l); buildIncTypes(); }
 async function saveIncome(){
   if(!curFileI){ toast("先に写真撮影をしてください",true); return; }
-  if(!selInc){ toast("種別を選んでください",true); return; }
+  const isCard=$("incCard").checked;
+  if(!isCard && !selInc){ toast("名刺にチェックするか、収入の種別を選んでください",true); return; }
   const btn=$("btnSaveI"); btn.disabled=true; btn.innerHTML='<span class="spinner"></span>保存中…';
   try{
     const {path,thumbPath}=await uploadPair(curFileI);
-    if(selInc==="名刺"){
+    const done=[];
+    if(isCard){
       /* 名刺→名簿AI-OCRを流用（postersにcat_cardで登録） */
       const rec={media_path:path, thumb_path:thumbPath, media_type:"image",
         memo:$("memoI").value.trim(), cat_card:true};
@@ -667,8 +665,9 @@ async function saveIncome(){
       const row=(await ins.json())[0];
       sb(`/functions/v1/${POSTER_OCR_FN}`,{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({id:row.id})}).catch(()=>{});
-      toast("名刺を保存しました（AIが名簿に自動登録します）");
-    }else{
+      done.push("名刺→名簿");
+    }
+    if(selInc){
       const rec={media_path:path, thumb_path:thumbPath, income_type:selInc,
         kingaku:$("incAmt").value? parseInt($("incAmt").value,10):null,
         ryoshusho_watashi:$("incWatashi").checked,
@@ -680,10 +679,11 @@ async function saveIncome(){
       const row=(await ins.json())[0];
       sb(`/functions/v1/${OCR_FN}`,{method:"POST",headers:{"Content-Type":"application/json"},
         body:JSON.stringify({id:row.id, kind:"income"})}).catch(()=>{});
-      toast("収入を保存しました（寄付者名等はAIが自動入力します）");
+      done.push("収入（"+selInc+"）");
     }
+    toast("保存しました：" + done.join(" ＋ ") + "（詳細はAIが自動入力します）");
     curFileI=null; $("fileI").value=""; $("memoI").value=""; $("incAmt").value="";
-    $("incWatashi").checked=false; selInc=null; buildIncTypes();
+    $("incWatashi").checked=false; $("incCard").checked=false; selInc=null; buildIncTypes();
     $("previewI").innerHTML='<div class="ph"><span class="ico">&#128461;</span>寄付申込書・振込書・名刺などを撮影<br>（名刺は「名刺」をチェック）</div>';
     loaded=false;
   }catch(e){ console.error(e); toast("保存に失敗: "+String(e.message).slice(0,50),true); }
@@ -1249,6 +1249,10 @@ function exportCsv(){
   a.download=`支出一覧_${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
 }
+
+/* ---------- 起動（すべての定義が終わった最後に実行） ---------- */
+if(session) startApp();
+
 </script>
 </body>
 </html>

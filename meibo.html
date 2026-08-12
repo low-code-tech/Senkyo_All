@@ -30,12 +30,16 @@
   @keyframes pulse{50%{box-shadow:0 0 0 8px rgba(181,64,59,.25);}}
   #count{font-size:12px; color:var(--sub); margin-bottom:8px;}
   .tbl-wrap{overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:10px;}
-  table{border-collapse:collapse; width:100%; min-width:980px;}
+  table{border-collapse:collapse; width:100%; min-width:1160px;}
   th,td{border-bottom:1px solid var(--line); padding:8px 9px; font-size:13px; text-align:left; vertical-align:top;}
   th{background:var(--navy); color:#fff; font-size:12px; white-space:nowrap; position:sticky; top:0;}
   td[contenteditable]{min-width:90px; outline:none;}
   td[contenteditable]:focus{background:#E9EFFA; box-shadow:inset 0 0 0 2px var(--navy2); border-radius:4px;}
   td.ro{color:var(--sub); font-size:12px; white-space:nowrap;}
+  td.memo-cell{
+    color:var(--text); font-size:12px; min-width:160px; max-width:260px;
+    white-space:pre-wrap; word-break:break-all; line-height:1.6;
+  }
   td a{color:var(--navy2);}
   .del{border:none; background:none; color:var(--red); font-weight:700; cursor:pointer; font-size:12px;}
   .empty{color:var(--sub); text-align:center; padding:40px 0; line-height:1.8;}
@@ -50,7 +54,7 @@
 <body>
 <h1>名簿（名刺のAI読み取り結果）</h1>
 <div class="bar">
-  <input id="q" placeholder="氏名・会社・住所などで検索" oninput="render()">
+  <input id="q" placeholder="氏名・会社・住所・メモなどで検索" oninput="render()">
   <button class="mic" id="micQ" onclick="toggleMic()" title="音声入力">&#127908;</button>
   <button class="btn sub" onclick="load()">検索</button>
   <button class="btn" onclick="csv(false)">CSV（全項目）</button>
@@ -61,7 +65,7 @@
   <table>
     <thead><tr>
       <th>氏名</th><th>会社団体</th><th>役職</th><th>郵便番号</th><th>住所</th>
-      <th>電話</th><th>メール</th><th>備考</th><th>撮影日</th><th>写真</th><th></th>
+      <th>電話</th><th>メール</th><th>備考</th><th>メモ（撮影時）</th><th>撮影日</th><th>写真</th><th></th>
     </tr></thead>
     <tbody id="tb"></tbody>
   </table>
@@ -72,6 +76,7 @@
 </div>
 <p class="note">
   ・セルをタップするとその場で修正でき、別のセルに移ると自動保存されます。<br>
+  ・「メモ（撮影時）」は選挙情報管理アプリで写真に付けたメモです。修正はアプリの詳細画面から行ってください。<br>
   ・「CSV（シート4列形式）」は パーティ送付先リスト と同じ「団体役職・氏名・郵便番号・住所」の4列で出力します（Google Sheetsにそのまま貼り付け可）。
 </p>
 <div id="toast"></div>
@@ -129,7 +134,7 @@ let rows=[];
 async function load(){
   $("count").textContent="読み込み中…";
   try{
-    const res=await sb(`/rest/v1/meibo?select=*,posters(created_at,media_path,thumb_path)&order=created_at.desc&limit=2000`);
+    const res=await sb(`/rest/v1/meibo?select=*,posters(created_at,media_path,thumb_path,memo)&order=created_at.desc&limit=2000`);
     if(!res.ok) throw new Error(await res.text());
     rows=await res.json();
     render();
@@ -140,12 +145,14 @@ function fmtD(iso){ if(!iso) return ""; const d=new Date(iso);
   const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())}`; }
 
+function posterMemo(r){ return (r.posters && r.posters.memo) ? r.posters.memo : ""; }
+
 function render(){
   const q=$("q").value.trim().toLowerCase();
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(!terms.length) return true;
-    const hay=COLS.map(c=>r[c]||"").join(" ").toLowerCase();
+    const hay=(COLS.map(c=>r[c]||"").join(" ")+" "+posterMemo(r)).toLowerCase();
     return terms.every(t=>hay.includes(t));
   });
   $("count").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
@@ -160,6 +167,7 @@ function render(){
       ? `<a href="${full}" target="_blank" rel="noopener"><img src="${th}" style="width:46px;height:46px;object-fit:cover;border-radius:6px;border:1px solid var(--line);" onerror="this.outerHTML='写真なし';"></a>`
       : "写真なし";
     return `<tr>${cells}
+      <td class="memo-cell">${esc(posterMemo(r))}</td>
       <td class="ro">${fmtD(p.created_at)}</td>
       <td class="ro">${photo}</td>
       <td class="ro"><button class="del" onclick="del('${r.id}')">削除</button></td></tr>`;
@@ -200,8 +208,8 @@ function csv(sheet4){
       r["氏名"], r["郵便番号"], r["住所"]
     ]);
   }else{
-    head=[...COLS,"撮影日"];
-    body=rows.map(r=>[...COLS.map(c=>r[c]), fmtD(r.posters&&r.posters.created_at)]);
+    head=[...COLS,"メモ（撮影時）","撮影日"];
+    body=rows.map(r=>[...COLS.map(c=>r[c]), posterMemo(r), fmtD(r.posters&&r.posters.created_at)]);
   }
   const text="\uFEFF"+[head,...body].map(a=>a.map(q).join(",")).join("\r\n");
   const a=document.createElement("a");

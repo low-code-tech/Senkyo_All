@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1F3864">
+<title>街頭演説記録</title>
+<style>
+  :root{--navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --line:#C8D2E4; --text:#1A2333;
+        --sub:#5A6B8C; --red:#B5403B; --green:#2E7D52; --amber:#B7791F;}
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+       background:var(--bg); color:var(--text); font-size:15px; padding-bottom:40px;}
+  header{position:sticky; top:0; z-index:20; background:var(--navy); color:#fff;
+         padding:calc(env(safe-area-inset-top,0px) + 10px) 12px 0;}
+  .hrow{display:flex; align-items:center; justify-content:space-between; max-width:680px; margin:0 auto;}
+  h1{font-size:17px;}
+  .hrow a{color:#cfe0ff; font-size:12px; text-decoration:none;}
+  nav{display:flex; max-width:680px; margin:8px auto 0;}
+  .tab{flex:1; background:none; border:none; color:#b9c8e6; font-size:14px; font-weight:700;
+       padding:10px 0 11px; border-bottom:3px solid transparent; cursor:pointer;}
+  .tab.on{color:#fff; border-bottom-color:#7FB2FF;}
+  main{max-width:680px; margin:0 auto; padding:12px;}
+  section{display:none;} section.on{display:block;}
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:12px;}
+  .ttl{font-weight:700; color:var(--navy); font-size:15px; margin-bottom:10px;
+       border-left:4px solid var(--navy2); padding-left:8px;}
+  label.f{display:block; font-size:12px; color:var(--sub); margin-top:10px;}
+  input,select,textarea{width:100%; border:1.5px solid var(--line); border-radius:8px; padding:10px 11px;
+       font-size:16px; background:#fff; color:var(--text); font-family:inherit; margin-top:4px;}
+  input:focus,select:focus,textarea:focus{outline:none; border-color:var(--navy2);}
+  textarea{resize:vertical;}
+  .btn{border:none; border-radius:9px; font-weight:700; font-size:14px; padding:11px 14px; cursor:pointer;
+       background:var(--navy2); color:#fff; font-family:inherit;}
+  .btn:disabled{opacity:.5;}
+  .btn.sub{background:#E3EAF6; color:var(--navy);}
+  .btn.ghost{background:none; color:var(--sub); text-decoration:underline; font-weight:400;}
+  .btn.big{font-size:17px; padding:15px 10px;}
+  .btn.green{background:var(--green);} .btn.red{background:var(--red);}
+  .btn.full{width:100%; display:block;}
+  .btn.sm{font-size:12px; padding:7px 10px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .timer{font-size:40px; font-weight:800; text-align:center; letter-spacing:2px; color:var(--sub);
+         font-variant-numeric:tabular-nums; margin:2px 0 10px;}
+  .timer.live{color:var(--green);}
+  .timer.warn{color:var(--red); font-size:15px; letter-spacing:0;}
+  .dur{margin-top:10px; font-size:14px;} .dur b{font-size:17px; color:var(--navy);}
+  .note{font-size:12px; color:var(--sub); margin-top:8px; line-height:1.6;}
+  .note.err{color:var(--red);}
+  .note a{color:var(--navy2);}
+  .inrow{display:flex; gap:6px; align-items:stretch;} .inrow input{flex:1;}
+  .mic{border:1.5px solid var(--line); background:#fff; border-radius:8px; font-size:18px; padding:0 12px;
+       cursor:pointer; margin-top:4px;}
+  .mic.on{background:var(--red); border-color:var(--red); color:#fff; animation:pulse 1.2s infinite;}
+  .mic.wide{width:100%; padding:10px; font-size:15px; font-weight:700; color:var(--navy);}
+  .mic.wide.on{color:#fff;}
+  @keyframes pulse{50%{opacity:.6;}}
+  .clab{font-size:12px; font-weight:700; color:var(--sub); margin:12px 0 6px;}
+  .cand{display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:#F7F9FD;
+        border:1.5px solid var(--line); border-radius:9px; padding:9px 10px; margin-bottom:6px;
+        cursor:pointer; font-family:inherit; font-size:15px; color:var(--text);}
+  .cand.sel{border-color:var(--navy2); background:#E3EDFF;}
+  .cand .ci{font-size:20px; width:26px; text-align:center;}
+  .cand small{display:block; font-size:11px; color:var(--sub); margin-top:2px;}
+  .item{border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; background:#FAFBFE;}
+  .irow{display:flex; gap:6px;} .irow select{flex:1; margin-top:0;}
+  .x{border:none; background:none; color:var(--red); font-size:18px; padding:0 8px; cursor:pointer;}
+  .cnt{display:flex; gap:5px; margin-top:8px; align-items:center;}
+  .cnt input{width:80px; flex:none; text-align:center; margin-top:0; font-weight:700;}
+  .cnt button{border:1.5px solid var(--line); background:#fff; border-radius:8px; padding:9px 0;
+       font-weight:700; font-size:14px; flex:1; cursor:pointer; color:var(--navy); font-family:inherit;}
+  .banner{background:#FFF4DC; border:1px solid #E8C979; color:#6B4E10; border-radius:10px; padding:10px 12px;
+          margin-bottom:12px; font-size:13px; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .filters{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+  .filters label{font-size:12px; color:var(--sub);}
+  .qbtns{display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+  .qbtns .btn{flex:1;}
+  .sum{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; text-align:center;}
+  .sum div{background:#F3F6FC; border-radius:9px; padding:8px 4px;}
+  .sum b{display:block; font-size:19px; color:var(--navy);} .sum span{font-size:11px; color:var(--sub);}
+  .ptot{margin-top:10px; font-size:13px; line-height:1.8;}
+  .rec{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px;}
+  .rec .d{font-size:12px; color:var(--sub);}
+  .rec .p{font-size:17px; font-weight:700; margin:3px 0 6px; color:var(--navy);}
+  .chips{display:flex; flex-wrap:wrap; gap:5px;}
+  .chip{background:#E3EAF6; color:var(--navy); border-radius:99px; padding:3px 10px; font-size:12px; font-weight:700;}
+  .chip.none{background:#eee; color:#888; font-weight:400;}
+  .rec .m{font-size:13px; margin-top:8px; white-space:pre-wrap; line-height:1.6; background:#FAFBFE;
+          border-radius:8px; padding:7px 9px;}
+  .acts{display:flex; gap:6px; margin-top:10px; justify-content:flex-end; flex-wrap:wrap;}
+  .pm{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:10px;}
+  .pm.off{opacity:.55;}
+  .pm .n{font-size:16px; font-weight:700; color:var(--navy);}
+  .tag{display:inline-block; font-size:11px; border-radius:6px; padding:1px 7px; margin-left:6px;
+       background:#E3EAF6; color:var(--navy); font-weight:700; vertical-align:2px;}
+  .tag.off{background:#eee; color:#777;}
+  .pm .s{font-size:13px; color:var(--sub); margin-top:4px; line-height:1.6;}
+  .stock{font-size:13px; margin-top:6px;} .stock b{color:var(--navy);} .stock .low{color:var(--red);}
+  .chk{display:flex; align-items:center; gap:8px; margin-top:12px; font-size:14px;}
+  .chk input{width:auto; margin:0; transform:scale(1.3);}
+  .empty{text-align:center; color:var(--sub); padding:30px 10px; font-size:14px; line-height:1.8;}
+  #toast{position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom,0px) + 22px); transform:translateX(-50%);
+    background:var(--navy); color:#fff; font-size:13px; font-weight:700; padding:10px 18px;
+    border-radius:99px; display:none; z-index:100; max-width:92vw; text-align:center;}
+  #toast.err{background:var(--red);} #toast.show{display:block;}
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow"><h1>街頭演説記録</h1><a href="/">メインへ</a></div>
+  <nav>
+    <button class="tab on" data-t="rec">記録</button>
+    <button class="tab" data-t="hist">履歴・集計</button>
+    <button class="tab" data-t="pam">配布物登録</button>
+  </nav>
+</header>
+
+<main>
+<!-- ============ 記録 ============ -->
+<section id="v-rec" class="on">
+  <div class="banner" id="editBanner" hidden>
+    <span id="editTxt">過去の記録を編集中</span>
+    <button class="btn sm sub" onclick="resetForm()">編集をやめる</button>
+  </div>
+
+  <div class="card">
+    <div class="ttl">① 日時・滞在時間</div>
+    <div class="timer" id="timer">--:--:--</div>
+    <div class="row2">
+      <button class="btn big green" onclick="startNow()">▶ 演説開始</button>
+      <button class="btn big red" onclick="endNow()">■ 演説終了</button>
+    </div>
+    <label class="f">開始日時<input type="datetime-local" id="fStart" onchange="onTimeEdit()"></label>
+    <label class="f">終了日時<input type="datetime-local" id="fEnd" onchange="onTimeEdit()"></label>
+    <div class="dur">滞在時間：<b id="durTxt">-</b></div>
+    <p class="note">開始・終了ボタンで今の時刻が入ります。後から記録する場合は日時を直接入力してください。</p>
+  </div>
+
+  <div class="card">
+    <div class="ttl">② 場所</div>
+    <button class="btn sub full" onclick="locate()">📍 現在地から周辺の目印を探す</button>
+    <div id="gpsInfo" class="note"></div>
+    <div id="cands"></div>
+    <button class="btn ghost" id="btnWiden" onclick="widen()" hidden>もっと広い範囲で探す</button>
+    <label class="f">場所名（候補をタップして修正／直接入力もできます）
+      <div class="inrow">
+        <input id="fPlace" placeholder="例：JR磯子駅前" oninput="onPlaceInput()">
+        <button class="mic" data-target="fPlace" title="音声入力">🎤</button>
+      </div>
+    </label>
+  </div>
+
+  <div class="card">
+    <div class="ttl">③ 配布物</div>
+    <div id="items"></div>
+    <button class="btn sub full" onclick="addItem()">＋ 配布物を追加</button>
+    <div class="dur">配布合計：<b id="totTxt">0</b> 部</div>
+  </div>
+
+  <div class="card">
+    <div class="ttl">④ メモ</div>
+    <textarea id="fMemo" rows="4" placeholder="反応・気づいたこと・声をかけてきた方 など" oninput="saveDraft()"></textarea>
+    <button class="mic wide" data-target="fMemo">🎤 音声でメモを入力</button>
+  </div>
+
+  <button class="btn big full" id="btnSave" onclick="save()">記録を保存</button>
+  <div style="text-align:center; margin-top:6px;">
+    <button class="btn ghost" id="btnClear" onclick="clearForm()">入力をすべてクリア</button>
+  </div>
+</section>
+
+<!-- ============ 履歴・集計 ============ -->
+<section id="v-hist">
+  <div class="card">
+    <div class="filters">
+      <label>開始日<input type="date" id="hFrom"></label>
+      <label>終了日<input type="date" id="hTo"></label>
+    </div>
+    <div class="inrow" style="margin-top:8px;">
+      <input id="hQ" placeholder="場所・メモで絞り込み" oninput="renderHist()">
+      <button class="mic" data-target="hQ" title="音声入力">🎤</button>
+    </div>
+    <div class="qbtns">
+      <button class="btn sub" onclick="quickRange('today')">今日</button>
+      <button class="btn sub" onclick="quickRange('week')">直近7日</button>
+      <button class="btn sub" onclick="quickRange('all')">全期間</button>
+      <button class="btn" onclick="loadHist()">表示</button>
+    </div>
+  </div>
+  <div class="card" id="sumCard"></div>
+  <div id="histList"></div>
+  <button class="btn full" onclick="csvHist()">CSVで出力（Excel用）</button>
+</section>
+
+<!-- ============ 配布物登録 ============ -->
+<section id="v-pam">
+  <div class="card">
+    <div class="ttl" id="pTtl">配布物を登録</div>
+    <label class="f">名称（必須）<input id="pName" placeholder="例：政策ビラ第1号"></label>
+    <label class="f">種別<select id="pKind"></select></label>
+    <label class="f">版・説明<input id="pDesc" placeholder="例：9月改訂版／子育て政策中心"></label>
+    <div class="row2">
+      <label class="f">印刷部数<input type="number" inputmode="numeric" min="0" id="pPrinted" placeholder="0"></label>
+      <label class="f">表示順（小さい順）<input type="number" inputmode="numeric" id="pSort" placeholder="0"></label>
+    </div>
+    <label class="f">PDFファイル（印刷用データ）<input type="file" id="pFile" accept="application/pdf,.pdf"></label>
+    <div id="pCurPdf" class="note"></div>
+    <label class="chk"><input type="checkbox" id="pActive" checked>記録画面の選択肢に表示する</label>
+    <div id="pMsg" class="note"></div>
+    <div class="row2" style="margin-top:12px;">
+      <button class="btn" id="btnPSave" onclick="savePam()">登録する</button>
+      <button class="btn sub" onclick="resetPamForm()">クリア</button>
+    </div>
+  </div>
+  <div id="pamList"></div>
+</section>
+</main>
+
+<div id="toast"></div>
+
+<script>
+/* ================================================================
+   設定（選挙情報管理アプリ本体と同じ値）
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const BUCKET   = "poster-media";   // PDFは pamphlets/ フォルダに保存
+const PASSCODE = "sano2026";       // ""で無効化
+const T_SP = "speeches";
+const T_PM = "pamphlets";
+const PDF_DIR = "pamphlets";
+const KINDS = ["ビラ","パンフレット","チラシ","リーフレット","はがき","ポスター","その他"];
+const DRAFT_KEY = "enzetsu_draft_v1";
+const STASH_KEY = "enzetsu_stash_v1";
+/* ================================================================ */
+
+const $ = id => document.getElementById(id);
+const sb = (p,o={}) => fetch(SUPABASE_URL+p,{...o,headers:{
+  "apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,...(o.headers||{})}});
+const pubUrl = p => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+
+/* ---------- パスコード ---------- */
+if(PASSCODE && localStorage.getItem("poster_gate")!=="ok"){
+  const v=prompt("パスコードを入力してください");
+  if(v===PASSCODE) localStorage.setItem("poster_gate","ok");
+  else{ document.body.innerHTML="<p style='padding:20px'>パスコードが違います。再読み込みしてやり直してください。</p>"; throw new Error("gate"); }
+}
+
+/* ---------- 共通 ---------- */
+let toastTimer;
+function toast(m,err){ const t=$("toast"); t.textContent=m; t.className=err?"err show":"show";
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), err?4000:2400); }
+
+async function api(path,opt={}){
+  const r=await sb(path,opt);
+  const tx=await r.text().catch(()=> "");
+  if(!r.ok) throw new Error(`${r.status} ${tx.slice(0,160)}`);
+  if(!tx) return null;
+  try{ return JSON.parse(tx); }catch(e){ return null; }
+}
+const JSONH = {"Content-Type":"application/json","Prefer":"return=minimal"};
+
+const pad = n => String(n).padStart(2,"0");
+const WD = "日月火水木金土";
+function toLocalInput(v){ if(!v) return ""; const d=new Date(v);
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fromLocalInput(s){ const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s||"");
+  return m? new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]) : null; }
+function dayStart(s){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||""); return m? new Date(+m[1],+m[2]-1,+m[3]) : null; }
+function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function fmtDate(v){ const d=new Date(v); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; }
+function fmtTime(v){ const d=new Date(v); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function calcMin(s,e){ return Math.max(0, Math.round((new Date(e)-new Date(s))/60000)); }
+function fmtMin(n){ if(n==null||isNaN(n)) return "-"; if(n<60) return `${n}分`;
+  return `${Math.floor(n/60)}時間${n%60? (n%60)+"分" : ""}`; }
+function dist(a1,o1,a2,o2){ const R=6371000, r=x=>x*Math.PI/180;
+  const dA=r(a2-a1), dO=r(o2-o1);
+  const h=Math.sin(dA/2)**2 + Math.cos(r(a1))*Math.cos(r(a2))*Math.sin(dO/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h)); }
+const num = v => { const n=parseInt(v,10); return isNaN(n)||n<0 ? 0 : n; };
+
+/* ---------- タブ ---------- */
+document.querySelectorAll(".tab").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.t)));
+function showTab(t){
+  document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on", b.dataset.t===t));
+  document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on", s.id==="v-"+t));
+  window.scrollTo(0,0);
+  if(t==="hist") loadHist();
+  if(t==="pam") refreshPamTab();
+}
+
+/* ---------- 音声入力（🎤ボタン共通） ---------- */
+let recog=null;
+document.addEventListener("click", e=>{ const b=e.target.closest(".mic"); if(b) toggleMic(b); });
+function toggleMic(btn){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ toast("この端末・ブラウザは音声入力に対応していません",true); return; }
+  if(recog){ recog.stop(); return; }
+  const target=$(btn.dataset.target);
+  recog=new SR(); recog.lang="ja-JP"; recog.interimResults=false; recog.continuous=true;
+  recog.onresult=ev=>{
+    let txt="";
+    for(let i=ev.resultIndex;i<ev.results.length;i++) if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
+    if(!txt) return;
+    const sep = target.tagName==="TEXTAREA" ? "\n" : " ";
+    target.value = target.value ? target.value.replace(/\s+$/,"")+sep+txt : txt;
+    target.dispatchEvent(new Event("input"));
+  };
+  recog.onerror=ev=>{ if(ev.error==="not-allowed") toast("マイクの使用が許可されていません",true); };
+  recog.onend=()=>{ recog=null; document.querySelectorAll(".mic.on").forEach(x=>x.classList.remove("on")); };
+  try{ recog.start(); btn.classList.add("on"); toast("話してください（もう一度押すと終了）"); }
+  catch(e){ recog=null; toast("音声入力を開始できませんでした",true); }
+}
+
+/* ================================================================
+   記録フォーム
+================================================================ */
+let st = blank();
+function blank(){ return {editId:null, editLabel:"", start:null, end:null, place:"", lat:null, lng:null, acc:null, items:[], memo:""}; }
+
+function saveDraft(){
+  st.place=$("fPlace").value; st.memo=$("fMemo").value;
+  try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(st)); }catch(e){}
+}
+function loadDraft(){
+  try{ const s=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"); if(s&&typeof s==="object") st={...blank(),...s}; }catch(e){}
+}
+function renderForm(){
+  $("fStart").value=toLocalInput(st.start);
+  $("fEnd").value=toLocalInput(st.end);
+  $("fPlace").value=st.place||"";
+  $("fMemo").value=st.memo||"";
+  $("editBanner").hidden=!st.editId;
+  $("editTxt").textContent = st.editId ? `過去の記録を編集中：${st.editLabel}` : "";
+  $("btnSave").textContent = st.editId ? "変更を保存" : "記録を保存";
+  $("btnClear").hidden = !!st.editId;
+  showGps(); renderItems(); tick();
+}
+
+function startNow(){
+  if(st.start && !confirm("開始時刻を今の時刻に入れ直しますか？")) return;
+  st.start=new Date().toISOString(); st.end=null;
+  renderForm(); saveDraft();
+  if(st.lat==null) locate();
+}
+function endNow(){
+  if(!st.start){ toast("先に「演説開始」を押してください",true); return; }
+  if(st.end && !confirm("終了時刻を今の時刻に入れ直しますか？")) return;
+  st.end=new Date().toISOString();
+  renderForm(); saveDraft();
+  toast("終了しました。配布数を入力して保存してください");
+}
+function onTimeEdit(){
+  const s=fromLocalInput($("fStart").value), e=fromLocalInput($("fEnd").value);
+  st.start = s? s.toISOString() : null;
+  st.end   = e? e.toISOString() : null;
+  saveDraft(); tick();
+}
+function tick(){
+  const tm=$("timer");
+  const s=st.start? new Date(st.start):null, e=st.end? new Date(st.end):null;
+  tm.className="timer";
+  if(!s){ tm.textContent="--:--:--"; $("durTxt").textContent="-"; return; }
+  const ms=(e||new Date())-s;
+  if(ms<0){ tm.textContent="終了が開始より前になっています"; tm.classList.add("warn"); $("durTxt").textContent="-"; return; }
+  const sec=Math.floor(ms/1000);
+  tm.textContent=`${pad(Math.floor(sec/3600))}:${pad(Math.floor(sec%3600/60))}:${pad(sec%60)}`;
+  if(!e) tm.classList.add("live");
+  $("durTxt").textContent = e ? fmtMin(calcMin(s,e)) : "計測中";
+}
+setInterval(tick,1000);
+
+/* ---------- 配布物（記録側） ---------- */
+function pamOptions(it){
+  let h='<option value="">（選択してください）</option>';
+  h+=pams.filter(p=>p.active||p.id===it.pid).map(p=>
+    `<option value="${p.id}" ${p.id===it.pid?"selected":""}>${esc(p.name)}${p.kind?"（"+esc(p.kind)+"）":""}</option>`).join("");
+  if(it.pid && !pams.some(p=>p.id===it.pid))
+    h+=`<option value="${it.pid}" selected>${esc(it.name||"削除済みの配布物")}</option>`;
+  return h;
+}
+function renderItems(){
+  const box=$("items");
+  if(!st.items.length){
+    box.innerHTML = pamsLoaded && !pams.some(p=>p.active)
+      ? '<p class="note">配布物が未登録です。「配布物登録」タブで登録してください。</p>'
+      : '<p class="note">配布物なし（演説のみ）。配る場合は「＋ 配布物を追加」を押してください。</p>';
+  }else{
+    box.innerHTML = st.items.map((it,i)=>`
+      <div class="item">
+        <div class="irow">
+          <select onchange="setPid(${i},this.value)">${pamOptions(it)}</select>
+          <button class="x" onclick="delItem(${i})" title="この行を削除">✕</button>
+        </div>
+        <div class="cnt">
+          <button onclick="addCnt(${i},-1)">−1</button>
+          <input type="number" inputmode="numeric" min="0" id="cnt${i}" value="${num(it.count)}" onchange="setCnt(${i},this.value)" onfocus="this.select()">
+          <button onclick="addCnt(${i},1)">＋1</button>
+          <button onclick="addCnt(${i},10)">＋10</button>
+          <button onclick="addCnt(${i},50)">＋50</button>
+        </div>
+      </div>`).join("");
+  }
+  updTotal();
+}
+function updTotal(){ $("totTxt").textContent = st.items.reduce((a,it)=>a+(it.pid?num(it.count):0),0).toLocaleString(); }
+function setPid(i,v){ st.items[i].pid = v? Number(v) : null; const p=pams.find(x=>x.id===st.items[i].pid); if(p) st.items[i].name=p.name; updTotal(); saveDraft(); }
+function setCnt(i,v){ st.items[i].count=num(v); $("cnt"+i).value=st.items[i].count; updTotal(); saveDraft(); }
+function addCnt(i,d){ st.items[i].count=Math.max(0, num(st.items[i].count)+d); $("cnt"+i).value=st.items[i].count; updTotal(); saveDraft(); }
+function delItem(i){ st.items.splice(i,1); renderItems(); saveDraft(); }
+function addItem(){
+  const used=new Set(st.items.map(x=>x.pid));
+  const p=pams.find(x=>x.active && !used.has(x.id));
+  st.items.push({pid:p?p.id:null, name:p?p.name:"", count:0});
+  renderItems(); saveDraft();
+}
+
+/* ---------- 場所：GPS → 周辺の目印 ---------- */
+let radius=300, candSeq=0, pastCache=null;
+function locate(){
+  if(!navigator.geolocation){ toast("この端末は位置情報に対応していません",true); return; }
+  $("gpsInfo").textContent="現在地を取得しています…";
+  navigator.geolocation.getCurrentPosition(p=>{
+    st.lat=p.coords.latitude; st.lng=p.coords.longitude; st.acc=Math.round(p.coords.accuracy||0);
+    saveDraft(); showGps(); radius=300; findCands();
+  }, err=>{
+    $("gpsInfo").innerHTML=`<span class="err">現在地を取得できませんでした（${esc(err.message)}）。場所名を直接入力してください。</span>`;
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+}
+function showGps(){
+  if(st.lat==null){ $("gpsInfo").innerHTML=""; return; }
+  $("gpsInfo").innerHTML = `位置を記録済み${st.acc?`（誤差 約${st.acc}m）`:""}　`+
+    `<a href="https://www.google.com/maps?q=${st.lat},${st.lng}" target="_blank" rel="noopener">地図で確認</a>`;
+}
+function widen(){ radius = radius<700 ? 700 : 1200; findCands(); }
+
+async function findCands(){
+  if(st.lat==null) return;
+  const my=++candSeq;
+  $("cands").innerHTML='<p class="note">周辺の目印（駅・店・施設など）を探しています…</p>';
+  $("btnWiden").hidden=true;
+  const [past, osm] = await Promise.all([
+    pastPlaces(st.lat,st.lng).catch(()=>[]),
+    osmPlaces(st.lat,st.lng,radius).catch(e=>({err:e.message}))
+  ]);
+  if(my!==candSeq) return;
+  const cur=$("fPlace").value.trim();
+  const btn=(icon,label,sub)=>`<button class="cand${label===cur?" sel":""}" data-label="${esc(label)}" onclick="pickCand(this)">
+      <span class="ci">${icon}</span><span>${esc(label)}<small>${esc(sub)}</small></span></button>`;
+  let h="";
+  if(past.length){
+    h+='<div class="clab">🕘 過去に演説した場所（近い順）</div>'+
+       past.map(p=>btn("🕘",p.label,`約${Math.round(p.d)}m・${p.n}回`)).join("");
+  }
+  if(osm.err){
+    h+='<p class="note err">周辺の目印を取得できませんでした（通信が混み合っている可能性）。少し待って再度お試しいただくか、場所名を直接入力してください。</p>';
+  }else if(osm.length){
+    h+=`<div class="clab">📍 周辺の目印（半径${radius}m・駅は800m）</div>`+
+       osm.map(o=>btn(o.icon,o.label,`${o.kind}・約${Math.round(o.d)}m`)).join("");
+  }else{
+    h+='<p class="note">この範囲に目印が見つかりませんでした。範囲を広げるか、直接入力してください。</p>';
+  }
+  $("cands").innerHTML=h;
+  $("btnWiden").hidden = radius>=1200;
+}
+function pickCand(b){
+  $("fPlace").value=b.dataset.label; saveDraft();
+  document.querySelectorAll(".cand").forEach(x=>x.classList.toggle("sel", x===b));
+  toast("場所をセットしました（必要なら修正できます）");
+}
+function onPlaceInput(){
+  saveDraft();
+  const v=$("fPlace").value.trim();
+  document.querySelectorAll(".cand").forEach(x=>x.classList.toggle("sel", x.dataset.label===v));
+}
+
+async function pastPlaces(lat,lng){
+  if(!pastCache) pastCache = await api(`/rest/v1/${T_SP}?select=place,lat,lng&lat=not.is.null&order=id.desc&limit=3000`) || [];
+  const m=new Map();
+  for(const r of pastCache){
+    if(!r.place || r.lat==null) continue;
+    const d=dist(lat,lng,r.lat,r.lng); if(d>400) continue;
+    const k=r.place.trim(); const o=m.get(k);
+    if(o){ o.n++; o.d=Math.min(o.d,d); } else m.set(k,{label:k,d,n:1});
+  }
+  return [...m.values()].sort((a,b)=>a.d-b.d).slice(0,6);
+}
+
+/* OpenStreetMap（Overpass API）で周辺の名前付き施設を取得 */
+const OVERPASS=[
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+  "https://maps.mail.ru/osm/tools/overpass/api/interpreter"
+];
+function buildQuery(lat,lng,r){
+  const a=`(around:${r},${lat},${lng})`, s=`(around:${Math.max(r,800)},${lat},${lng})`;
+  return `[out:json][timeout:20];(
+nwr${s}["railway"="station"]["name"];
+nwr${a}["shop"~"^(supermarket|convenience|department_store|mall|drugstore|chemist|doityourself|hardware)$"]["name"];
+nwr${a}["amenity"~"^(townhall|post_office|bank|school|university|college|hospital|clinic|library|community_centre|police|fire_station|marketplace|place_of_worship|kindergarten|social_facility)$"]["name"];
+nwr${a}["leisure"~"^(park|sports_centre|stadium)$"]["name"];
+nwr${a}["highway"="bus_stop"]["name"];
+nwr${a}["office"="government"]["name"];
+nwr${a}["tourism"~"^(attraction|museum|hotel)$"]["name"];
+nwr${a}["building"]["name"]["building"!~"^(apartments|house|residential|detached|dormitory|terrace)$"];
+);out center tags;`;
+}
+async function overpass(q){
+  let last="";
+  for(const u of OVERPASS){
+    const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),20000);
+    try{
+      const r=await fetch(u,{method:"POST",body:"data="+encodeURIComponent(q),
+        headers:{"Content-Type":"application/x-www-form-urlencoded"},signal:ctl.signal});
+      if(r.ok) return await r.json();
+      last="HTTP "+r.status;
+    }catch(e){ last=e.name==="AbortError"?"timeout":e.message; }
+    finally{ clearTimeout(t); }
+  }
+  throw new Error(last||"取得失敗");
+}
+const SHOP={supermarket:"スーパー",convenience:"コンビニ",department_store:"百貨店",mall:"商業施設",
+  drugstore:"ドラッグストア",chemist:"ドラッグストア",doityourself:"ホームセンター",hardware:"ホームセンター"};
+const AMEN={townhall:["区役所・公共施設",3,"🏛"],post_office:["郵便局",2,"📮"],bank:["銀行",1.5,"🏦"],
+  school:["学校",2,"🏫"],university:["大学",2,"🏫"],college:["学校",1.5,"🏫"],hospital:["病院",2,"🏥"],
+  clinic:["医院",1,"🏥"],library:["図書館",2,"📚"],community_centre:["地区センター等",2.5,"🏢"],
+  police:["警察・交番",1.5,"👮"],fire_station:["消防署",1.5,"🚒"],marketplace:["市場",2,"🛒"],
+  place_of_worship:["寺社",1.5,"⛩"],kindergarten:["幼稚園・保育園",1,"🏫"],social_facility:["福祉施設",1,"🏢"]};
+function classify(t){
+  if(t.railway==="station") return ["駅",5,"🚉"];
+  if(t.shop) return [SHOP[t.shop]||"店舗", t.shop==="convenience"?1.5:2.5, "🛒"];
+  if(t.amenity && AMEN[t.amenity]) return AMEN[t.amenity];
+  if(t.leisure==="park") return ["公園",2.5,"🌳"];
+  if(t.leisure) return ["スポーツ施設",1.5,"🏟"];
+  if(t.highway==="bus_stop") return ["バス停",1.2,"🚏"];
+  if(t.office==="government") return ["役所",3,"🏛"];
+  if(t.tourism) return ["施設",1.5,"📍"];
+  return ["建物",1,"🏢"];
+}
+function makeLabel(t){
+  let n=(t["name:ja"]||t.name||"").trim();
+  if(!n) return "";
+  if(t.railway==="station"){
+    if(!/駅$/.test(n)) n+="駅";
+    const op=[t.operator,t.network,t["operator:ja"],t["network:ja"]].filter(Boolean).join(" ");
+    const pre=[[/JR|旅客鉄道/,"JR"],[/京浜急行|京急/,"京急"],[/東急/,"東急"],[/相模鉄道|相鉄/,"相鉄"],
+               [/横浜市営|横浜市交通局|ブルーライン|グリーンライン/,"市営地下鉄"],[/シーサイドライン/,"シーサイドライン"]];
+    for(const [re,p] of pre){ if(re.test(op) && !n.startsWith(p)){ n=p+n; break; } }
+  }
+  if(t.highway==="bus_stop") return /(バス停|停留所)$/.test(n) ? n : n+"バス停";
+  return /前$/.test(n) ? n : n+"前";
+}
+async function osmPlaces(lat,lng,r){
+  const js=await overpass(buildQuery(lat,lng,r));
+  const best=new Map();
+  for(const el of (js.elements||[])){
+    const t=el.tags||{};
+    const la=el.lat ?? el.center?.lat, lo=el.lon ?? el.center?.lon;
+    if(la==null||lo==null) continue;
+    const label=makeLabel(t); if(!label) continue;
+    const [kind,w,icon]=classify(t);
+    const d=dist(lat,lng,la,lo);
+    const score=(d+30)/w;
+    const o=best.get(label);
+    if(!o || score<o.score) best.set(label,{label,kind,icon,d,score});
+  }
+  return [...best.values()].sort((a,b)=>a.score-b.score).slice(0,20);
+}
+
+/* ---------- 保存 ---------- */
+async function save(){
+  saveDraft();
+  const place=$("fPlace").value.trim();
+  if(!st.start){ toast("開始日時を入力してください",true); return; }
+  if(!place){ toast("場所を入力してください",true); return; }
+  if(!st.end){
+    if(!confirm("終了日時が未入力です。今の時刻を終了にして保存しますか？")) return;
+    st.end=new Date().toISOString(); renderForm();
+  }
+  const s=new Date(st.start), e=new Date(st.end);
+  if(e<s){ toast("終了日時が開始日時より前になっています",true); return; }
+  const merged=new Map();
+  for(const it of st.items){
+    const c=num(it.count); if(!it.pid||c<=0) continue;
+    const p=pams.find(x=>x.id===it.pid);
+    const o=merged.get(it.pid);
+    if(o) o.count+=c; else merged.set(it.pid,{pamphlet_id:it.pid, name:p?p.name:(it.name||"不明"), count:c});
+  }
+  const noCnt = st.items.some(it=>it.pid && num(it.count)===0);
+  if(noCnt && !confirm("配布数が0の配布物があります。0の行は記録されませんが、保存しますか？")) return;
+  const items=[...merged.values()];
+  const body={started_at:s.toISOString(), ended_at:e.toISOString(), minutes:calcMin(s,e), place,
+    lat:st.lat, lng:st.lng, items, total_count:items.reduce((a,b)=>a+b.count,0),
+    memo:$("fMemo").value.trim()||null};
+  const btn=$("btnSave"); btn.disabled=true;
+  try{
+    if(st.editId) await api(`/rest/v1/${T_SP}?id=eq.${st.editId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify(body)});
+    else          await api(`/rest/v1/${T_SP}`,{method:"POST",headers:JSONH,body:JSON.stringify(body)});
+    const wasEdit=!!st.editId;
+    toast(wasEdit?"変更を保存しました":"保存しました");
+    pastCache=null; usage=null;
+    resetForm();
+    if(wasEdit) showTab("hist");
+  }catch(err){
+    toast("保存に失敗しました："+err.message,true);
+  }finally{ btn.disabled=false; }
+}
+
+/* 編集終了・保存後：編集前に記録中だった内容があれば戻す */
+function resetForm(){
+  let restored=false;
+  if(st.editId){
+    try{ const s=JSON.parse(localStorage.getItem(STASH_KEY)||"null"); if(s){ st={...blank(),...s}; restored=true; } }catch(e){}
+    localStorage.removeItem(STASH_KEY);
+  }
+  if(!restored){ st=blank(); addDefaultItem(); }
+  $("cands").innerHTML=""; $("btnWiden").hidden=true;
+  saveDraft(); renderForm();
+}
+function clearForm(){
+  if(!confirm("入力中の内容をすべて消去しますか？")) return;
+  st=blank(); addDefaultItem(); $("cands").innerHTML=""; $("btnWiden").hidden=true;
+  saveDraft(); renderForm();
+}
+function addDefaultItem(){
+  if(st.items.length) return;
+  const p=pams.find(x=>x.active);
+  if(p) st.items.push({pid:p.id, name:p.name, count:0});
+}
+
+/* ================================================================
+   履歴・集計
+================================================================ */
+let histRows=[];
+function quickRange(k){
+  const t=new Date();
+  if(k==="all"){ $("hFrom").value=""; $("hTo").value=""; }
+  else if(k==="today"){ $("hFrom").value=ymd(t); $("hTo").value=ymd(t); }
+  else { const f=new Date(t); f.setDate(f.getDate()-6); $("hFrom").value=ymd(f); $("hTo").value=ymd(t); }
+  loadHist();
+}
+async function loadHist(){
+  $("histList").innerHTML='<p class="empty">読み込み中…</p>';
+  let q=`/rest/v1/${T_SP}?select=*&order=started_at.desc&limit=2000`;
+  const f=dayStart($("hFrom").value), t=dayStart($("hTo").value);
+  if(f) q+=`&started_at=gte.${encodeURIComponent(f.toISOString())}`;
+  if(t){ t.setDate(t.getDate()+1); q+=`&started_at=lt.${encodeURIComponent(t.toISOString())}`; }
+  try{ histRows = await api(q) || []; renderHist(); }
+  catch(e){ $("histList").innerHTML=`<p class="empty">読み込みに失敗しました：${esc(e.message)}</p>`; $("sumCard").innerHTML=""; }
+}
+function filteredHist(){
+  const w=$("hQ").value.trim().split(/\s+/).filter(Boolean);
+  if(!w.length) return histRows;
+  return histRows.filter(r=>{ const s=((r.place||"")+" "+(r.memo||"")+" "+(r.items||[]).map(i=>i.name).join(" ")); return w.every(x=>s.includes(x)); });
+}
+function pamName(it){ const p=pams.find(x=>x.id===it.pamphlet_id); return p?p.name:(it.name||"不明"); }
+function renderHist(){
+  const rows=filteredHist();
+  const totMin=rows.reduce((a,r)=>a+(r.minutes||0),0);
+  const totCnt=rows.reduce((a,r)=>a+(r.total_count||0),0);
+  const byP=new Map();
+  rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=it.pamphlet_id; const o=byP.get(k)||{name:pamName(it),n:0}; o.n+=it.count||0; byP.set(k,o); }));
+  $("sumCard").innerHTML = `<div class="ttl">集計（表示中の${rows.length}件）</div>
+    <div class="sum"><div><b>${rows.length}</b><span>演説回数</span></div>
+    <div><b>${esc(fmtMin(totMin))}</b><span>合計時間</span></div>
+    <div><b>${totCnt.toLocaleString()}</b><span>配布合計（部）</span></div></div>
+    ${byP.size?`<div class="ptot">${[...byP.values()].sort((a,b)=>b.n-a.n).map(o=>`・${esc(o.name)}：<b>${o.n.toLocaleString()}</b>部`).join("<br>")}</div>`:""}`;
+  if(!rows.length){ $("histList").innerHTML='<p class="empty">該当する記録がありません。</p>'; return; }
+  $("histList").innerHTML = rows.map(r=>`
+    <div class="rec">
+      <div class="d">${esc(fmtDate(r.started_at))} ${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):"?"}　滞在 <b>${esc(fmtMin(r.minutes))}</b></div>
+      <div class="p">${esc(r.place)}</div>
+      <div class="chips">${(r.items||[]).length ? r.items.map(it=>`<span class="chip">${esc(pamName(it))} ×${(it.count||0).toLocaleString()}</span>`).join("")
+        +`<span class="chip" style="background:var(--navy);color:#fff;">計 ${(r.total_count||0).toLocaleString()}部</span>` : '<span class="chip none">配布なし</span>'}</div>
+      ${r.memo?`<div class="m">${esc(r.memo)}</div>`:""}
+      <div class="acts">
+        ${r.lat!=null?`<a class="btn sm sub" style="text-decoration:none" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener">地図</a>`:""}
+        <button class="btn sm sub" onclick="editRec(${r.id})">編集</button>
+        <button class="btn sm red" onclick="delRec(${r.id})">削除</button>
+      </div>
+    </div>`).join("");
+}
+function editRec(id){
+  const r=histRows.find(x=>x.id===id); if(!r) return;
+  if(!st.editId){ saveDraft(); try{ localStorage.setItem(STASH_KEY, JSON.stringify(st)); }catch(e){} }
+  st={...blank(), editId:r.id, editLabel:`${fmtDate(r.started_at)} ${r.place}`,
+      start:r.started_at, end:r.ended_at, place:r.place||"", lat:r.lat, lng:r.lng,
+      items:(r.items||[]).map(it=>({pid:it.pamphlet_id, name:it.name, count:it.count||0})), memo:r.memo||""};
+  $("cands").innerHTML=""; $("btnWiden").hidden=true;
+  saveDraft(); showTab("rec"); renderForm();
+}
+async function delRec(id){
+  const r=histRows.find(x=>x.id===id); if(!r) return;
+  if(!confirm(`${fmtDate(r.started_at)}「${r.place}」の記録を削除しますか？\n（元に戻せません）`)) return;
+  try{ await api(`/rest/v1/${T_SP}?id=eq.${id}`,{method:"DELETE",headers:JSONH}); toast("削除しました"); pastCache=null; usage=null; loadHist(); }
+  catch(e){ toast("削除に失敗しました："+e.message,true); }
+}
+function csvHist(){
+  const rows=filteredHist();
+  if(!rows.length){ toast("出力する記録がありません",true); return; }
+  const ids=[], names=new Map();
+  rows.forEach(r=>(r.items||[]).forEach(it=>{ if(!names.has(it.pamphlet_id)){ ids.push(it.pamphlet_id); names.set(it.pamphlet_id,pamName(it)); } }));
+  const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const head=["日付","曜日","開始","終了","滞在時間(分)","場所",...ids.map(i=>names.get(i)),"配布合計","メモ","緯度","経度"];
+  const lines=[head.map(q).join(",")];
+  [...rows].reverse().forEach(r=>{
+    const d=new Date(r.started_at);
+    const cnt=id=>{ const it=(r.items||[]).find(x=>x.pamphlet_id===id); return it?it.count:""; };
+    lines.push([ymd(d).replace(/-/g,"/"), WD[d.getDay()], fmtTime(r.started_at), r.ended_at?fmtTime(r.ended_at):"",
+      r.minutes??"", r.place, ...ids.map(cnt), r.total_count??0, r.memo||"", r.lat??"", r.lng??""].map(q).join(","));
+  });
+  const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv"});
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=`enzetsu_${ymd(new Date()).replace(/-/g,"")}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),30000);
+}
+
+/* ================================================================
+   配布物マスタ
+================================================================ */
+let pams=[], pamsLoaded=false, usage=null, pEditId=null, pRemovePdf=false;
+$("pKind").innerHTML = KINDS.map(k=>`<option>${esc(k)}</option>`).join("");
+
+async function loadPams(){
+  try{
+    pams = await api(`/rest/v1/${T_PM}?select=*&order=sort.asc,id.asc`) || [];
+    pamsLoaded=true;
+    if(!st.editId && !st.start && !st.items.length){ addDefaultItem(); saveDraft(); }
+    renderItems(); renderPams();
+  }catch(e){
+    pamsLoaded=true;
+    $("items").innerHTML=`<p class="note err">配布物の読み込みに失敗しました：${esc(e.message)}</p>`;
+    $("pamList").innerHTML=`<p class="empty">読み込みに失敗しました：${esc(e.message)}<br>初期設定のSQLが実行済みか確認してください。</p>`;
+  }
+}
+async function refreshPamTab(){
+  if(!usage){
+    try{
+      const rows=await api(`/rest/v1/${T_SP}?select=items&limit=10000`) || [];
+      usage={};
+      rows.forEach(r=>(r.items||[]).forEach(it=>{ usage[it.pamphlet_id]=(usage[it.pamphlet_id]||0)+(it.count||0); }));
+    }catch(e){ usage={}; }
+  }
+  renderPams();
+}
+function renderPams(){
+  if(!pams.length){ $("pamList").innerHTML='<p class="empty">まだ登録がありません。<br>上のフォームから配布物を登録してください。</p>'; return; }
+  $("pamList").innerHTML = pams.map(p=>{
+    const used=usage? (usage[p.id]||0) : null;
+    const left = p.printed>0 && used!=null ? p.printed-used : null;
+    return `<div class="pm${p.active?"":" off"}">
+      <div class="n">${esc(p.name)}<span class="tag">${esc(p.kind||"")}</span>${p.active?"":'<span class="tag off">非表示</span>'}</div>
+      ${p.description?`<div class="s">${esc(p.description)}</div>`:""}
+      <div class="stock">
+        ${p.printed>0?`印刷 <b>${p.printed.toLocaleString()}</b>部　`:""}
+        ${used!=null?`配布累計 <b>${used.toLocaleString()}</b>部　`:""}
+        ${left!=null?`残り <b class="${left<p.printed*0.1?"low":""}">${left.toLocaleString()}</b>部`:""}
+      </div>
+      <div class="acts">
+        ${p.pdf_path?`<button class="btn sm" onclick="dlPdf(${p.id})">PDFダウンロード</button>
+          <button class="btn sm sub" onclick="openPdf(${p.id})">開いて印刷</button>`:'<span class="note" style="margin:0 auto 0 0;">PDF未登録</span>'}
+        <button class="btn sm sub" onclick="editPam(${p.id})">編集</button>
+        <button class="btn sm sub" onclick="toggleActive(${p.id})">${p.active?"非表示にする":"表示に戻す"}</button>
+        <button class="btn sm red" onclick="delPam(${p.id})">削除</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+function resetPamForm(){
+  pEditId=null; pRemovePdf=false;
+  $("pTtl").textContent="配布物を登録"; $("btnPSave").textContent="登録する";
+  ["pName","pDesc","pPrinted","pSort"].forEach(i=>$(i).value="");
+  $("pFile").value=""; $("pKind").value=KINDS[0]; $("pActive").checked=true;
+  $("pCurPdf").innerHTML=""; $("pMsg").textContent="";
+}
+function editPam(id){
+  const p=pams.find(x=>x.id===id); if(!p) return;
+  pEditId=id; pRemovePdf=false;
+  $("pTtl").textContent="配布物を編集"; $("btnPSave").textContent="変更を保存";
+  $("pName").value=p.name||""; $("pDesc").value=p.description||"";
+  $("pPrinted").value=p.printed||""; $("pSort").value=p.sort||"";
+  $("pKind").value=KINDS.includes(p.kind)?p.kind:"その他"; $("pActive").checked=!!p.active;
+  $("pFile").value=""; $("pMsg").textContent="";
+  $("pCurPdf").innerHTML = p.pdf_path
+    ? `登録済みのPDFがあります。差し替える場合だけファイルを選んでください。 <button class="btn sm ghost" onclick="markRemovePdf()">PDFを外す</button>`
+    : "PDFは未登録です。";
+  window.scrollTo({top:0,behavior:"smooth"});
+}
+function markRemovePdf(){ pRemovePdf=true; $("pCurPdf").textContent="保存するとPDFの登録を外します。"; }
+async function savePam(){
+  const name=$("pName").value.trim();
+  if(!name){ toast("名称を入力してください",true); return; }
+  const file=$("pFile").files[0];
+  const body={name, kind:$("pKind").value, description:$("pDesc").value.trim()||null,
+    printed:num($("pPrinted").value), sort:parseInt($("pSort").value,10)||0, active:$("pActive").checked};
+  if(pRemovePdf) body.pdf_path=null;
+  const btn=$("btnPSave"); btn.disabled=true;
+  try{
+    if(file){
+      if(!(file.type==="application/pdf" || /\.pdf$/i.test(file.name))) throw new Error("PDFファイルを選択してください");
+      if(file.size>50*1024*1024) throw new Error("PDFが大きすぎます（50MBまで）");
+      $("pMsg").textContent="PDFをアップロードしています…";
+      const path=`${PDF_DIR}/${Date.now()}_${Math.random().toString(36).slice(2,8)}.pdf`;
+      await api(`/storage/v1/object/${BUCKET}/${path}`,{method:"POST",headers:{"Content-Type":"application/pdf"},body:file});
+      body.pdf_path=path;
+    }
+    if(pEditId) await api(`/rest/v1/${T_PM}?id=eq.${pEditId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify(body)});
+    else        await api(`/rest/v1/${T_PM}`,{method:"POST",headers:JSONH,body:JSON.stringify(body)});
+    toast(pEditId?"変更を保存しました":"登録しました");
+    resetPamForm(); await loadPams();
+  }catch(e){
+    $("pMsg").textContent="";
+    toast("保存に失敗しました："+e.message,true);
+  }finally{ btn.disabled=false; }
+}
+async function toggleActive(id){
+  const p=pams.find(x=>x.id===id); if(!p) return;
+  try{ await api(`/rest/v1/${T_PM}?id=eq.${id}`,{method:"PATCH",headers:JSONH,body:JSON.stringify({active:!p.active})}); await loadPams(); }
+  catch(e){ toast("変更に失敗しました："+e.message,true); }
+}
+async function delPam(id){
+  const p=pams.find(x=>x.id===id); if(!p) return;
+  const used=usage?(usage[p.id]||0):0;
+  const msg = used>0
+    ? `「${p.name}」は配布記録があります（累計${used}部）。\n削除しても過去の記録には名称が残りますが、今後は「非表示にする」をおすすめします。\n本当に削除しますか？`
+    : `「${p.name}」を削除しますか？`;
+  if(!confirm(msg)) return;
+  try{ await api(`/rest/v1/${T_PM}?id=eq.${id}`,{method:"DELETE",headers:JSONH}); toast("削除しました"); if(pEditId===id) resetPamForm(); await loadPams(); }
+  catch(e){ toast("削除に失敗しました："+e.message,true); }
+}
+const safeName = s => String(s||"pamphlet").replace(/[\\\/:*?"<>|]/g,"_").slice(0,60);
+async function dlPdf(id){
+  const p=pams.find(x=>x.id===id); if(!p||!p.pdf_path) return;
+  try{
+    toast("ダウンロードしています…");
+    const r=await fetch(pubUrl(p.pdf_path)); if(!r.ok) throw new Error("HTTP "+r.status);
+    const b=await r.blob();
+    const u=URL.createObjectURL(new Blob([b],{type:"application/pdf"}));
+    const a=document.createElement("a"); a.href=u; a.download=safeName(p.name)+".pdf";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(u),30000);
+  }catch(e){ toast("ダウンロードに失敗しました："+e.message,true); }
+}
+function openPdf(id){
+  const p=pams.find(x=>x.id===id); if(!p||!p.pdf_path) return;
+  window.open(pubUrl(p.pdf_path),"_blank","noopener");
+}
+
+/* ---------- 起動 ---------- */
+loadDraft();
+renderForm();
+loadPams();
+</script>
+</body>
+</html>

@@ -13,14 +13,19 @@
   *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
   body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
        background:var(--bg); color:var(--text); font-size:14px; padding:12px;}
+  body.has-sel{padding-bottom:84px;}
+  body.lock{overflow:hidden;}
   h1{font-size:17px; color:var(--navy); border-bottom:2px solid var(--navy);
      padding-bottom:8px; margin-bottom:10px;}
   .bar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; align-items:center;}
   .bar input{flex:1; min-width:160px; border:1.5px solid var(--line); border-radius:8px;
              padding:10px 12px; font-size:16px; background:#fff;}
+  .bar select{border:1.5px solid var(--line); border-radius:8px; padding:9px 10px;
+              font-size:14px; background:#fff; color:var(--text);}
   .btn{border:none; border-radius:8px; font-weight:700; font-size:13px;
        padding:10px 14px; cursor:pointer; color:#fff; background:var(--navy); white-space:nowrap;}
   .btn.sub{background:#fff; color:var(--navy); border:1.5px solid var(--navy);}
+  .btn:disabled{opacity:.4; cursor:default;}
   .mic{
     width:42px; height:42px; flex:none; border-radius:50%;
     border:1.5px solid var(--navy); background:#fff; font-size:18px;
@@ -32,9 +37,10 @@
 
   /* ===== PC：表形式 ===== */
   .tbl-wrap{overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:10px;}
-  table{border-collapse:collapse; width:100%; min-width:1160px;}
+  table{border-collapse:collapse; width:100%; min-width:1360px;}
   th,td{border-bottom:1px solid var(--line); padding:8px 9px; font-size:13px; text-align:left; vertical-align:top;}
   th{background:var(--navy); color:#fff; font-size:12px; white-space:nowrap; position:sticky; top:0;}
+  th.ck,td.ck{width:36px; text-align:center; padding-left:6px; padding-right:6px;}
   td[contenteditable]{min-width:90px; outline:none;}
   td[contenteditable]:focus{background:#E9EFFA; box-shadow:inset 0 0 0 2px var(--navy2); border-radius:4px;}
   td.ro{color:var(--sub); font-size:12px; white-space:nowrap;}
@@ -42,8 +48,17 @@
     color:var(--text); font-size:12px; min-width:160px; max-width:260px;
     white-space:pre-wrap; word-break:break-all; line-height:1.6;
   }
+  td.act-cell{min-width:150px; white-space:nowrap;}
+  tr.on td{background:#F3F7FD;}
   td a{color:var(--navy2);}
   .del{border:none; background:none; color:var(--red); font-weight:700; cursor:pointer; font-size:12px;}
+  input.sel{width:18px; height:18px; accent-color:var(--navy); cursor:pointer; vertical-align:middle;}
+  .last{display:block; font-size:12px; color:var(--text); margin-bottom:4px;}
+  .last small{color:var(--sub);}
+  .last.none{color:#9AA6BE;}
+  .mini{border:1.5px solid var(--navy); background:#fff; color:var(--navy); border-radius:6px;
+        font-size:12px; font-weight:700; padding:4px 8px; cursor:pointer; margin:0 4px 0 0; white-space:nowrap;}
+  .mini:disabled{opacity:.35; cursor:default;}
 
   /* ===== スマホ：カード形式 ===== */
   #cards{display:none; flex-direction:column; gap:10px;}
@@ -51,7 +66,9 @@
     background:#fff; border:1px solid var(--line); border-radius:12px;
     padding:12px 12px 10px; box-shadow:0 1px 4px rgba(31,56,100,.06);
   }
+  .mcard.on{border-color:var(--navy2); box-shadow:0 0 0 2px rgba(46,84,150,.28);}
   .mhead{display:flex; align-items:flex-start; gap:8px; margin-bottom:6px;}
+  .mhead input.sel{width:22px; height:22px; margin-top:3px; flex:none;}
   .mname{
     flex:1; font-size:17px; font-weight:700; color:var(--navy);
     min-height:1.4em; outline:none; border-radius:6px; padding:2px 4px;
@@ -73,12 +90,14 @@
   .mv.ro:empty::before{content:"（なし）";}
   [contenteditable]:focus{background:#E9EFFA; box-shadow:inset 0 0 0 2px var(--navy2);}
   .mv.ro{color:var(--text); font-size:13px;}
+  .mv .last{margin:2px 0 0;}
   .act{
     flex:none; width:38px; height:38px; border-radius:50%;
     border:1.5px solid var(--navy); background:#fff; color:var(--navy);
     font-size:16px; cursor:pointer; text-decoration:none;
     display:flex; align-items:center; justify-content:center;
   }
+  .act.wide{width:auto; border-radius:99px; padding:0 12px; font-size:12px; font-weight:700;}
   .mfoot{
     display:flex; align-items:center; gap:10px;
     border-top:1px solid #EDF1F8; margin-top:2px; padding-top:9px;
@@ -91,9 +110,92 @@
   .note{font-size:12px; color:var(--sub); margin-top:10px; line-height:1.8;}
   #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%);
     background:var(--navy); color:#fff; font-size:13px; font-weight:700;
-    padding:10px 18px; border-radius:99px; display:none; z-index:100; max-width:88%; text-align:center;}
+    padding:10px 18px; border-radius:99px; display:none; z-index:200; max-width:88%; text-align:center;}
   #toast.err{background:var(--red);}
   #toast.show{display:block;}
+
+  /* ===== 選択バー ===== */
+  #selbar{position:fixed; left:0; right:0; bottom:0; z-index:60; display:none;
+    align-items:center; gap:8px; flex-wrap:wrap; background:var(--navy); color:#fff;
+    padding:10px 14px calc(10px + env(safe-area-inset-bottom));}
+  #selbar.show{display:flex;}
+  #selbar .n{flex:1; min-width:150px; font-weight:700; font-size:14px;}
+  #selbar button{border:1.5px solid #fff; background:#fff; color:var(--navy); border-radius:8px;
+    font-weight:700; padding:8px 12px; font-size:13px; cursor:pointer;}
+  #selbar button.ghost{background:transparent; color:#fff;}
+
+  /* ===== モーダル共通 ===== */
+  .modal{position:fixed; inset:0; z-index:100; display:none; align-items:center; justify-content:center;
+    padding:16px; background:rgba(15,25,45,.45);}
+  .modal.show{display:flex;}
+  .mbox{background:#fff; border-radius:12px; width:100%; max-width:1000px; max-height:calc(100vh - 32px);
+    display:flex; flex-direction:column; overflow:hidden; box-shadow:0 10px 40px rgba(15,25,45,.3);}
+  .mbox.narrow{max-width:680px;}
+  .mtop{display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:2px solid var(--navy);}
+  .mtop h2{flex:1; font-size:16px; color:var(--navy);}
+  .x{border:none; background:none; font-size:24px; line-height:1; color:var(--sub); cursor:pointer; width:38px; height:38px;}
+  .mbody{padding:14px 16px; overflow:auto; flex:1; min-height:0;}
+  .mbot{padding:10px 16px calc(10px + env(safe-area-inset-bottom)); border-top:1px solid var(--line);
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end;}
+  .mbot .info{flex:1; min-width:140px; font-size:12px; color:var(--sub);}
+  .fld{display:flex; flex-direction:column; gap:4px; margin-bottom:10px;}
+  .fld label{font-size:11px; font-weight:700; color:var(--sub);}
+  .fld input,.fld select,.fld textarea{border:1.5px solid var(--line); border-radius:8px; padding:9px 10px;
+    font-size:16px; font-family:inherit; background:#fff; color:var(--text); width:100%;}
+  .fld input:focus,.fld select:focus,.fld textarea:focus{outline:none; border-color:var(--navy2); box-shadow:0 0 0 3px rgba(46,84,150,.18);}
+  .fld input[readonly],.fld textarea[readonly]{background:#F5F7FB; color:var(--sub);}
+  .fld textarea{min-height:110px; line-height:1.7; resize:vertical;}
+  .fld textarea.bodyta{min-height:340px;}
+  .row2{display:flex; gap:10px; flex-wrap:wrap;}
+  .row2>.fld{flex:1; min-width:180px;}
+  .hint{font-size:12px; color:var(--sub); line-height:1.7; margin:-4px 0 10px;}
+  .warn{font-size:12px; color:var(--red); line-height:1.7; margin-bottom:10px;
+    background:#FBEFEE; border-radius:8px; padding:8px 10px;}
+  .to{font-size:13px; padding:8px 10px; background:var(--bg); border-radius:8px; margin-bottom:10px; word-break:break-all;}
+  .to.ok{background:#E3F1E3; color:#2D6A2D; font-weight:700;}
+
+  /* 2カラム（宛先一覧＋編集） */
+  .cmp{display:grid; grid-template-columns:250px 1fr; gap:14px; align-items:start;}
+  .rlist{display:flex; flex-direction:column; gap:5px; max-height:62vh; overflow:auto; padding:2px;}
+  .ritem{border:1.5px solid var(--line); border-radius:8px; padding:7px 9px; cursor:pointer;
+    background:#fff; text-align:left; font-family:inherit; color:var(--text); width:100%;}
+  .ritem.cur{border-color:var(--navy); background:#E9EFFA;}
+  .ritem b{display:block; font-size:13px; color:var(--navy);}
+  .ritem small{display:block; font-size:11px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .st{display:inline-block; font-size:10px; font-weight:700; border-radius:99px; padding:1px 8px; margin-top:4px;}
+  .st.sent{background:#DDEEDD; color:#2D6A2D;}
+  .st.err{background:#F6DEDC; color:var(--red);}
+  .st.nomail{background:#ECECEC; color:#888;}
+  .st.edit{background:#FFF1D6; color:#8A5A00;}
+  .st.sending{background:#E9EFFA; color:var(--navy2);}
+
+  /* 活動履歴 */
+  .who{font-size:13px; color:var(--sub); margin-bottom:12px; line-height:1.8;}
+  .who b{font-size:16px; color:var(--navy);}
+  .who a{color:var(--navy2); margin-right:12px;}
+  .kinds{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;}
+  .kinds button{border:1.5px solid var(--line); background:#fff; border-radius:99px; padding:7px 13px;
+    font-size:13px; font-weight:700; color:var(--sub); cursor:pointer; font-family:inherit;}
+  .kinds button.on{border-color:var(--navy); background:var(--navy); color:#fff;}
+  .ta-mic{position:relative;}
+  .ta-mic .mic{position:absolute; right:8px; bottom:8px; width:38px; height:38px; font-size:16px;}
+  .ta-mic textarea{padding-right:54px;}
+  .tl{border-top:2px solid var(--navy); margin-top:16px; padding-top:4px;}
+  .tl h3{font-size:13px; color:var(--navy); margin:8px 0 2px;}
+  .ti{border-bottom:1px solid var(--line); padding:10px 2px;}
+  .ti.editing{background:#FFF8E8;}
+  .ti .h{display:flex; gap:8px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--sub);}
+  .kb{font-size:11px; font-weight:700; color:#fff; border-radius:4px; padding:2px 8px;}
+  .ti .tools{margin-left:auto; display:flex; gap:4px; align-items:center;}
+  .ti .t{font-weight:700; margin-top:5px; font-size:14px;}
+  .ti .c{white-space:pre-wrap; font-size:13px; line-height:1.7; margin-top:4px; word-break:break-all;}
+  .ti .c.clip{max-height:5.2em; overflow:hidden; cursor:pointer;
+    -webkit-mask-image:linear-gradient(#000 60%,transparent); mask-image:linear-gradient(#000 60%,transparent);}
+
+  .tabs{display:flex; gap:6px; margin-bottom:12px;}
+  .tabs button{border:1.5px solid var(--navy); background:#fff; color:var(--navy); border-radius:8px;
+    padding:8px 16px; font-weight:700; font-size:13px; cursor:pointer; font-family:inherit;}
+  .tabs button.on{background:var(--navy); color:#fff;}
 
   /* ===== 切替：820px以下はカード、超は表 ===== */
   @media (max-width:820px){
@@ -101,6 +203,13 @@
     .tbl-wrap{display:none;}
     #cards{display:flex;}
     .bar .btn{flex:1;}
+    .modal{padding:0;}
+    .mbox,.mbox.narrow{max-width:none; max-height:none; height:100%; height:100dvh; border-radius:0;}
+    .cmp{grid-template-columns:1fr;}
+    .rlist{flex-direction:row; overflow-x:auto; max-height:none; padding-bottom:6px;}
+    .rlist .ritem{flex:none; width:170px;}
+    .fld textarea.bodyta{min-height:280px;}
+    .mbot .btn{flex:1;}
   }
 </style>
 </head>
@@ -108,8 +217,15 @@
 <h1>名簿（名刺のAI読み取り結果）</h1>
 <div class="bar">
   <input id="q" placeholder="氏名・会社・住所・メモなどで検索" oninput="render()">
-  <button class="mic" id="micQ" onclick="toggleMic()" title="音声入力">&#127908;</button>
+  <button class="mic" id="micQ" onclick="toggleMic('q','micQ')" title="音声入力">&#127908;</button>
+  <select id="fAct" onchange="render()" title="活動履歴で絞り込み">
+    <option value="">すべて</option>
+    <option value="none">未接触のみ</option>
+    <option value="has">接触ありのみ</option>
+    <option value="mail">メールアドレスあり</option>
+  </select>
   <button class="btn sub" onclick="load()">検索</button>
+  <button class="btn sub" onclick="openCfg()">文例・送信者</button>
   <button class="btn" onclick="csv(false)">CSV（全項目）</button>
   <button class="btn" onclick="csv(true)">CSV（シート4列形式）</button>
 </div>
@@ -119,8 +235,9 @@
 <div class="tbl-wrap">
   <table>
     <thead><tr>
+      <th class="ck"><input type="checkbox" class="sel" id="ckAll" onchange="checkAll(this.checked)" title="表示中をすべて選択"></th>
       <th>氏名</th><th>会社団体</th><th>役職</th><th>郵便番号</th><th>住所</th>
-      <th>電話</th><th>メール</th><th>備考</th><th>メモ（撮影時）</th><th>撮影日</th><th>写真</th><th></th>
+      <th>電話</th><th>メール</th><th>備考</th><th>メモ（撮影時）</th><th>活動履歴</th><th>撮影日</th><th>写真</th><th></th>
     </tr></thead>
     <tbody id="tb"></tbody>
   </table>
@@ -136,8 +253,88 @@
 <p class="note">
   ・項目をタップするとその場で修正でき、他の場所に移ると自動保存されます。<br>
   ・「メモ（撮影時）」は選挙情報管理アプリで写真に付けたメモです。修正はアプリの詳細画面から行ってください。<br>
+  ・左端のチェックで送り先を選び、下に出る「メール作成」で文例から一人ずつ文面を作れます。確認・修正してから送信すると、活動履歴に自動で記録されます。<br>
+  ・「履歴・記録」から面会・電話などの活動も記録できます。<br>
   ・「CSV（シート4列形式）」は パーティ送付先リスト と同じ「団体役職・氏名・郵便番号・住所」の4列で出力します（Google Sheetsにそのまま貼り付け可）。
 </p>
+
+<!-- 選択バー -->
+<div id="selbar">
+  <span class="n" id="selN"></span>
+  <button class="ghost" onclick="checkAll(true)">表示中を全選択</button>
+  <button class="ghost" onclick="clearSel()">選択解除</button>
+  <button onclick="openCompose()">メール作成</button>
+</div>
+
+<!-- メール作成 -->
+<div class="modal" id="mCompose">
+  <div class="mbox">
+    <div class="mtop"><h2>メール作成</h2><button class="x" onclick="closeCompose()" title="閉じる">&times;</button></div>
+    <div class="mbody">
+      <div class="row2">
+        <div class="fld"><label for="cTpl">文例（お礼文）</label><select id="cTpl" onchange="onTplChange()"></select></div>
+        <div class="fld"><label for="cSnd">送信者</label><select id="cSnd" onchange="onTplChange()"></select></div>
+      </div>
+      <p class="hint">宛名（団体名・役職・氏名 様）と送信者の署名は自動で入ります。左の一覧で宛先を切り替えて、一人ずつ文面を確認・修正できます。<a href="#" onclick="openCfg();return false;">文例・送信者を編集</a></p>
+      <div class="cmp">
+        <div class="rlist" id="cList"></div>
+        <div id="cEd"></div>
+      </div>
+    </div>
+    <div class="mbot">
+      <span class="info" id="cInfo"></span>
+      <button class="btn sub" id="bMailto" onclick="viaMailto()">メールアプリで開く</button>
+      <button class="btn sub" id="bOne" onclick="sendOne()">この1件を送信</button>
+      <button class="btn" id="bAll" onclick="sendAll()">未送信をすべて送信</button>
+    </div>
+  </div>
+</div>
+
+<!-- 活動履歴 -->
+<div class="modal" id="mHist">
+  <div class="mbox narrow">
+    <div class="mtop"><h2>活動履歴</h2><button class="x" onclick="closeHist()" title="閉じる">&times;</button></div>
+    <div class="mbody">
+      <div class="who" id="hWho"></div>
+      <div class="kinds" id="hKinds"></div>
+      <div class="row2">
+        <div class="fld"><label for="hAt">日時</label><input id="hAt" type="datetime-local"></div>
+        <div class="fld"><label for="hStaff">対応者</label><input id="hStaff" list="staffList" placeholder="例：さの英志"></div>
+      </div>
+      <datalist id="staffList"></datalist>
+      <div class="fld"><label for="hSubj">件名・要件</label><input id="hSubj" placeholder="例：事務所にて意見交換"></div>
+      <div class="fld"><label for="hBody">内容</label>
+        <div class="ta-mic">
+          <textarea id="hBody" placeholder="話した内容、要望、次にやることなど"></textarea>
+          <button class="mic" id="micH" onclick="toggleMic('hBody','micH')" title="音声入力">&#127908;</button>
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn sub" id="hCancel" onclick="cancelEditAct()" style="display:none;">編集をやめる</button>
+        <button class="btn" id="hSave" onclick="saveAct()">記録する</button>
+      </div>
+      <div class="tl" id="hList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 文例・送信者の設定 -->
+<div class="modal" id="mCfg">
+  <div class="mbox">
+    <div class="mtop"><h2>文例・送信者の設定</h2><button class="x" onclick="closeCfg()" title="閉じる">&times;</button></div>
+    <div class="mbody">
+      <div class="tabs">
+        <button id="tabT" onclick="setCfgTab('tpl')">文例（お礼文）</button>
+        <button id="tabS" onclick="setCfgTab('snd')">送信者</button>
+      </div>
+      <div class="cmp">
+        <div class="rlist" id="gList"></div>
+        <div id="gForm"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -146,14 +343,20 @@ const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
 const BUCKET   = "poster-media";
 const PASSCODE = "sano2026";
+const FN_SEND  = SUPABASE_URL + "/functions/v1/send-mail";   // メール送信用 Edge Function
 /* ==================================== */
 
 const COLS=["氏名","会社団体","役職","郵便番号","住所","電話","メール","備考"];
+const KINDS=["面会","電話","メール","手紙・郵送","会合・行事","その他"];
+const KCOL={"面会":"#2D6A4F","電話":"#9A6700","メール":"#2E5496","手紙・郵送":"#6B4C9A","会合・行事":"#B5403B","その他":"#5A6B8C"};
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const $=id=>document.getElementById(id);
 const sb=(p,o={})=>fetch(SUPABASE_URL+p,{...o,headers:{
   "apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,...(o.headers||{})}});
 const pubUrl=p=>`${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const JSON_H={"Content-Type":"application/json","Prefer":"return=representation"};
 
 if(PASSCODE && localStorage.getItem("poster_gate")!=="ok"){
   const v=prompt("パスコードを入力してください");
@@ -163,11 +366,12 @@ if(PASSCODE && localStorage.getItem("poster_gate")!=="ok"){
 
 let toastTimer;
 function toast(m,err){const t=$("toast");t.textContent=m;t.className=err?"err show":"show";
-  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2400);}
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),err?4200:2400);}
 
-/* 音声入力（検索窓） */
+/* 音声入力（検索窓・履歴メモ共通） */
 let recog=null;
-function toggleMic(){
+function toggleMic(inputId,btnId){
+  inputId=inputId||"q"; btnId=btnId||"micQ";
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){ toast("この端末は音声入力に非対応です",true); return; }
   if(recog){ recog.stop(); return; }
@@ -177,39 +381,110 @@ function toggleMic(){
     let txt="";
     for(let i=ev.resultIndex;i<ev.results.length;i++)
       if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
-    if(txt){
-      const q=$("q");
-      q.value=q.value? (q.value.replace(/\s+$/,"")+" "+txt): txt;
+    if(!txt) return;
+    const el=$(inputId);
+    if(inputId==="q"){
+      el.value=el.value? (el.value.replace(/\s+$/,"")+" "+txt): txt;
       render();
+    }else{
+      el.value+=txt;
     }
   };
-  recog.onstart=()=>$("micQ").classList.add("rec");
-  const done=()=>{ $("micQ").classList.remove("rec"); recog=null; };
+  recog.onstart=()=>$(btnId).classList.add("rec");
+  const done=()=>{ $(btnId).classList.remove("rec"); recog=null; };
   recog.onend=done; recog.onerror=done;
   recog.start();
 }
+function stopMic(){ if(recog){ try{recog.stop();}catch(e){} } }
 
-let rows=[];
+/* ===== データ読み込み ===== */
+let rows=[], acts=[], tpls=[], senders=[];
+let actOK=true, cfgOK=true;
+const sel=new Set();
+
+async function getAll(path){
+  let out=[], off=0;
+  for(;;){
+    const res=await sb(`${path}&limit=1000&offset=${off}`);
+    if(!res.ok) throw new Error(await res.text());
+    const a=await res.json();
+    out=out.concat(a);
+    if(a.length<1000 || off>=50000) return out;
+    off+=1000;
+  }
+}
+const Q_MEIBO=`/rest/v1/meibo?select=*,posters(created_at,media_path,thumb_path,memo)&order=created_at.desc,id.desc`;
+const Q_ACTS =`/rest/v1/meibo_activity?select=*&order=occurred_at.desc,created_at.desc`;
+const Q_TPLS =`/rest/v1/mail_templates?select=*&order=sort.asc,created_at.asc`;
+const Q_SNDS =`/rest/v1/mail_senders?select=*&order=sort.asc,created_at.asc`;
+
 async function load(){
   $("count").textContent="読み込み中…";
-  try{
-    const res=await sb(`/rest/v1/meibo?select=*,posters(created_at,media_path,thumb_path,memo)&order=created_at.desc&limit=2000`);
-    if(!res.ok) throw new Error(await res.text());
-    rows=await res.json();
-    render();
-  }catch(e){ console.error(e); $("count").textContent=""; toast("読み込みに失敗しました",true); }
+  const [m,a,t,s]=await Promise.allSettled([getAll(Q_MEIBO),getAll(Q_ACTS),getAll(Q_TPLS),getAll(Q_SNDS)]);
+  if(m.status==="rejected"){ console.error(m.reason); $("count").textContent=""; toast("読み込みに失敗しました",true); return; }
+  rows=m.value;
+  actOK=a.status==="fulfilled"; acts=actOK? a.value: [];
+  cfgOK=t.status==="fulfilled" && s.status==="fulfilled";
+  tpls=t.status==="fulfilled"? t.value: [];
+  senders=s.status==="fulfilled"? s.value: [];
+  if(!actOK||!cfgOK){
+    console.error(a.reason||t.reason||s.reason);
+    toast("活動履歴・文例のテーブルがありません。セットアップSQLを実行してください",true);
+  }
+  const ids=new Set(rows.map(r=>String(r.id)));
+  [...sel].forEach(i=>{ if(!ids.has(i)) sel.delete(i); });
+  indexActs();
+  render();
+}
+
+/* ===== 活動履歴の対応づけ =====
+   基本は meibo_id で一致。名刺のAI再読み取りで名簿の行が作り直された場合に備え、
+   元の行が無くなった履歴は「氏名＋会社団体」が同じ人に表示する。 */
+let actById=new Map(), actByKey=new Map();
+const pkey=(n,o)=>String(n||"").replace(/\s+/g,"")+"|"+String(o||"").replace(/\s+/g,"");
+function pushMap(m,k,v){ if(!m.has(k)) m.set(k,[]); m.get(k).push(v); }
+function indexActs(){
+  actById=new Map(); actByKey=new Map();
+  const ids=new Set(rows.map(r=>String(r.id)));
+  for(const a of acts){
+    const mid=String(a.meibo_id||"");
+    if(mid && ids.has(mid)) pushMap(actById,mid,a);
+    else if(String(a.person_name||"").trim()) pushMap(actByKey,pkey(a.person_name,a.org_name),a);
+  }
+}
+function actsFor(r){
+  const own=actById.get(String(r.id))||[];
+  const orphan=String(r["氏名"]||"").trim()? (actByKey.get(pkey(r["氏名"],r["会社団体"]))||[]): [];
+  return own.concat(orphan).sort((p,q)=>new Date(q.occurred_at)-new Date(p.occurred_at));
+}
+function lastHTML(r){
+  const l=actsFor(r);
+  if(!l.length) return `<span class="last none">未接触</span>`;
+  const a=l[0];
+  return `<span class="last">${fmtD(a.occurred_at)} ${esc(a.kind)} <small>（計${l.length}件）</small></span>`;
 }
 
 function fmtD(iso){ if(!iso) return ""; const d=new Date(iso);
   const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())}`; }
+function fmtDT(iso){ if(!iso) return ""; const d=new Date(iso);
+  const z=n=>String(n).padStart(2,"0");
+  return `${fmtD(iso)} ${z(d.getHours())}:${z(d.getMinutes())}`; }
+function toLocalInput(d){ const z=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${z(d.getMonth()+1)}-${z(d.getDate())}T${z(d.getHours())}:${z(d.getMinutes())}`; }
 
 function posterMemo(r){ return (r.posters && r.posters.memo) ? r.posters.memo : ""; }
+const findRow=id=>rows.find(x=>String(x.id)===String(id));
+const hasMail=r=>EMAIL_RE.test(String(r["メール"]||"").trim());
 
 function filteredRows(){
   const q=$("q").value.trim().toLowerCase();
   const terms=q? q.split(/\s+/):[];
+  const f=$("fAct").value;
   return rows.filter(r=>{
+    if(f==="none" && actsFor(r).length) return false;
+    if(f==="has"  && !actsFor(r).length) return false;
+    if(f==="mail" && !hasMail(r)) return false;
     if(!terms.length) return true;
     const hay=(COLS.map(c=>r[c]||"").join(" ")+" "+posterMemo(r)).toLowerCase();
     return terms.every(t=>hay.includes(t));
@@ -218,19 +493,22 @@ function filteredRows(){
 
 function isMobile(){ return window.matchMedia("(max-width: 820px)").matches; }
 
+let shown=[];
 function render(){
   const q=$("q").value.trim();
-  const list=filteredRows();
-  $("count").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
+  shown=filteredRows();
+  $("count").textContent=`${shown.length} 件${q?`（検索: ${q}）`:""}`;
   $("empty").style.display=rows.length? "none":"block";
-  if(isMobile()) renderCards(list);
-  else renderTable(list);
+  if(isMobile()) renderCards(shown);
+  else renderTable(shown);
+  syncSel();
 }
 
 /* ---- PC：表形式 ---- */
 function renderTable(list){
   $("cards").innerHTML="";
   $("tb").innerHTML=list.map(r=>{
+    const on=sel.has(String(r.id));
     const cells=COLS.map(c=>
       `<td contenteditable data-id="${r.id}" data-col="${c}">${esc(r[c])}</td>`).join("");
     const p=r.posters||{};
@@ -239,8 +517,10 @@ function renderTable(list){
     const photo=full
       ? `<a href="${full}" target="_blank" rel="noopener"><img src="${th}" style="width:46px;height:46px;object-fit:cover;border-radius:6px;border:1px solid var(--line);" onerror="this.outerHTML='写真なし';"></a>`
       : "写真なし";
-    return `<tr>${cells}
+    return `<tr class="${on?"on":""}" data-row="${r.id}">
+      <td class="ck"><input type="checkbox" class="sel" data-sel="${r.id}" ${on?"checked":""}></td>${cells}
       <td class="memo-cell">${esc(posterMemo(r))}</td>
+      <td class="act-cell">${lastHTML(r)}<button class="mini" onclick="openHist('${r.id}')">履歴・記録</button><button class="mini" onclick="openCompose(['${r.id}'])" ${hasMail(r)?"":"disabled"}>メール</button></td>
       <td class="ro">${fmtD(p.created_at)}</td>
       <td class="ro">${photo}</td>
       <td class="ro"><button class="del" onclick="del('${r.id}')">削除</button></td></tr>`;
@@ -251,6 +531,7 @@ function renderTable(list){
 function renderCards(list){
   $("tb").innerHTML="";
   $("cards").innerHTML=list.map(r=>{
+    const on=sel.has(String(r.id));
     const p=r.posters||{};
     const full=p.media_path? pubUrl(p.media_path):"";
     const th=p.thumb_path? pubUrl(p.thumb_path): full;
@@ -258,12 +539,12 @@ function renderCards(list){
       ? `<a href="${full}" target="_blank" rel="noopener"><img src="${th}" onerror="this.style.display='none';"></a>`
       : "";
     const tel=(r["電話"]||"").trim();
-    const mail=(r["メール"]||"").trim();
     const telBtn = tel ? `<a class="act" href="tel:${esc(tel.replace(/[^0-9+#*]/g,""))}" title="発信">&#128222;</a>` : "";
-    const mailBtn = mail ? `<a class="act" href="mailto:${esc(mail)}" title="メール作成">&#9993;</a>` : "";
+    const mailBtn = hasMail(r) ? `<button class="act" onclick="openCompose(['${r.id}'])" title="メール作成">&#9993;</button>` : "";
     const ed=(col)=>`contenteditable data-id="${r.id}" data-col="${col}"`;
-    return `<div class="mcard">
+    return `<div class="mcard${on?" on":""}" data-row="${r.id}">
       <div class="mhead">
+        <input type="checkbox" class="sel" data-sel="${r.id}" ${on?"checked":""} title="送り先に選ぶ">
         <div class="mname" ${ed("氏名")}>${esc(r["氏名"])}</div>
       </div>
       <div class="mcompany">
@@ -275,6 +556,7 @@ function renderCards(list){
       <div class="mrow"><span class="ml">メール</span><span class="mv" ${ed("メール")}>${esc(r["メール"])}</span>${mailBtn}</div>
       <div class="mrow"><span class="ml">備考</span><span class="mv" ${ed("備考")}>${esc(r["備考"])}</span></div>
       <div class="mrow"><span class="ml">メモ<br>(撮影時)</span><span class="mv ro">${esc(posterMemo(r))}</span></div>
+      <div class="mrow"><span class="ml">活動履歴</span><span class="mv ro">${lastHTML(r)}</span><button class="act wide" onclick="openHist('${r.id}')">履歴・記録</button></div>
       <div class="mfoot">
         ${photo}
         <span class="mdate">撮影日 ${fmtD(p.created_at)}</span>
@@ -291,6 +573,33 @@ window.addEventListener("resize", ()=>{
   if(m!==lastMobile){ lastMobile=m; render(); }
 });
 
+/* ===== 送り先の選択 ===== */
+document.addEventListener("change", e=>{
+  const el=e.target;
+  if(!(el.dataset && el.dataset.sel!==undefined)) return;
+  const id=String(el.dataset.sel);
+  if(el.checked) sel.add(id); else sel.delete(id);
+  const box=el.closest("[data-row]");
+  if(box) box.classList.toggle("on",el.checked);
+  syncSel();
+});
+function checkAll(on){
+  shown.forEach(r=>{ const id=String(r.id); if(on) sel.add(id); else sel.delete(id); });
+  render();
+}
+function clearSel(){ sel.clear(); render(); }
+function syncSel(){
+  const n=sel.size;
+  const m=[...sel].map(findRow).filter(r=>r&&hasMail(r)).length;
+  $("selN").textContent=`${n}件選択中（メールあり ${m}件）`;
+  $("selbar").classList.toggle("show",n>0);
+  document.body.classList.toggle("has-sel",n>0);
+  const c=$("ckAll");
+  const k=shown.filter(r=>sel.has(String(r.id))).length;
+  c.checked=shown.length>0 && k===shown.length;
+  c.indeterminate=k>0 && k<shown.length;
+}
+
 /* 項目編集 → フォーカスが外れたら自動保存（表のtd・カードの項目 共通） */
 document.addEventListener("focusout", async e=>{
   const el=e.target;
@@ -303,15 +612,448 @@ document.addEventListener("focusout", async e=>{
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify({[col]:val})
   });
-  if(res.ok){ r[col]=val; toast("保存しました"); }
+  if(res.ok){ r[col]=val; toast("保存しました"); if(col==="メール") syncSel(); }
   else toast("保存に失敗しました",true);
 });
 
 async function del(id){
-  if(!confirm("この行を削除します。よろしいですか？")) return;
+  if(!confirm("この行を削除します。よろしいですか？\n（活動履歴は残ります）")) return;
   const res=await sb(`/rest/v1/meibo?id=eq.${id}`,{method:"DELETE"});
-  if(res.ok){ rows=rows.filter(x=>x.id!==id); render(); toast("削除しました"); }
+  if(res.ok){ rows=rows.filter(x=>x.id!==id); sel.delete(String(id)); indexActs(); render(); toast("削除しました"); }
   else toast("削除に失敗しました",true);
+}
+
+/* ===== モーダル共通 ===== */
+function showModal(id){ $(id).classList.add("show"); document.body.classList.add("lock"); }
+function hideModal(id){
+  $(id).classList.remove("show");
+  if(!document.querySelector(".modal.show")) document.body.classList.remove("lock");
+}
+
+/* ===== メール作成・送信 ===== */
+let drafts=[], cur=0, busy=false;
+const curTpl=()=>tpls.find(t=>String(t.id)===$("cTpl").value)||tpls[0];
+const curSnd=()=>senders.find(s=>String(s.id)===$("cSnd").value)||senders[0];
+
+function fillPh(str,r,s){
+  return String(str||"")
+    .replace(/\{氏名\}/g, r["氏名"]||"")
+    .replace(/\{団体名\}/g, r["会社団体"]||"")
+    .replace(/\{役職\}/g, r["役職"]||"")
+    .replace(/\{送信者\}/g, (s&&s.name)||"");
+}
+function buildBody(r,t,s){
+  const org=String(r["会社団体"]||"").trim(), role=String(r["役職"]||"").trim();
+  const name=String(r["氏名"]||"").trim()||"ご担当者";
+  const head=[];
+  if(org) head.push(org);
+  head.push((role? role+"　": "")+name+" 様");
+  let body=head.join("\n")+"\n\n"+fillPh(t.body,r,s).replace(/\s+$/,"");
+  const sig=fillPh((s&&s.signature)||"",r,s).replace(/\s+$/,"");
+  if(sig) body+="\n\n――――――――――――\n"+sig;
+  return body+"\n";
+}
+
+function fillSelects(){
+  const keep=(el,list,key)=>{
+    const want=el.value||localStorage.getItem(key)||"";
+    el.innerHTML=list.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("");
+    if(list.some(x=>String(x.id)===want)) el.value=want;
+  };
+  keep($("cTpl"),tpls,"mail_last_tpl");
+  keep($("cSnd"),senders,"mail_last_snd");
+}
+
+function openCompose(ids){
+  if(!cfgOK||!actOK){ toast("活動履歴・文例のテーブルがありません。セットアップSQLを実行してください",true); return; }
+  ids=ids||[...sel];
+  const list=ids.map(findRow).filter(Boolean);
+  if(!list.length){ toast("送り先を選んでください",true); return; }
+  if(!tpls.length||!senders.length){
+    toast("先に文例と送信者を1つ以上登録してください",true); openCfg(); return;
+  }
+  drafts=list.map(r=>{
+    const to=String(r["メール"]||"").trim();
+    return {r,to,subject:"",body:"",edited:false,status:EMAIL_RE.test(to)?"":"nomail",err:""};
+  });
+  drafts.sort((a,b)=>(a.status==="nomail")-(b.status==="nomail"));
+  cur=0;
+  $("cTpl").value=""; $("cSnd").value="";
+  fillSelects();
+  applyTpl(true);
+  showModal("mCompose");
+}
+
+function onTplChange(){
+  localStorage.setItem("mail_last_tpl",$("cTpl").value);
+  localStorage.setItem("mail_last_snd",$("cSnd").value);
+  let force=true;
+  if(drafts.some(d=>d.edited && d.status!=="sent"))
+    force=confirm("手で修正した文面も、選び直した文例・送信者で作り直しますか？\n［OK］すべて作り直す\n［キャンセル］修正していない宛先だけ作り直す");
+  applyTpl(force);
+}
+function applyTpl(force){
+  const t=curTpl(), s=curSnd();
+  if(!t||!s){ paintCompose(); return; }
+  for(const d of drafts){
+    if(d.status==="sent"||d.status==="sending") continue;
+    if(d.edited && !force) continue;
+    d.subject=fillPh(t.subject,d.r,s);
+    d.body=buildBody(d.r,t,s);
+    d.edited=false;
+  }
+  paintCompose();
+}
+
+function stBadge(d){
+  if(d.status==="sent")    return `<span class="st sent">送信済</span>`;
+  if(d.status==="sending") return `<span class="st sending">送信中…</span>`;
+  if(d.status==="error")   return `<span class="st err">送信失敗</span>`;
+  if(d.status==="nomail")  return `<span class="st nomail">メールなし</span>`;
+  if(d.edited)             return `<span class="st edit">修正済</span>`;
+  return "";
+}
+const pending=()=>drafts.filter(d=>d.status===""||d.status==="error");
+function paintList(){
+  $("cList").innerHTML=drafts.map((d,i)=>{
+    const sub=[d.r["会社団体"],d.r["役職"]].filter(Boolean).join(" ");
+    return `<button class="ritem${i===cur?" cur":""}" onclick="pick(${i})">
+      <b>${esc(d.r["氏名"]||"（氏名なし）")} 様</b><small>${sub?esc(sub):"&nbsp;"}</small>${stBadge(d)}</button>`;
+  }).join("");
+  const p=pending().length, sent=drafts.filter(d=>d.status==="sent").length;
+  $("cInfo").textContent=`${drafts.length}件中　送信済 ${sent}件／未送信 ${p}件`;
+  $("bAll").textContent=`未送信をすべて送信（${p}件）`;
+  $("bAll").disabled=busy||!p;
+  const d=drafts[cur];
+  const can=!!d && (d.status===""||d.status==="error") && !busy;
+  $("bOne").disabled=!can; $("bMailto").disabled=!can;
+}
+function paintEditor(){
+  const d=drafts[cur];
+  if(!d){ $("cEd").innerHTML=""; return; }
+  const lock=d.status==="sent"||d.status==="sending"||d.status==="nomail"||busy;
+  let head;
+  if(d.status==="nomail")
+    head=`<div class="warn">この方はメールアドレスが未登録のため送信できません。名簿のメール欄を入力して開き直すか、「履歴・記録」から電話・面会などを記録してください。</div>`;
+  else if(d.status==="sent")
+    head=`<div class="to ok">送信済みです（活動履歴に記録しました）</div>`;
+  else
+    head=`<div class="to">宛先：${esc(d.r["氏名"]||"")} 様 &lt;${esc(d.to)}&gt;</div>`;
+  const err=d.status==="error"? `<div class="warn">送信に失敗しました：${esc(d.err)}</div>`: "";
+  $("cEd").innerHTML=head+err+`
+    <div class="fld"><label for="cSubj">件名</label><input id="cSubj" ${lock?"readonly":""} value="${esc(d.subject)}"></div>
+    <div class="fld"><label for="cBody">本文（自由に修正できます）</label><textarea id="cBody" class="bodyta" ${lock?"readonly":""}>${esc(d.body)}</textarea></div>`;
+}
+function paintCompose(){ paintList(); paintEditor(); }
+function pick(i){ cur=i; paintCompose(); }
+
+document.addEventListener("input", e=>{
+  const d=drafts[cur];
+  if(!d) return;
+  if(e.target.id==="cSubj"){ d.subject=e.target.value; d.edited=true; paintList(); }
+  else if(e.target.id==="cBody"){ d.body=e.target.value; d.edited=true; paintList(); }
+});
+
+function checkDraft(d){
+  if(!d.subject.trim()||!d.body.trim()) return {block:true,msg:"件名または本文が空です"};
+  if(/\{[^}]*\}|｛|●/.test(d.subject+d.body)) return {block:false,msg:"「{ }」や「●」が残っています"};
+  return {block:false,msg:""};
+}
+function errHint(msg){
+  if(/535|Invalid login|BadCredentials|Username and Password/i.test(msg)) return msg+"（Gmailのアプリパスワードを確認してください）";
+  if(/Failed to fetch|NetworkError|Load failed/i.test(msg)) return "送信機能（send-mail）に接続できません。Edge Functionの設定を確認してください";
+  return msg;
+}
+
+async function doSend(d){
+  const s=curSnd();
+  d.status="sending"; d.err=""; paintList();
+  try{
+    const res=await fetch(FN_SEND,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY},
+      body:JSON.stringify({
+        meibo_id:String(d.r.id), to:d.to, subject:d.subject, body:d.body,
+        sender_name:(s&&s.name)||"", reply_to:(s&&s.reply_to)||""
+      })
+    });
+    const j=await res.json().catch(()=>({}));
+    if(res.status===404 && !j.error) throw new Error("send-mail 関数が見つかりません。Edge Functionを作成してください");
+    if(!res.ok||!j.ok) throw new Error(j.error||("HTTP "+res.status));
+    d.status="sent";
+    if(j.activity) acts.unshift(j.activity);
+    if(j.warning) toast(j.warning,true);
+  }catch(e){
+    d.status="error"; d.err=errHint(String((e&&e.message)||e));
+  }
+  paintList();
+}
+function afterSend(list){
+  indexActs(); render();
+  const ok=list.filter(d=>d.status==="sent").length, ng=list.length-ok;
+  const next=drafts.findIndex(d=>d.status===""||d.status==="error");
+  if(!ng && next>=0) cur=next;
+  paintCompose();
+  toast(ng? `送信 ${ok}件・失敗 ${ng}件（失敗した宛先を確認してください）`: `${ok}件送信しました`, ng>0);
+}
+
+async function sendOne(){
+  const d=drafts[cur];
+  if(!d||busy) return;
+  const c=checkDraft(d);
+  if(c.block){ toast(c.msg,true); return; }
+  if(c.msg && !confirm(c.msg+"。このまま送信しますか？")) return;
+  if(!confirm(`${d.r["氏名"]||""} 様（${d.to}）へ送信します。\n送信者：${curSnd().name}\n\nよろしいですか？`)) return;
+  busy=true; paintCompose();
+  await doSend(d);
+  busy=false; afterSend([d]);
+}
+
+async function sendAll(){
+  if(busy) return;
+  const list=pending();
+  if(!list.length) return;
+  const blocked=list.find(d=>checkDraft(d).block);
+  if(blocked){ pick(drafts.indexOf(blocked)); toast("件名または本文が空の宛先があります",true); return; }
+  const warned=list.filter(d=>checkDraft(d).msg).length;
+  let msg=`${list.length}件のメールを、1人ずつ個別に送信します。\n文例：${curTpl().name}\n送信者：${curSnd().name}`;
+  if(warned) msg+=`\n\n※${warned}件の文面に「{ }」や「●」が残っています。`;
+  if(!confirm(msg+"\n\n文面の確認は済みましたか？送信してよろしいですか？")) return;
+  busy=true;
+  for(const d of list){
+    cur=drafts.indexOf(d); paintCompose();
+    await doSend(d);
+    await sleep(500);
+  }
+  busy=false; afterSend(list);
+}
+
+function viaMailto(){
+  const d=drafts[cur];
+  if(!d||busy||!(d.status===""||d.status==="error")) return;
+  const a=document.createElement("a");
+  a.href=`mailto:${d.to}?subject=${encodeURIComponent(d.subject)}&body=${encodeURIComponent(d.body)}`;
+  a.click();
+  setTimeout(async()=>{
+    if(!confirm("メールアプリで送信しましたか？\n［OK］送信済みとして活動履歴に記録する\n［キャンセル］記録しない")) return;
+    const s=curSnd();
+    const row=await insertAct({
+      meibo_id:String(d.r.id), person_name:d.r["氏名"]||"", org_name:d.r["会社団体"]||"",
+      kind:"メール", occurred_at:new Date().toISOString(), staff:(s&&s.name)||"",
+      subject:d.subject, content:d.body, status:"送信済（メールアプリ）"
+    });
+    if(row){ d.status="sent"; afterSend([d]); }
+  },1200);
+}
+
+function closeCompose(){
+  if(busy){ toast("送信中です。終わるまでお待ちください",true); return; }
+  if(drafts.some(d=>d.edited && d.status!=="sent") && !confirm("修正した未送信の文面は保存されません。閉じますか？")) return;
+  drafts=[]; hideModal("mCompose");
+}
+
+/* ===== 活動履歴 ===== */
+let hRow=null, hKind="面会", hEdit=null;
+
+async function insertAct(obj){
+  const res=await sb(`/rest/v1/meibo_activity`,{method:"POST",headers:JSON_H,body:JSON.stringify(obj)});
+  if(!res.ok){ console.error(await res.text()); toast("活動履歴の保存に失敗しました",true); return null; }
+  const [row]=await res.json();
+  acts.unshift(row); indexActs(); render();
+  return row;
+}
+
+function openHist(id){
+  if(!actOK){ toast("活動履歴のテーブルがありません。セットアップSQLを実行してください",true); return; }
+  hRow=findRow(id);
+  if(!hRow) return;
+  $("staffList").innerHTML=senders.map(s=>`<option value="${esc(s.name)}">`).join("");
+  resetActForm();
+  paintHist();
+  showModal("mHist");
+}
+function closeHist(){
+  stopMic();
+  if(hEdit||$("hSubj").value.trim()||$("hBody").value.trim()){
+    if(!confirm("入力中の内容は保存されません。閉じますか？")) return;
+  }
+  hideModal("mHist"); hRow=null; hEdit=null;
+}
+function setKind(k){ hKind=k; paintKinds(); }
+function paintKinds(){
+  $("hKinds").innerHTML=KINDS.map(k=>
+    `<button class="${k===hKind?"on":""}" onclick="setKind('${k}')">${k}</button>`).join("");
+}
+function resetActForm(){
+  hEdit=null; hKind="面会";
+  $("hAt").value=toLocalInput(new Date());
+  $("hStaff").value=localStorage.getItem("act_last_staff")||"";
+  $("hSubj").value=""; $("hBody").value="";
+  $("hSave").textContent="記録する";
+  $("hCancel").style.display="none";
+  paintKinds();
+}
+function paintHist(){
+  const r=hRow;
+  const tel=String(r["電話"]||"").trim(), mail=String(r["メール"]||"").trim();
+  const sub=[r["会社団体"],r["役職"]].filter(Boolean).join("　");
+  $("hWho").innerHTML=`<b>${esc(r["氏名"]||"（氏名なし）")} 様</b><br>${esc(sub)}${sub?"<br>":""}`+
+    (tel?`<a href="tel:${esc(tel.replace(/[^0-9+#*]/g,""))}">&#128222; ${esc(tel)}</a>`:"")+
+    (EMAIL_RE.test(mail)?`<a href="#" onclick="closeHistTo('${r.id}');return false;">&#9993; ${esc(mail)}</a>`:"");
+  const list=actsFor(r);
+  $("hList").innerHTML=`<h3>これまでの記録（${list.length}件）</h3>`+(list.length? list.map(a=>{
+    const content=String(a.content||"");
+    const long=content.split("\n").length>4||content.length>160;
+    return `<div class="ti${hEdit&&String(hEdit.id)===String(a.id)?" editing":""}">
+      <div class="h"><span class="kb" style="background:${KCOL[a.kind]||"#5A6B8C"}">${esc(a.kind)}</span>
+        <span>${fmtDT(a.occurred_at)}</span>${a.staff?`<span>対応：${esc(a.staff)}</span>`:""}${a.status?`<span>${esc(a.status)}</span>`:""}
+        <span class="tools"><button class="mini" onclick="editAct('${a.id}')">編集</button><button class="del" onclick="delAct('${a.id}')">削除</button></span></div>
+      ${a.subject?`<div class="t">${esc(a.subject)}</div>`:""}
+      ${content?`<div class="c${long?" clip":""}" onclick="this.classList.remove('clip')" title="${long?"タップで全文表示":""}">${esc(content)}</div>`:""}
+    </div>`;
+  }).join(""): `<p class="hint" style="margin-top:8px;">まだ記録はありません。上の欄から最初の記録を追加できます。</p>`);
+}
+function closeHistTo(id){
+  if(hEdit||$("hSubj").value.trim()||$("hBody").value.trim()){
+    if(!confirm("入力中の内容は保存されません。メール作成に移りますか？")) return;
+  }
+  stopMic(); hideModal("mHist"); hRow=null; hEdit=null;
+  openCompose([id]);
+}
+
+function editAct(id){
+  const a=acts.find(x=>String(x.id)===String(id));
+  if(!a) return;
+  hEdit=a; hKind=KINDS.includes(a.kind)? a.kind: "その他";
+  $("hAt").value=toLocalInput(new Date(a.occurred_at));
+  $("hStaff").value=a.staff||"";
+  $("hSubj").value=a.subject||"";
+  $("hBody").value=a.content||"";
+  $("hSave").textContent="更新する";
+  $("hCancel").style.display="";
+  paintKinds(); paintHist();
+  $("mHist").querySelector(".mbody").scrollTop=0;
+}
+function cancelEditAct(){ resetActForm(); paintHist(); }
+
+async function saveAct(){
+  if(!hRow) return;
+  const at=new Date($("hAt").value);
+  if(isNaN(at)){ toast("日時を入力してください",true); return; }
+  const subject=$("hSubj").value.trim(), content=$("hBody").value.trim();
+  if(!subject && !content){ toast("件名・要件か内容を入力してください",true); return; }
+  stopMic();
+  const staff=$("hStaff").value.trim();
+  const obj={
+    meibo_id:String(hRow.id), person_name:hRow["氏名"]||"", org_name:hRow["会社団体"]||"",
+    kind:hKind, occurred_at:at.toISOString(), staff, subject, content
+  };
+  if(staff) localStorage.setItem("act_last_staff",staff);
+  $("hSave").disabled=true;
+  try{
+    if(hEdit){
+      const res=await sb(`/rest/v1/meibo_activity?id=eq.${hEdit.id}`,{method:"PATCH",headers:JSON_H,body:JSON.stringify(obj)});
+      if(!res.ok) throw new Error(await res.text());
+      const [row]=await res.json();
+      acts=acts.map(x=>String(x.id)===String(row.id)? row: x);
+      indexActs(); render(); toast("更新しました");
+    }else{
+      const row=await insertAct(obj);
+      if(!row) return;
+      toast("記録しました");
+    }
+    resetActForm(); paintHist();
+  }catch(e){ console.error(e); toast("保存に失敗しました",true); }
+  finally{ $("hSave").disabled=false; }
+}
+
+async function delAct(id){
+  if(!confirm("この記録を削除します。よろしいですか？")) return;
+  const res=await sb(`/rest/v1/meibo_activity?id=eq.${id}`,{method:"DELETE"});
+  if(!res.ok){ toast("削除に失敗しました",true); return; }
+  acts=acts.filter(x=>String(x.id)!==String(id));
+  if(hEdit && String(hEdit.id)===String(id)) resetActForm();
+  indexActs(); render(); paintHist(); toast("削除しました");
+}
+
+/* ===== 文例・送信者の設定 ===== */
+let cfgTab="tpl", cfgEdit=null;
+
+function openCfg(){
+  if(!cfgOK){ toast("文例・送信者のテーブルがありません。セットアップSQLを実行してください",true); return; }
+  cfgTab="tpl"; cfgEdit=null; paintCfg(); showModal("mCfg");
+}
+function closeCfg(){
+  hideModal("mCfg");
+  if($("mCompose").classList.contains("show")){ fillSelects(); applyTpl(false); }
+}
+function setCfgTab(t){ cfgTab=t; cfgEdit=null; paintCfg(); }
+function cfgPick(id){ cfgEdit=id; paintCfg(); }
+
+function paintCfg(){
+  const isT=cfgTab==="tpl", list=isT? tpls: senders;
+  $("tabT").classList.toggle("on",isT); $("tabS").classList.toggle("on",!isT);
+  $("gList").innerHTML=list.map(x=>
+    `<button class="ritem${String(x.id)===String(cfgEdit)?" cur":""}" onclick="cfgPick('${x.id}')">
+      <b>${esc(x.name)}</b><small>${esc(isT? x.subject: (x.reply_to||String(x.signature||"").split("\n")[0]))||"&nbsp;"}</small></button>`).join("")+
+    `<button class="ritem${cfgEdit===null?" cur":""}" onclick="cfgPick(null)"><b>＋ 新しく追加</b><small>&nbsp;</small></button>`;
+  const x=list.find(v=>String(v.id)===String(cfgEdit))||{};
+  const title=cfgEdit===null? (isT?"新しい文例":"新しい送信者"): "編集";
+  const delBtn=cfgEdit===null? "": `<button class="btn sub" style="color:var(--red);border-color:var(--red);" onclick="delCfg()">削除</button>`;
+  $("gForm").innerHTML= isT? `
+    <p class="hint"><b>${title}</b>　本文に使える差し込み：{氏名} {団体名} {役職} {送信者}<br>
+    宛名（団体名・役職・氏名 様）と送信者の署名は自動で付くので、本文には書かなくて大丈夫です。</p>
+    <div class="row2">
+      <div class="fld" style="flex:3"><label for="gName">文例の名前</label><input id="gName" value="${esc(x.name)}" placeholder="例：面会のお礼"></div>
+      <div class="fld" style="flex:1;min-width:90px"><label for="gSort">並び順</label><input id="gSort" type="number" value="${esc(x.sort??0)}"></div>
+    </div>
+    <div class="fld"><label for="gSubj">件名</label><input id="gSubj" value="${esc(x.subject)}" placeholder="例：本日はありがとうございました（{送信者}）"></div>
+    <div class="fld"><label for="gBody">お礼文（本文）</label><textarea id="gBody" style="min-height:260px">${esc(x.body)}</textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">${delBtn}<button class="btn" onclick="saveCfg()">保存する</button></div>` : `
+    <p class="hint"><b>${title}</b>　「送信者名」はメールの差出人名と、文例の {送信者} に入ります。<br>
+    返信先を入れると、相手が「返信」したときにそのアドレスに届きます（空欄なら送信用Gmail宛て）。</p>
+    <div class="row2">
+      <div class="fld" style="flex:3"><label for="gName">送信者名</label><input id="gName" value="${esc(x.name)}" placeholder="例：さの英志"></div>
+      <div class="fld" style="flex:1;min-width:90px"><label for="gSort">並び順</label><input id="gSort" type="number" value="${esc(x.sort??0)}"></div>
+    </div>
+    <div class="fld"><label for="gReply">返信先メールアドレス（任意）</label><input id="gReply" type="email" value="${esc(x.reply_to)}"></div>
+    <div class="fld"><label for="gBody">署名</label><textarea id="gBody" style="min-height:160px">${esc(x.signature)}</textarea></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">${delBtn}<button class="btn" onclick="saveCfg()">保存する</button></div>`;
+}
+
+async function reloadCfg(){
+  try{ tpls=await getAll(Q_TPLS); senders=await getAll(Q_SNDS); }
+  catch(e){ console.error(e); toast("文例・送信者の読み込みに失敗しました",true); }
+}
+async function saveCfg(){
+  const isT=cfgTab==="tpl", table=isT? "mail_templates": "mail_senders";
+  const name=$("gName").value.trim();
+  if(!name){ toast(isT?"文例の名前を入力してください":"送信者名を入力してください",true); return; }
+  const sort=parseInt($("gSort").value,10)||0;
+  let obj;
+  if(isT){
+    obj={name, sort, subject:$("gSubj").value.trim(), body:$("gBody").value};
+    if(!obj.subject||!obj.body.trim()){ toast("件名と本文を入力してください",true); return; }
+  }else{
+    obj={name, sort, reply_to:$("gReply").value.trim(), signature:$("gBody").value};
+    if(obj.reply_to && !EMAIL_RE.test(obj.reply_to)){ toast("返信先のメールアドレスが正しくありません",true); return; }
+  }
+  const res=cfgEdit===null
+    ? await sb(`/rest/v1/${table}`,{method:"POST",headers:JSON_H,body:JSON.stringify(obj)})
+    : await sb(`/rest/v1/${table}?id=eq.${cfgEdit}`,{method:"PATCH",headers:JSON_H,body:JSON.stringify(obj)});
+  if(!res.ok){ console.error(await res.text()); toast("保存に失敗しました",true); return; }
+  const [row]=await res.json();
+  cfgEdit=row? row.id: null;
+  await reloadCfg(); paintCfg(); toast("保存しました");
+}
+async function delCfg(){
+  if(cfgEdit===null) return;
+  const isT=cfgTab==="tpl", table=isT? "mail_templates": "mail_senders";
+  if((isT?tpls:senders).length<=1){ toast("最低1つは残してください",true); return; }
+  if(!confirm("削除します。よろしいですか？")) return;
+  const res=await sb(`/rest/v1/${table}?id=eq.${cfgEdit}`,{method:"DELETE"});
+  if(!res.ok){ toast("削除に失敗しました",true); return; }
+  cfgEdit=null; await reloadCfg(); paintCfg(); toast("削除しました");
 }
 
 /* CSV出力（BOM付きUTF-8、Excel/Sheets対応） */
@@ -325,8 +1067,12 @@ function csv(sheet4){
       r["氏名"], r["郵便番号"], r["住所"]
     ]);
   }else{
-    head=[...COLS,"メモ（撮影時）","撮影日"];
-    body=rows.map(r=>[...COLS.map(c=>r[c]), posterMemo(r), fmtD(r.posters&&r.posters.created_at)]);
+    head=[...COLS,"メモ（撮影時）","撮影日","最終活動日","最終活動","活動件数"];
+    body=rows.map(r=>{
+      const l=actsFor(r), a=l[0];
+      return [...COLS.map(c=>r[c]), posterMemo(r), fmtD(r.posters&&r.posters.created_at),
+        a?fmtD(a.occurred_at):"", a?a.kind:"", l.length];
+    });
   }
   const text="\uFEFF"+[head,...body].map(a=>a.map(q).join(",")).join("\r\n");
   const a=document.createElement("a");

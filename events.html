@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>地域イベント｜磯子区・緑区</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1c2530; --sub:#5b6773; --line:#d6dce2; --bg:#eef1f3; --card:#ffffff;
+  --isogo:#1b5e8c; --isogo-bg:#e3eef6; --midori:#2e7a4a; --midori-bg:#e2f1e7;
+  --sat:#1b5e8c; --sun:#b3372f; --warn:#b3372f;
+  --ff:"BIZ UDPGothic","Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--ff);color:var(--ink);background:var(--bg);font-size:15px;line-height:1.6;
+  padding-bottom:env(safe-area-inset-bottom,0px)}
+a{color:inherit}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid #f0b429;outline-offset:2px}
+
+header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;
+  padding:calc(env(safe-area-inset-top,0px) + 12px) 16px 0}
+.wrap{max-width:860px;margin:0 auto}
+h1{font-size:20px;margin:0 0 10px;font-weight:700;letter-spacing:.02em}
+h1 small{font-size:13px;color:var(--sub);font-weight:400;margin-left:8px}
+.tabs{display:flex;gap:4px}
+.tab{border:0;background:none;padding:10px 14px 9px;border-bottom:4px solid transparent;cursor:pointer;
+  font-weight:700;color:var(--sub);font-size:15px}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tab[data-w="isogo"][aria-selected="true"]{color:var(--isogo);border-bottom-color:var(--isogo)}
+.tab[data-w="midori"][aria-selected="true"]{color:var(--midori);border-bottom-color:var(--midori)}
+.tab .n{font-weight:400;font-size:12px;margin-left:4px}
+
+.tools{display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;max-width:860px;margin:0 auto}
+.tools input[type=search]{flex:1 1 220px;min-width:0;padding:10px 12px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+.tools select{padding:10px;border:1px solid var(--line);border-radius:6px;background:var(--card)}
+.chk{display:flex;align-items:center;gap:6px;font-size:14px;color:var(--sub);padding:0 4px}
+.cal-links{max-width:860px;margin:0 auto;padding:0 16px 4px;font-size:13px;color:var(--sub)}
+.cal-links a{margin-right:12px}
+
+main{max-width:860px;margin:0 auto;padding:0 16px 40px}
+.day{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:14px 0;border-top:1px solid var(--line)}
+.day:first-child{border-top:0}
+.date{text-align:center;line-height:1.1;padding-top:2px}
+.date .d{font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;display:block}
+.date .m{font-size:12px;color:var(--sub);display:block;margin-top:4px}
+.date.sat .d,.date.sat .w{color:var(--sat)} .date.sun .d,.date.sun .w{color:var(--sun)}
+.date .w{font-size:13px;font-weight:700;display:block;margin-top:2px}
+.date.today .m::after{content:"今日";display:block;margin-top:4px;color:#fff;background:var(--ink);border-radius:3px;padding:1px 0;font-weight:700}
+
+.ev{background:var(--card);border-radius:6px;border-left:6px solid var(--line);padding:10px 12px;margin-bottom:8px}
+.ev.isogo{border-left-color:var(--isogo)} .ev.midori{border-left-color:var(--midori)}
+.ev .top{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ev .time{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;white-space:nowrap}
+.ev .title{font-weight:700;font-size:16px;flex:1 1 200px;margin:0;background:none;border:0;padding:0;text-align:left;cursor:pointer}
+.ev .meta{font-size:13px;color:var(--sub);margin-top:2px}
+.tag{display:inline-block;font-size:12px;padding:0 7px;border-radius:3px;margin-right:4px;vertical-align:1px}
+.tag.isogo{background:var(--isogo-bg);color:var(--isogo)} .tag.midori{background:var(--midori-bg);color:var(--midori)}
+.tag.closed{background:#f6e1df;color:var(--warn)} .tag.free{background:#eef1f3;color:var(--ink)}
+.more{display:none;margin-top:8px;font-size:14px;border-top:1px dashed var(--line);padding-top:8px}
+.ev.open .more{display:block}
+.more dl{margin:0;display:grid;grid-template-columns:4.5em 1fr;gap:2px 8px}
+.more dt{color:var(--sub)} .more dd{margin:0}
+.more .src{margin-top:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:13px}
+.note{font-size:12px;color:var(--sub)}
+.empty{padding:40px 8px;text-align:center;color:var(--sub)}
+
+.btn{border:1px solid var(--ink);background:var(--ink);color:#fff;border-radius:6px;padding:8px 14px;cursor:pointer;font-weight:700;font-size:14px}
+.btn.sub{background:var(--card);color:var(--ink)}
+.btn.sm{padding:3px 10px;font-size:13px;font-weight:400}
+.btn:disabled{opacity:.5;cursor:default}
+
+details.admin{max-width:860px;margin:0 auto 24px;padding:0 16px}
+details.admin summary{cursor:pointer;color:var(--sub);font-size:14px;padding:8px 0}
+.panel{background:var(--card);border-radius:6px;padding:14px}
+.panel h2{font-size:15px;margin:14px 0 8px}
+.panel h2:first-child{margin-top:0}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.row input{flex:1 1 200px;padding:8px 10px;border:1px solid var(--line);border-radius:6px}
+.src-list{width:100%;border-collapse:collapse;font-size:13px}
+.src-wrap{overflow-x:auto}
+.src-list th,.src-list td{border-bottom:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}
+.src-list th{color:var(--sub);font-weight:400;white-space:nowrap}
+.src-list .st{max-width:280px}
+.src-list .err{color:var(--warn)}
+
+#toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%) translateY(20px);
+  background:var(--ink);color:#fff;padding:10px 16px;border-radius:6px;opacity:0;pointer-events:none;transition:.2s;max-width:90vw;font-size:14px;z-index:20}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--warn)}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+@media (max-width:520px){ .day{grid-template-columns:48px 1fr;gap:8px} .date .d{font-size:26px} }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <h1>地域イベント<small>横浜市 磯子区・緑区</small></h1>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-w="all" aria-selected="true">すべて<span class="n" id="n-all"></span></button>
+      <button class="tab" role="tab" data-w="isogo" aria-selected="false">磯子区<span class="n" id="n-isogo"></span></button>
+      <button class="tab" role="tab" data-w="midori" aria-selected="false">緑区<span class="n" id="n-midori"></span></button>
+    </div>
+  </div>
+</header>
+
+<div class="tools">
+  <input type="search" id="q" placeholder="キーワードで探す（例：子育て、健康、地区センター）" aria-label="キーワード">
+  <select id="range" aria-label="期間">
+    <option value="14">2週間以内</option>
+    <option value="31" selected>1か月以内</option>
+    <option value="92">3か月以内</option>
+    <option value="0">すべて</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="openOnly">締切を除く</label>
+</div>
+<div class="cal-links" id="calLinks"></div>
+
+<main id="list"><div class="empty">読み込み中…</div></main>
+
+<details class="admin" id="adminBox">
+  <summary>管理（巡回先の状態・手動取得・非表示）</summary>
+  <div class="panel">
+    <h2>合言葉</h2>
+    <div class="row">
+      <input type="password" id="adminKey" placeholder="EVENTS_ADMIN_KEY と同じ文字列" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <button class="btn sub" id="btnSaveKey">この端末に保存</button>
+    </div>
+    <p class="note">保存すると、一覧の各イベントに「非表示」ボタンが出ます。非表示にするとGoogleカレンダーからも削除され、次回以降も再登録されません。</p>
+
+    <h2>巡回先</h2>
+    <div class="row" style="margin-bottom:8px">
+      <button class="btn" id="btnCrawlAll">すべて今すぐ取得</button>
+      <button class="btn sub" id="btnReloadSrc">状態を更新</button>
+      <span class="note" id="crawlProg"></span>
+    </div>
+    <div class="src-wrap"><table class="src-list"><thead><tr><th>区</th><th>巡回先</th><th>最終取得</th><th>結果</th><th></th></tr></thead><tbody id="srcBody"></tbody></table></div>
+    <p class="note">巡回先の追加・停止は Supabase の Table Editor で event_sources テーブルを編集してください（ward は isogo / midori）。</p>
+
+    <h2>非表示にしたイベント</h2>
+    <div id="hiddenList" class="note">―</div>
+  </div>
+</details>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ================================================================
+   設定（選挙情報管理アプリ本体と同じ値）
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const PASSCODE = "sano2026";   // ""で無効化
+const FN_URL   = SUPABASE_URL + "/functions/v1/crawl-events";
+// Googleカレンダーの ID（任意）。入れると「カレンダーに追加」リンクが出ます
+const GCAL_IDS = { isogo: "", midori: "" };
+const ADMIN_KEY_STORE = "events_admin_key";
+/* ================================================================ */
+
+const WARD = { isogo: "磯子区", midori: "緑区" };
+const WD = "日月火水木金土";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2, "0");
+
+/* ---------- パスコード ---------- */
+if (PASSCODE && localStorage.getItem("poster_gate") !== "ok") {
+  const v = prompt("パスコードを入力してください");
+  if (v === PASSCODE) localStorage.setItem("poster_gate", "ok");
+  else { document.body.innerHTML = "<p style='padding:20px'>パスコードが違います。再読み込みしてやり直してください。</p>"; throw new Error("gate"); }
+}
+
+/* ---------- 共通 ---------- */
+let toastTimer;
+function toast(m, err) {
+  const t = $("toast"); t.textContent = m; t.className = err ? "err show" : "show";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), err ? 5000 : 2600);
+}
+async function rest(path) {
+  const r = await fetch(SUPABASE_URL + "/rest/v1/" + path, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: "Bearer " + SUPABASE_ANON_KEY } });
+  const tx = await r.text();
+  if (!r.ok) throw new Error(r.status + " " + tx.slice(0, 160));
+  return tx ? JSON.parse(tx) : [];
+}
+function adminKey() { return localStorage.getItem(ADMIN_KEY_STORE) || ""; }
+async function callFn(body) {
+  const r = await fetch(FN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON_KEY, "x-admin-key": adminKey() },
+    body: JSON.stringify(body)
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || ("HTTP " + r.status));
+  return j;
+}
+function todayYmd() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function addDaysYmd(ymd, n) { const [y, m, d] = ymd.split("-").map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${pad(t.getMonth() + 1)}-${pad(t.getDate())}`; }
+function hm(t) { return t ? t.slice(0, 5) : ""; }
+function fmtStamp(v) { if (!v) return "未取得"; const d = new Date(v); return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+/* ---------- 状態 ---------- */
+let ALL = [], ward = "all";
+
+/* ---------- 一覧 ---------- */
+async function loadEvents() {
+  try {
+    ALL = await rest(`events?select=*&event_date=gte.${todayYmd()}&order=event_date.asc,start_time.asc.nullsfirst&limit=2000`);
+    render();
+    renderHidden();
+  } catch (e) {
+    $("list").innerHTML = `<div class="empty">読み込めませんでした（${esc(e.message)}）。events_setup.sql を実行済みか確認してください。</div>`;
+  }
+}
+
+function filtered(ignoreWard) {
+  const q = $("q").value.trim().normalize("NFKC").toLowerCase();
+  const days = +$("range").value;
+  const until = days ? addDaysYmd(todayYmd(), days) : "9999-12-31";
+  const openOnly = $("openOnly").checked;
+  const words = q ? q.split(/\s+/) : [];
+  return ALL.filter(e => {
+    if (e.hidden) return false;
+    if (!ignoreWard && ward !== "all" && e.ward !== ward) return false;
+    if (e.event_date > until) return false;
+    if (openOnly && e.status === "締切") return false;
+    if (words.length) {
+      const hay = [e.title, e.venue, e.address, e.organizer, e.target, e.detail, e.fee, WARD[e.ward]].join(" ").normalize("NFKC").toLowerCase();
+      if (!words.every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+}
+
+function render() {
+  const base = filtered(true);
+  $("n-all").textContent = base.length;
+  $("n-isogo").textContent = base.filter(e => e.ward === "isogo").length;
+  $("n-midori").textContent = base.filter(e => e.ward === "midori").length;
+
+  const rows = ward === "all" ? base : base.filter(e => e.ward === ward);
+  if (!rows.length) {
+    $("list").innerHTML = `<div class="empty">条件に合うイベントはありません。期間を広げるか、キーワードを変えてみてください。</div>`;
+    return;
+  }
+  const byDate = new Map();
+  for (const e of rows) { if (!byDate.has(e.event_date)) byDate.set(e.event_date, []); byDate.get(e.event_date).push(e); }
+  const today = todayYmd(), isAdmin = !!adminKey();
+  let html = "";
+  for (const [d, evs] of byDate) {
+    const [y, m, dd] = d.split("-").map(Number);
+    const wd = new Date(y, m - 1, dd).getDay();
+    const cls = ["date", wd === 6 ? "sat" : wd === 0 ? "sun" : "", d === today ? "today" : ""].join(" ");
+    html += `<section class="day"><div class="${cls}"><span class="d">${dd}</span><span class="w">${WD[wd]}</span><span class="m">${m}月</span></div><div>`;
+    for (const e of evs) html += evHtml(e, isAdmin);
+    html += `</div></section>`;
+  }
+  $("list").innerHTML = html;
+}
+
+function evHtml(e, isAdmin) {
+  const time = e.start_time ? hm(e.start_time) + (e.end_time ? "–" + hm(e.end_time) : "〜") : "時間未定";
+  const tags = [`<span class="tag ${e.ward}">${WARD[e.ward]}</span>`];
+  if (e.status === "締切") tags.push(`<span class="tag closed">締切</span>`);
+  if (e.fee && /無料/.test(e.fee)) tags.push(`<span class="tag free">無料</span>`);
+  const dl = [["会場", e.venue], ["住所", e.address], ["主催", e.organizer], ["対象", e.target], ["費用", e.fee], ["定員", e.capacity], ["申込", e.apply], ["締切", e.deadline], ["状況", e.status]]
+    .filter(x => x[1]).map(x => `<dt>${x[0]}</dt><dd>${esc(x[1])}</dd>`).join("");
+  return `<article class="ev ${e.ward}" data-id="${e.id}">
+    <div class="top"><span class="time">${time}</span><button class="title" aria-expanded="false">${esc(e.title)}</button></div>
+    <div class="meta">${tags.join("")}${esc(e.venue || "")}</div>
+    <div class="more">
+      ${e.detail ? `<p style="margin:0 0 6px">${esc(e.detail)}</p>` : ""}
+      <dl>${dl}</dl>
+      <div class="src">
+        ${e.source_url ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener">出典ページを開く</a>` : ""}
+        ${e.gcal_error ? `<span class="err" style="color:var(--warn)">カレンダー未登録</span>` : ""}
+        ${isAdmin ? `<button class="btn sub sm" data-hide="${e.id}">非表示</button>` : ""}
+      </div>
+      <p class="note">AIによる自動抽出です。参加前に出典ページで確認してください。</p>
+    </div>
+  </article>`;
+}
+
+$("list").addEventListener("click", async ev => {
+  const hideBtn = ev.target.closest("[data-hide]");
+  if (hideBtn) {
+    const id = +hideBtn.dataset.hide;
+    if (!confirm("このイベントを非表示にし、Googleカレンダーからも削除します。よろしいですか？")) return;
+    hideBtn.disabled = true;
+    try { await callFn({ action: "hide", id }); const e = ALL.find(x => x.id === id); if (e) e.hidden = true; render(); renderHidden(); toast("非表示にしました"); }
+    catch (e) { hideBtn.disabled = false; toast("非表示にできませんでした：" + e.message, true); }
+    return;
+  }
+  const t = ev.target.closest(".title");
+  if (t) { const a = t.closest(".ev"); a.classList.toggle("open"); t.setAttribute("aria-expanded", a.classList.contains("open")); }
+});
+
+/* ---------- タブ・絞り込み ---------- */
+document.querySelectorAll(".tab").forEach(b => b.addEventListener("click", () => {
+  ward = b.dataset.w;
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === b));
+  render();
+}));
+let qTimer;
+$("q").addEventListener("input", () => { clearTimeout(qTimer); qTimer = setTimeout(render, 200); });
+$("range").addEventListener("change", render);
+$("openOnly").addEventListener("change", render);
+
+/* ---------- カレンダー追加リンク ---------- */
+(function () {
+  const links = Object.entries(GCAL_IDS).filter(([, id]) => id)
+    .map(([w, id]) => `<a href="https://calendar.google.com/calendar/u/0/r?cid=${encodeURIComponent(id)}" target="_blank" rel="noopener">${WARD[w]}イベントをGoogleカレンダーに追加</a>`);
+  $("calLinks").innerHTML = links.join("");
+})();
+
+/* ---------- 管理 ---------- */
+$("adminKey").value = adminKey();
+$("btnSaveKey").addEventListener("click", () => {
+  const v = $("adminKey").value.trim();
+  if (v) localStorage.setItem(ADMIN_KEY_STORE, v); else localStorage.removeItem(ADMIN_KEY_STORE);
+  toast(v ? "合言葉を保存しました" : "合言葉を消去しました"); render(); renderHidden();
+});
+
+let SOURCES = [];
+async function loadSources() {
+  try {
+    SOURCES = await rest("event_sources?select=*&order=ward.asc,id.asc");
+    $("srcBody").innerHTML = SOURCES.map(s => `<tr>
+      <td>${WARD[s.ward] || esc(s.ward)}</td>
+      <td><a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.name)}</a>${s.active ? "" : "<br><span class='note'>停止中</span>"}</td>
+      <td style="white-space:nowrap">${fmtStamp(s.last_crawled_at)}</td>
+      <td class="st ${/^エラー/.test(s.last_status || "") ? "err" : ""}">${esc(s.last_status || "―")}</td>
+      <td><button class="btn sub sm" data-crawl="${s.id}">今すぐ取得</button></td></tr>`).join("");
+  } catch (e) { $("srcBody").innerHTML = `<tr><td colspan="5">${esc(e.message)}</td></tr>`; }
+}
+async function crawlOne(id) {
+  const j = await callFn({ action: "crawl", source_id: id, force: true });
+  const r = j.results && j.results[0];
+  if (r && r.error) throw new Error(r.error);
+  return r;
+}
+$("srcBody").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-crawl]"); if (!b) return;
+  if (!adminKey()) { toast("先に合言葉を保存してください", true); return; }
+  b.disabled = true; b.textContent = "取得中…";
+  try { await crawlOne(+b.dataset.crawl); toast("取得しました"); await loadEvents(); }
+  catch (e) { toast("取得に失敗：" + e.message, true); }
+  await loadSources();
+});
+$("btnCrawlAll").addEventListener("click", async () => {
+  if (!adminKey()) { toast("先に合言葉を保存してください", true); return; }
+  const targets = SOURCES.filter(s => s.active);
+  if (!confirm(`${targets.length}件の巡回先を順番に取得します（1件あたり数十秒かかります）。`)) return;
+  const btn = $("btnCrawlAll"); btn.disabled = true;
+  let ok = 0, ng = 0;
+  for (let i = 0; i < targets.length; i++) {
+    $("crawlProg").textContent = `${i + 1} / ${targets.length}：${targets[i].name}`;
+    try { await crawlOne(targets[i].id); ok++; } catch (e) { ng++; }
+    await loadSources();
+  }
+  $("crawlProg").textContent = `完了：成功${ok}件${ng ? "・失敗" + ng + "件" : ""}`;
+  btn.disabled = false;
+  await loadEvents();
+});
+$("btnReloadSrc").addEventListener("click", loadSources);
+
+function renderHidden() {
+  const hs = ALL.filter(e => e.hidden);
+  if (!hs.length) { $("hiddenList").textContent = "―"; return; }
+  const isAdmin = !!adminKey();
+  $("hiddenList").innerHTML = hs.map(e => `<div class="row" style="margin:4px 0">${esc(e.event_date)} ${esc(e.title)}（${WARD[e.ward]}）${isAdmin ? ` <button class="btn sub sm" data-unhide="${e.id}">戻す</button>` : ""}</div>`).join("")
+    + `<p class="note">「戻す」と一覧に再表示され、次回の自動取得でカレンダーにも再登録されます。</p>`;
+}
+$("hiddenList").addEventListener("click", async ev => {
+  const b = ev.target.closest("[data-unhide]"); if (!b) return;
+  b.disabled = true;
+  try { await callFn({ action: "unhide", id: +b.dataset.unhide }); const e = ALL.find(x => x.id === +b.dataset.unhide); if (e) e.hidden = false; render(); renderHidden(); toast("戻しました"); }
+  catch (e) { b.disabled = false; toast("戻せませんでした：" + e.message, true); }
+});
+$("adminBox").addEventListener("toggle", () => { if ($("adminBox").open) loadSources(); });
+
+loadEvents();
+</script>
+</body>
+</html>

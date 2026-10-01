@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>対立候補ウォッチ</title>
+<style>
+:root{
+  --ink:#1d2330; --sub:#5b6474; --line:#dde1e8; --bg:#f3f4f7; --card:#fff;
+  --accent:#8a1c1c; --accent-soft:#f6e9e9; --ok:#2e7d52; --warn:#b5403b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",system-ui,sans-serif;
+  font-size:15px;line-height:1.65;-webkit-text-size-adjust:100%}
+a{color:#1f4f8f}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+
+/* パスコード */
+#gate{position:fixed;inset:0;background:var(--bg);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+#gate .box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:24px;width:100%;max-width:340px}
+#gate h2{margin:0 0 12px;font-size:17px}
+#gate input{width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;margin-bottom:10px}
+#gate button{width:100%;padding:10px;border:0;border-radius:8px;background:var(--accent);color:#fff;font-weight:700}
+#gateMsg{color:var(--warn);font-size:13px;min-height:1em;margin:8px 0 0}
+
+/* ヘッダー */
+header{position:sticky;top:0;z-index:20;background:#1d2330;color:#fff;padding:10px 14px calc(0px);
+  padding-top:max(10px,env(safe-area-inset-top))}
+.hrow{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+header h1{margin:0;font-size:18px;letter-spacing:.06em}
+header .meta{font-size:12px;color:#aab3c2}
+header .home{margin-left:auto;color:#cfd6e2;font-size:13px}
+#tabs{display:flex;gap:2px;margin-top:8px;overflow-x:auto}
+#tabs button{border:0;background:transparent;color:#aab3c2;padding:8px 12px;border-bottom:3px solid transparent;white-space:nowrap;font-weight:600}
+#tabs button.on{color:#fff;border-bottom-color:#e05a5a}
+
+/* 絞り込み */
+#filters{background:#fff;border-bottom:1px solid var(--line);padding:10px 14px;display:flex;flex-direction:column;gap:8px}
+#chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1.5px solid var(--c);color:var(--c);background:#fff;border-radius:999px;padding:3px 12px;font-size:13px;font-weight:700}
+.chip.on{background:var(--c);color:#fff}
+.chip.all{--c:#1d2330}
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.frow select,.frow input[type=search]{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.frow input[type=search]{flex:1;min-width:160px}
+.frow label{font-size:13px;color:var(--sub);display:flex;align-items:center;gap:4px}
+
+main{max-width:880px;margin:0 auto;padding:14px 12px 80px}
+.tab{display:none}.tab.on{display:block}
+.empty{color:var(--sub);text-align:center;padding:40px 10px}
+.note{font-size:13px;color:var(--sub);margin:0 0 12px}
+
+/* 日次まとめ */
+.upcoming{background:var(--accent-soft);border:1px solid #e8caca;border-radius:12px;padding:12px 14px;margin-bottom:18px}
+.upcoming h2{margin:0 0 6px;font-size:15px;color:var(--accent)}
+.upcoming li{margin:4px 0}
+.day{margin-bottom:22px}
+.day>h2{font-size:16px;margin:0 0 8px;padding-bottom:4px;border-bottom:2px solid var(--ink);display:flex;align-items:baseline;gap:8px}
+.day>h2 small{font-size:12px;color:var(--sub);font-weight:400}
+.overall{background:#fff;border:1px solid var(--line);border-left:4px solid var(--ink);border-radius:8px;padding:10px 12px;margin-bottom:8px;white-space:pre-wrap;font-size:14px}
+.pending{color:var(--sub);font-size:13px}
+details.rv{background:#fff;border:1px solid var(--line);border-left:5px solid var(--c);border-radius:8px;margin-bottom:6px}
+details.rv>summary{list-style:none;padding:9px 12px;cursor:pointer}
+details.rv>summary::-webkit-details-marker{display:none}
+details.rv>summary .nm{font-weight:700;color:var(--c);margin-right:6px}
+details.rv>summary .ct{font-size:12px;color:var(--sub)}
+details.rv>summary .sm{display:block;font-size:14px;margin-top:2px;white-space:pre-wrap}
+details.rv ul{margin:0;padding:0 12px 10px 28px;font-size:13.5px}
+details.rv li{margin:6px 0}
+
+/* タイムライン */
+.card{background:#fff;border:1px solid var(--line);border-left:5px solid var(--c);border-radius:8px;padding:10px 12px;margin-bottom:10px}
+.card.hid{opacity:.5}
+.card .top{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--sub)}
+.card .nm{font-weight:700;color:var(--c);font-size:14px}
+.badge{display:inline-block;border:1px solid var(--line);border-radius:4px;padding:0 6px;font-size:11.5px;background:#fafbfc;color:var(--sub)}
+.badge.plan{background:var(--accent);border-color:var(--accent);color:#fff}
+.card h3{margin:4px 0 2px;font-size:15px}
+.card .place{font-size:13px;color:var(--sub)}
+.card .sum{margin:4px 0 6px;white-space:pre-wrap}
+.card .acts{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:13px}
+.lnk{font-weight:700;word-break:break-all}
+.tbtn{border:1px solid var(--line);background:#fff;border-radius:6px;padding:2px 10px;font-size:12.5px;color:var(--sub)}
+
+/* フォーム */
+.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+.panel h2{margin:0 0 10px;font-size:16px}
+.fld{margin-bottom:10px}
+.fld>label{display:block;font-size:13px;font-weight:700;margin-bottom:3px}
+.fld input,.fld select,.fld textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+.fld textarea{min-height:130px;resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+@media (max-width:560px){.grid2{grid-template-columns:1fr}}
+.btn{border:0;border-radius:8px;padding:9px 16px;font-weight:700;background:var(--ink);color:#fff}
+.btn.pri{background:var(--accent)}
+.btn.sub{background:#fff;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:4px 10px;font-size:13px;font-weight:600}
+.btn:disabled{opacity:.5}
+.withmic{display:flex;gap:6px;align-items:flex-start}
+.withmic textarea{flex:1}
+.mic{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 10px}
+.mic.on{background:var(--warn);color:#fff;border-color:var(--warn)}
+.plinks{font-size:13px;margin:-2px 0 10px}
+.plinks a{margin-right:12px}
+.result{background:#f4f8f5;border:1px solid #cfe3d6;border-radius:8px;padding:10px;font-size:14px;white-space:pre-wrap;margin-top:10px}
+
+/* 設定 */
+.rvset{border-left:5px solid var(--c)}
+.src{border-top:1px dashed var(--line);padding:8px 0;font-size:13.5px}
+.src .u{word-break:break-all}
+.src .st{font-size:12px;color:var(--sub)}
+.src .err{font-size:12px;color:var(--warn)}
+.src .b{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.addsrc{display:grid;grid-template-columns:110px 1fr 120px auto;gap:6px;margin-top:8px}
+.addsrc input,.addsrc select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:#fff;min-width:0}
+@media (max-width:560px){.addsrc{grid-template-columns:1fr 1fr}.addsrc input[name=url]{grid-column:1/-1;order:-1}}
+.off{opacity:.55}
+
+/* モーダル・トースト・処理中 */
+#modal{position:fixed;inset:0;background:rgba(20,24,32,.5);z-index:60;display:none;align-items:flex-end;justify-content:center}
+#modal.on{display:flex}
+#modal .box{background:#fff;width:100%;max-width:560px;border-radius:14px 14px 0 0;padding:16px;max-height:92vh;overflow:auto;padding-bottom:max(16px,env(safe-area-inset-bottom))}
+@media (min-width:640px){#modal{align-items:center}#modal .box{border-radius:14px}}
+#busy{position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:70;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;font-weight:700}
+#busy.on{display:flex}
+.spin{width:34px;height:34px;border:4px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:#1d2330;color:#fff;padding:10px 16px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;z-index:80;max-width:92vw}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.err{background:var(--warn)}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="box">
+    <h2>対立候補ウォッチ</h2>
+    <input id="gateInput" type="password" placeholder="パスコード" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <button onclick="checkGate()">開く</button>
+    <p id="gateMsg"></p>
+  </div>
+</div>
+
+<header>
+  <div class="hrow">
+    <h1>対立候補ウォッチ</h1>
+    <span class="meta" id="meta"></span>
+    <a class="home" href="index.html">トップへ</a>
+  </div>
+  <nav id="tabs">
+    <button data-tab="digest" class="on">日次まとめ</button>
+    <button data-tab="timeline">タイムライン</button>
+    <button data-tab="add">手動で追加</button>
+    <button data-tab="settings">設定</button>
+  </nav>
+</header>
+
+<div id="filters">
+  <div id="chips"></div>
+  <div class="frow">
+    <select id="period" title="期間">
+      <option value="7">直近7日</option>
+      <option value="14" selected>直近14日</option>
+      <option value="30">直近30日</option>
+      <option value="90">直近90日</option>
+      <option value="365">直近1年</option>
+    </select>
+    <select id="plat" title="媒体" class="tlonly">
+      <option value="">すべての媒体</option>
+      <option value="hp">公式HP</option>
+      <option value="youtube">YouTube</option>
+      <option value="instagram">Instagram</option>
+      <option value="x">X</option>
+      <option value="facebook">Facebook</option>
+      <option value="web">その他Web</option>
+    </select>
+    <input id="q" type="search" placeholder="キーワード（場所・内容）" class="tlonly">
+    <label class="tlonly"><input type="checkbox" id="showHidden">非表示も表示</label>
+    <button class="btn sub sm tlonly" onclick="exportCsv()">CSV</button>
+  </div>
+</div>
+
+<main>
+  <section id="tab-digest" class="tab on"></section>
+  <section id="tab-timeline" class="tab"></section>
+
+  <section id="tab-add" class="tab">
+    <div class="panel">
+      <h2>SNS投稿などを手動で追加</h2>
+      <p class="note">Instagram・X・Facebook は自動取得できないため、投稿のURLと本文（キャプション）をコピーして貼り付けてください。AIが「いつ・どこで・何をしたか」に要約して登録します。HPの記事URLだけを貼った場合は、本文を自動で読みに行きます。</p>
+      <div class="fld">
+        <label for="addRival">候補者</label>
+        <select id="addRival"></select>
+      </div>
+      <div class="plinks" id="addLinks"></div>
+      <div class="fld">
+        <label for="addUrl">投稿のURL</label>
+        <input id="addUrl" type="url" inputmode="url" placeholder="https://www.instagram.com/p/…" autocapitalize="off" autocorrect="off" spellcheck="false">
+      </div>
+      <div class="fld">
+        <label for="addDate">投稿日（活動日はAIが本文から判断します）</label>
+        <input id="addDate" type="date">
+      </div>
+      <div class="fld">
+        <label for="addText">本文（キャプション）</label>
+        <div class="withmic">
+          <textarea id="addText" placeholder="投稿の文章をここに貼り付け。分からなければ、見た内容をメモで書いてもOKです。"></textarea>
+          <button class="mic" id="micAdd" type="button" onclick="toggleMic('addText','micAdd')" title="音声入力">🎤</button>
+        </div>
+      </div>
+      <button class="btn pri" id="addBtn" onclick="addPost()">要約して登録</button>
+      <div id="addResult"></div>
+    </div>
+  </section>
+
+  <section id="tab-settings" class="tab">
+    <div class="panel">
+      <h2>取得の操作</h2>
+      <p class="note">自動取得は30分ごとに動き、各巡回先を約6時間おきに確認します。すぐに確認したいときは下のボタンを押してください。</p>
+      <div class="frow">
+        <button class="btn pri" onclick="crawlAll()">すべて今すぐ取得</button>
+        <button class="btn sub" onclick="resummarize()">まとめを作り直す（30日分）</button>
+      </div>
+    </div>
+    <div id="rivalSettings"></div>
+    <div class="panel">
+      <h2>候補者を追加</h2>
+      <div class="grid2">
+        <div class="fld"><label>名前</label><input id="nrName" placeholder="例：山田 太郎"></div>
+        <div class="fld"><label>よみがな</label><input id="nrKana"></div>
+        <div class="fld"><label>政党</label><input id="nrParty"></div>
+        <div class="fld"><label>肩書き</label><input id="nrRole"></div>
+        <div class="fld"><label>表示色</label><input id="nrColor" type="color" value="#6a1b9a"></div>
+        <div class="fld"><label>並び順（小さい順）</label><input id="nrSort" type="number" value="50"></div>
+      </div>
+      <button class="btn" onclick="addRival()">追加</button>
+    </div>
+  </section>
+</main>
+
+<div id="modal">
+  <div class="box">
+    <h2 style="margin:0 0 10px;font-size:16px">記録を修正</h2>
+    <input type="hidden" id="edId">
+    <div class="grid2">
+      <div class="fld"><label>活動日</label><input id="edDate" type="date"></div>
+      <div class="fld"><label>分類</label><select id="edCat"></select></div>
+    </div>
+    <div class="fld"><label>場所</label><input id="edPlace"></div>
+    <div class="fld"><label>見出し</label><input id="edTitle"></div>
+    <div class="fld"><label>要約</label><textarea id="edSum" style="min-height:100px"></textarea></div>
+    <div class="frow">
+      <button class="btn pri" onclick="saveEdit()">保存</button>
+      <button class="btn sub" onclick="closeModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+<div id="busy"><div class="spin"></div><div id="busyMsg">処理中…</div></div>
+<div id="toast"></div>
+
+<script>
+/* ================================================================
+   設定
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const PASSCODE          = "sano2026";      // 他の画面と共通
+const FN_URL            = SUPABASE_URL + "/functions/v1/rival-watch";
+/* ================================================================ */
+
+const CATEGORIES = ["街頭活動","地域行事・訪問","議会・公務","政策・市政報告","党務・選挙準備","会合・集会","メディア・発信","その他"];
+const PLATFORM = {hp:"公式HP",youtube:"YouTube",instagram:"Instagram",x:"X",facebook:"Facebook",web:"Web"};
+const WEEK = ["日","月","火","水","木","金","土"];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const safeUrl = u => /^https?:\/\//i.test(String(u||"")) ? String(u) : "#";
+const sb = (path, opt={}) => fetch(SUPABASE_URL + path, {...opt, headers:{
+  "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, ...(opt.headers||{})}});
+
+/* ---------- パスコード ---------- */
+function checkGate(){
+  if($("gateInput").value === PASSCODE){
+    localStorage.setItem("poster_gate","ok");
+    $("gate").style.display = "none";
+    init();
+  }else{
+    $("gateMsg").textContent = "パスコードが違います";
+  }
+}
+$("gateInput").addEventListener("keydown", e => { if(e.key === "Enter") checkGate(); });
+
+/* ---------- 共通 ---------- */
+let toastTimer;
+function toast(msg, err){
+  const t = $("toast"); t.textContent = msg; t.className = err ? "err show" : "show";
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), err ? 5000 : 2600);
+}
+function busy(on, msg){ $("busy").classList.toggle("on", !!on); if(msg) $("busyMsg").textContent = msg; }
+
+function todayJst(){ return new Date(Date.now() + 9*3600e3).toISOString().slice(0,10); }
+function addDays(ymd, n){ const d = new Date(ymd + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0,10); }
+function fmtDay(ymd){
+  if(!ymd) return "日付不明";
+  const d = new Date(ymd + "T00:00:00Z");
+  return `${d.getUTCMonth()+1}月${d.getUTCDate()}日（${WEEK[d.getUTCDay()]}）`;
+}
+function fmtTime(iso){
+  if(!iso) return "未確認";
+  const d = new Date(new Date(iso).getTime() + 9*3600e3);
+  const z = n => String(n).padStart(2,"0");
+  return `${d.getUTCMonth()+1}/${d.getUTCDate()} ${z(d.getUTCHours())}:${z(d.getUTCMinutes())}`;
+}
+
+async function get(path){
+  const r = await sb("/rest/v1/" + path);
+  if(!r.ok) throw new Error("読み込みエラー " + r.status + "：" + (await r.text()).slice(0,160));
+  return r.json();
+}
+async function fn(body){
+  const r = await fetch(FN_URL, {method:"POST",
+    headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON_KEY,"x-staff-key":PASSCODE},
+    body: JSON.stringify(body)});
+  const j = await r.json().catch(() => ({error:"応答を読み取れません（" + r.status + "）"}));
+  if(!r.ok || j.error) throw new Error(j.error || ("エラー " + r.status));
+  return j;
+}
+
+/* ---------- 状態 ---------- */
+const S = { rivals:[], sources:[], posts:[], daily:[], sel:new Set(), tab:"digest" };
+const rivalOf = id => S.rivals.find(r => r.id === id) || {name:"不明", color:"#757575"};
+const selected = id => S.sel.size === 0 || S.sel.has(id);
+
+async function load(){
+  const period = Number($("period").value) || 14;
+  const since = addDays(todayJst(), -period);
+  const hid = $("showHidden").checked ? "" : "&hidden=is.false";
+  try{
+    const [rv, src, posts, daily] = await Promise.all([
+      get("rivals?select=*&order=sort.asc,id.asc"),
+      get("rival_sources?select=*&order=rival_id.asc,id.asc"),
+      get(`rival_posts?select=id,rival_id,platform,url,title,published_at,activity_date,place,category,summary,added_by,hidden&activity_date=gte.${since}${hid}&order=activity_date.desc,published_at.desc.nullslast&limit=1500`),
+      get(`rival_daily?select=*&day=gte.${since}&order=day.desc`)
+    ]);
+    S.rivals = rv; S.sources = src; S.posts = posts; S.daily = daily;
+    const last = src.map(s => s.last_checked_at).filter(Boolean).sort().pop();
+    $("meta").textContent = last ? "最終取得 " + fmtTime(last) : "";
+    renderAll();
+  }catch(e){ toast(e.message, true); }
+}
+
+function renderAll(){
+  renderChips(); renderDigest(); renderTimeline(); renderAddForm(); renderSettings();
+}
+
+/* ---------- 絞り込みチップ ---------- */
+function renderChips(){
+  const act = S.rivals.filter(r => r.active !== false);
+  $("chips").innerHTML =
+    `<button class="chip all ${S.sel.size===0?"on":""}" data-id="0">全員</button>` +
+    act.map(r => `<button class="chip ${S.sel.has(r.id)?"on":""}" style="--c:${esc(r.color)}" data-id="${r.id}">${esc(r.name)}</button>`).join("");
+}
+$("chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if(!b) return;
+  const id = Number(b.dataset.id);
+  if(!id) S.sel.clear(); else S.sel.has(id) ? S.sel.delete(id) : S.sel.add(id);
+  renderChips(); renderDigest(); renderTimeline();
+});
+
+/* ---------- 日次まとめ ---------- */
+function postLine(p){
+  const plan = p.activity_date > todayJst();
+  return `<li>${plan?'<span class="badge plan">予定</span> ':""}<span class="badge">${esc(p.category||"その他")}</span>` +
+    `${p.place ? " 📍" + esc(p.place) : ""} ${esc(p.summary || p.title || "")} ` +
+    `<a class="lnk" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">${esc(PLATFORM[p.platform]||"元の記事")} ↗</a></li>`;
+}
+function renderDigest(){
+  const today = todayJst();
+  const posts = S.posts.filter(p => !p.hidden && selected(p.rival_id));
+  const up = posts.filter(p => p.activity_date > today).sort((a,b) => a.activity_date.localeCompare(b.activity_date));
+  let html = "";
+  if(up.length){
+    html += `<div class="upcoming"><h2>今後の予定（本人の告知より）</h2><ul style="margin:0;padding-left:18px">` +
+      up.map(p => `<li><b>${esc(fmtDay(p.activity_date))}</b> <span style="color:${esc(rivalOf(p.rival_id).color)};font-weight:700">${esc(rivalOf(p.rival_id).name)}</span>　${esc(p.place ? p.place + "：" : "")}${esc(p.summary||p.title||"")} <a href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">↗</a></li>`).join("") +
+      `</ul></div>`;
+  }
+  const days = [...new Set(posts.filter(p => p.activity_date && p.activity_date <= today).map(p => p.activity_date))].sort().reverse();
+  if(!days.length && !up.length){
+    $("tab-digest").innerHTML = `<p class="empty">この期間の記録はまだありません。<br>設定タブの「すべて今すぐ取得」で取り込めます。</p>`;
+    return;
+  }
+  for(const d of days){
+    const dp = posts.filter(p => p.activity_date === d);
+    html += `<section class="day"><h2>${esc(fmtDay(d))}<small>${dp.length}件</small></h2>`;
+    if(S.sel.size === 0){
+      const ov = S.daily.find(x => x.day === d && x.rival_id === 0);
+      html += ov && ov.summary && !ov.dirty
+        ? `<div class="overall">${esc(ov.summary)}</div>`
+        : `<div class="overall pending">全体まとめは次回の取得時に作成されます</div>`;
+    }
+    const ids = [...new Set(dp.map(p => p.rival_id))];
+    ids.sort((a,b) => (rivalOf(a).sort||0) - (rivalOf(b).sort||0));
+    for(const id of ids){
+      const rv = rivalOf(id), list = dp.filter(p => p.rival_id === id);
+      const ds = S.daily.find(x => x.day === d && x.rival_id === id);
+      const sum = ds && ds.summary && !ds.dirty ? ds.summary : (list.length === 1 ? (list[0].summary||list[0].title||"") : "（まとめ作成待ち）");
+      html += `<details class="rv" style="--c:${esc(rv.color)}"><summary><span class="nm">${esc(rv.name)}</span><span class="ct">${list.length}件・タップで詳細</span><span class="sm">${esc(sum)}</span></summary>` +
+        `<ul>${list.map(postLine).join("")}</ul></details>`;
+    }
+    html += `</section>`;
+  }
+  $("tab-digest").innerHTML = html;
+}
+
+/* ---------- タイムライン ---------- */
+function filteredPosts(){
+  const plat = $("plat").value, q = $("q").value.trim().toLowerCase();
+  return S.posts.filter(p => {
+    if(!selected(p.rival_id)) return false;
+    if(plat && p.platform !== plat) return false;
+    if(q){
+      const hay = [p.title,p.summary,p.place,p.category,rivalOf(p.rival_id).name].join(" ").toLowerCase();
+      if(!q.split(/\s+/).every(w => hay.includes(w))) return false;
+    }
+    return true;
+  });
+}
+function renderTimeline(){
+  const list = filteredPosts();
+  const today = todayJst();
+  if(!list.length){ $("tab-timeline").innerHTML = `<p class="empty">該当する記録はありません。</p>`; return; }
+  $("tab-timeline").innerHTML = list.map(p => {
+    const rv = rivalOf(p.rival_id);
+    const plan = p.activity_date > today;
+    return `<article class="card ${p.hidden?"hid":""}" style="--c:${esc(rv.color)}">
+      <div class="top"><span class="nm">${esc(rv.name)}</span>
+        <span>${esc(fmtDay(p.activity_date))}</span>
+        ${plan?'<span class="badge plan">予定</span>':""}
+        <span class="badge">${esc(p.category||"その他")}</span>
+        <span class="badge">${esc(PLATFORM[p.platform]||p.platform)}</span>
+        ${p.added_by==="manual"?'<span class="badge">手動</span>':""}
+        ${p.hidden?'<span class="badge">非表示中</span>':""}</div>
+      <h3>${esc(p.title||"")}</h3>
+      ${p.place?`<div class="place">📍 ${esc(p.place)}</div>`:""}
+      <div class="sum">${esc(p.summary||"")}</div>
+      <div class="acts"><a class="lnk" href="${esc(safeUrl(p.url))}" target="_blank" rel="noopener">元の投稿を開く ↗</a>
+        <button class="tbtn" onclick="openEdit(${p.id})">修正</button>
+        <button class="tbtn" onclick="toggleHide(${p.id},${p.hidden?"false":"true"})">${p.hidden?"再表示":"非表示"}</button></div>
+    </article>`;
+  }).join("");
+}
+["plat","q"].forEach(id => $(id).addEventListener("input", renderTimeline));
+$("showHidden").addEventListener("change", load);
+$("period").addEventListener("change", load);
+
+async function toggleHide(id, hidden){
+  if(hidden && !confirm("この記録を非表示にしますか？（日次まとめからも外れます）")) return;
+  busy(true, "更新中…");
+  try{ await fn({action:"hide_post", id, hidden}); toast(hidden ? "非表示にしました" : "再表示しました"); await load(); }
+  catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+
+/* 修正 */
+$("edCat").innerHTML = CATEGORIES.map(c => `<option>${esc(c)}</option>`).join("");
+function openEdit(id){
+  const p = S.posts.find(x => x.id === id); if(!p) return;
+  $("edId").value = id; $("edDate").value = p.activity_date || ""; $("edCat").value = CATEGORIES.includes(p.category) ? p.category : "その他";
+  $("edPlace").value = p.place || ""; $("edTitle").value = p.title || ""; $("edSum").value = p.summary || "";
+  $("modal").classList.add("on");
+}
+function closeModal(){ $("modal").classList.remove("on"); }
+$("modal").addEventListener("click", e => { if(e.target.id === "modal") closeModal(); });
+async function saveEdit(){
+  busy(true, "保存中…");
+  try{
+    await fn({action:"update_post", id:Number($("edId").value), activity_date:$("edDate").value, category:$("edCat").value,
+      place:$("edPlace").value, title:$("edTitle").value, summary:$("edSum").value});
+    closeModal(); toast("保存しました"); await load();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+
+/* CSV */
+function exportCsv(){
+  const rows = [["活動日","候補者","媒体","分類","場所","見出し","要約","URL","登録方法"]];
+  for(const p of filteredPosts()) rows.push([p.activity_date||"", rivalOf(p.rival_id).name, PLATFORM[p.platform]||p.platform,
+    p.category||"", p.place||"", p.title||"", p.summary||"", p.url, p.added_by==="manual"?"手動":"自動"]);
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(",")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], {type:"text/csv"}));
+  a.download = `rival_activity_${todayJst().replace(/-/g,"")}.csv`;
+  a.click();
+}
+
+/* ---------- 手動追加 ---------- */
+function renderAddForm(){
+  const sel = $("addRival"), keep = sel.value;
+  sel.innerHTML = S.rivals.filter(r => r.active !== false).map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join("");
+  if(keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
+  if(!$("addDate").value) $("addDate").value = todayJst();
+  renderAddLinks();
+}
+function renderAddLinks(){
+  const rv = S.rivals.find(r => String(r.id) === $("addRival").value);
+  const links = String(rv?.links || "").split(/\r?\n/).map(s => s.trim()).filter(s => /^https?:\/\//i.test(s));
+  $("addLinks").innerHTML = links.length
+    ? "プロフィールを開く：" + links.map(u => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\/(www\.)?/,"").replace(/\/$/,""))} ↗</a>`).join("")
+    : `<span style="color:var(--sub)">SNSのプロフィールURLは「設定」で登録できます</span>`;
+}
+$("addRival").addEventListener("change", renderAddLinks);
+
+async function addPost(){
+  const url = $("addUrl").value.trim();
+  if(!url){ toast("URLを入力してください", true); return; }
+  $("addBtn").disabled = true; busy(true, "AIが要約しています…");
+  try{
+    const j = await fn({action:"add_post", rival_id:Number($("addRival").value), url, text:$("addText").value, date:$("addDate").value});
+    const p = j.post;
+    $("addResult").innerHTML = `<div class="result"><b>登録しました</b>\n${esc(fmtDay(p.activity_date))}　${esc(p.category)}${p.place?"　📍"+esc(p.place):""}\n${esc(p.title)}\n${esc(p.summary)}</div>`;
+    $("addUrl").value = ""; $("addText").value = "";
+    toast("登録しました"); await load();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); $("addBtn").disabled = false; }
+}
+
+/* 音声入力 */
+let recog = null;
+function toggleMic(inputId, btnId){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ toast("この端末は音声入力に非対応です", true); return; }
+  if(recog){ recog.stop(); return; }
+  recog = new SR(); recog.lang = "ja-JP"; recog.interimResults = false; recog.continuous = true;
+  recog.onresult = ev => {
+    let txt = "";
+    for(let i = ev.resultIndex; i < ev.results.length; i++) if(ev.results[i].isFinal) txt += ev.results[i][0].transcript;
+    if(txt){ const el = $(inputId); el.value = el.value ? el.value + "\n" + txt : txt; }
+  };
+  recog.onend = () => { recog = null; $(btnId).classList.remove("on"); };
+  recog.onerror = () => {};
+  $(btnId).classList.add("on"); recog.start();
+}
+
+/* ---------- 設定 ---------- */
+function renderSettings(){
+  $("rivalSettings").innerHTML = S.rivals.map(r => {
+    const srcs = S.sources.filter(s => s.rival_id === r.id);
+    return `<div class="panel rvset ${r.active===false?"off":""}" style="--c:${esc(r.color)}" data-rid="${r.id}">
+      <h2 style="color:${esc(r.color)}">${esc(r.name)} <small style="color:var(--sub);font-weight:400;font-size:13px">${esc(r.party||"")} ${esc(r.role||"")}</small></h2>
+      <details><summary style="cursor:pointer;font-size:13px;color:var(--sub);margin-bottom:8px">候補者情報を編集</summary>
+        <div class="grid2">
+          <div class="fld"><label>名前</label><input name="name" value="${esc(r.name)}"></div>
+          <div class="fld"><label>よみがな</label><input name="kana" value="${esc(r.kana||"")}"></div>
+          <div class="fld"><label>政党</label><input name="party" value="${esc(r.party||"")}"></div>
+          <div class="fld"><label>肩書き</label><input name="role" value="${esc(r.role||"")}"></div>
+          <div class="fld"><label>表示色</label><input name="color" type="color" value="${esc(r.color||"#757575")}"></div>
+          <div class="fld"><label>並び順</label><input name="sort" type="number" value="${Number(r.sort)||0}"></div>
+        </div>
+        <div class="fld"><label>SNSなどのプロフィールURL（1行に1つ。手動追加の画面にリンクが出ます）</label>
+          <textarea name="links" style="min-height:70px" placeholder="https://www.instagram.com/…">${esc(r.links||"")}</textarea></div>
+        <label style="font-size:13px;display:flex;gap:6px;align-items:center;margin-bottom:8px"><input type="checkbox" name="active" ${r.active!==false?"checked":""}>ウォッチ対象にする（外すと取得・表示を止めます）</label>
+        <button class="btn sm" onclick="saveRival(${r.id})">候補者情報を保存</button>
+      </details>
+      <div style="font-size:13px;font-weight:700;margin-top:6px">自動取得する巡回先（${srcs.length}件）</div>
+      ${srcs.map(s => `<div class="src ${s.active?"":"off"}">
+        <span class="badge">${s.kind==="youtube"?"YouTube":"HP"}</span> <b>${esc(s.label||"")}</b>
+        <div class="u"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.url)}</a></div>
+        <div class="st">最終確認 ${esc(fmtTime(s.last_checked_at))}・方式 ${s.mode==="feed"?"RSS":s.mode==="page"?"ページ解析":"未判定"}・前回新着 ${Number(s.last_new)||0}件${s.active?"":"・停止中"}</div>
+        ${s.last_error?`<div class="err">⚠ ${esc(s.last_error)}</div>`:""}
+        <div class="b">
+          <button class="btn sub sm" onclick="crawlOne(${s.id})">今すぐ取得</button>
+          <button class="btn sub sm" onclick="setSource(${s.id},{active:${s.active?"false":"true"}})">${s.active?"停止":"再開"}</button>
+          <button class="btn sub sm" onclick="setSource(${s.id},{reset:true})" title="RSSの有無を判定し直します">方式を再判定</button>
+          <button class="btn sub sm" onclick="delSource(${s.id})">削除</button>
+        </div></div>`).join("")}
+      <div class="addsrc">
+        <select name="kind"><option value="hp">公式HP</option><option value="youtube">YouTube</option></select>
+        <input name="url" type="url" placeholder="HPのブログ一覧／YouTubeチャンネルのURL" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <input name="label" placeholder="名前（任意）">
+        <button class="btn sm" onclick="addSource(${r.id})">追加</button>
+      </div>
+    </div>`;
+  }).join("");
+}
+function panelOf(rid){ return document.querySelector(`.rvset[data-rid="${rid}"]`); }
+
+async function saveRival(id){
+  const p = panelOf(id), v = n => p.querySelector(`[name=${n}]`);
+  busy(true, "保存中…");
+  try{
+    await fn({action:"save_rival", id, name:v("name").value, kana:v("kana").value, party:v("party").value, role:v("role").value,
+      color:v("color").value, sort:Number(v("sort").value)||0, links:v("links").value, active:v("active").checked});
+    toast("保存しました"); await load();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+async function addRival(){
+  const name = $("nrName").value.trim();
+  if(!name){ toast("名前を入力してください", true); return; }
+  busy(true, "追加中…");
+  try{
+    await fn({action:"save_rival", name, kana:$("nrKana").value, party:$("nrParty").value, role:$("nrRole").value,
+      color:$("nrColor").value, sort:Number($("nrSort").value)||0, links:"", active:true});
+    ["nrName","nrKana","nrParty","nrRole"].forEach(i => $(i).value = "");
+    toast("追加しました"); await load();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+async function addSource(rid){
+  const p = panelOf(rid), v = n => p.querySelector(`.addsrc [name=${n}]`);
+  const url = v("url").value.trim();
+  if(!url){ toast("URLを入力してください", true); return; }
+  busy(true, "登録中…");
+  try{
+    await fn({action:"add_source", rival_id:rid, kind:v("kind").value, url, label:v("label").value});
+    toast("追加しました。続けて取得します");
+    await load();
+    const s = S.sources.find(x => x.rival_id === rid && x.url.replace(/\/$/,"") === url.replace(/\/$/,"")) ||
+              S.sources.filter(x => x.rival_id === rid).sort((a,b) => b.id - a.id)[0];
+    if(s) await crawlOne(s.id);
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+async function setSource(id, patch){
+  busy(true, "更新中…");
+  try{ await fn({action:"update_source", id, ...patch}); toast("更新しました"); await load(); }
+  catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+async function delSource(id){
+  if(!confirm("この巡回先を削除しますか？（取り込み済みの記録は残ります）")) return;
+  busy(true, "削除中…");
+  try{ await fn({action:"delete_source", id}); toast("削除しました"); await load(); }
+  catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+function resultMsg(j){
+  const n = (j.results||[]).reduce((a,r) => a + (r.new||0), 0);
+  const errs = (j.results||[]).filter(r => r.error);
+  return `新着${n}件` + (errs.length ? `・エラー${errs.length}件（設定タブで確認）` : "");
+}
+async function crawlOne(id){
+  busy(true, "取得してAIが要約しています…（1〜2分）");
+  try{ const j = await fn({action:"crawl", source_id:id}); toast(resultMsg(j), (j.results||[]).some(r => r.error)); await load(); }
+  catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+async function crawlAll(){
+  let total = 0, errs = 0;
+  try{
+    for(let round = 1; round <= 6; round++){
+      busy(true, `取得してAIが要約しています…（${round}回目・数分かかります）`);
+      const j = await fn({action:"crawl", all:true});
+      total += (j.results||[]).reduce((a,r) => a + (r.new||0), 0);
+      errs = (j.results||[]).filter(r => r.error).length;
+      if(!j.remaining) break;
+    }
+    toast(`完了：新着${total}件` + (errs ? `・エラー${errs}件（巡回先の表示を確認）` : ""), errs > 0);
+    await load();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+async function resummarize(){
+  if(!confirm("直近30日分の日次まとめを作り直します。よろしいですか？")) return;
+  try{
+    for(let round = 1; round <= 5; round++){
+      busy(true, `まとめを作成しています…（${round}回目）`);
+      const j = await fn({action:"resummarize", days:30});
+      if(!j.remaining) break;
+    }
+    toast("まとめを作り直しました"); await load();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+
+/* ---------- タブ ---------- */
+$("tabs").addEventListener("click", e => {
+  const b = e.target.closest("button[data-tab]"); if(!b) return;
+  S.tab = b.dataset.tab;
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".tab").forEach(x => x.classList.toggle("on", x.id === "tab-" + S.tab));
+  const showFilters = S.tab === "digest" || S.tab === "timeline";
+  $("filters").style.display = showFilters ? "" : "none";
+  document.querySelectorAll(".tlonly").forEach(x => x.style.display = S.tab === "timeline" ? "" : "none");
+  window.scrollTo(0,0);
+});
+document.querySelectorAll(".tlonly").forEach(x => x.style.display = "none");
+
+/* ---------- 起動 ---------- */
+let started = false;
+function init(){ if(started) return; started = true; load(); }
+if(!PASSCODE || localStorage.getItem("poster_gate") === "ok"){ $("gate").style.display = "none"; init(); }
+</script>
+</body>
+</html>

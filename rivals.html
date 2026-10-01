@@ -189,7 +189,7 @@ details.rv li{margin:6px 0}
   <section id="tab-add" class="tab">
     <div class="panel">
       <h2>SNS投稿などを手動で追加</h2>
-      <p class="note">Instagram・X・Facebook は自動取得できないため、投稿のURLと本文（キャプション）をコピーして貼り付けてください。AIが「いつ・どこで・何をしたか」に要約して登録します。HPの記事URLだけを貼った場合は、本文を自動で読みに行きます。</p>
+      <p class="note">X・Facebookの投稿、Instagramのストーリーズ、自動取得できないInstagram（個人アカウントなど）は、投稿のURLと本文をコピーして貼り付けてください。AIが「いつ・どこで・何をしたか」に要約して登録します。HPの記事URLだけを貼った場合は、本文を自動で読みに行きます。</p>
       <div class="fld">
         <label for="addRival">候補者</label>
         <select id="addRival"></select>
@@ -223,6 +223,16 @@ details.rv li{margin:6px 0}
         <button class="btn pri" onclick="crawlAll()">すべて今すぐ取得</button>
         <button class="btn sub" onclick="resummarize()">まとめを作り直す（30日分）</button>
       </div>
+    </div>
+    <div class="panel" id="igPanel">
+      <h2>Instagram連携</h2>
+      <div id="igStatus" class="note">状態を確認しています…</div>
+      <details id="igConnectBox">
+        <summary style="cursor:pointer;font-size:13px;font-weight:700;margin-bottom:8px">トークンを登録・更新する</summary>
+        <p class="note">Graph API エクスプローラーで生成したアクセストークンを貼り付けてください。自動で長期トークンに変換して保存します（貼った文字列は画面には残りません）。</p>
+        <div class="fld"><input id="igToken" type="password" placeholder="EAAB…" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+        <button class="btn pri sm" onclick="igConnect()">連携する</button>
+      </details>
     </div>
     <div id="rivalSettings"></div>
     <div class="panel">
@@ -565,9 +575,9 @@ function renderSettings(){
       </details>
       <div style="font-size:13px;font-weight:700;margin-top:6px">自動取得する巡回先（${srcs.length}件）</div>
       ${srcs.map(s => `<div class="src ${s.active?"":"off"}">
-        <span class="badge">${s.kind==="youtube"?"YouTube":"HP"}</span> <b>${esc(s.label||"")}</b>
+        <span class="badge">${({youtube:"YouTube",instagram:"Instagram",hp:"HP"})[s.kind]||"HP"}</span> <b>${esc(s.label||"")}</b>
         <div class="u"><a href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">${esc(s.url)}</a></div>
-        <div class="st">最終確認 ${esc(fmtTime(s.last_checked_at))}・方式 ${s.mode==="feed"?"RSS":s.mode==="page"?"ページ解析":"未判定"}・前回新着 ${Number(s.last_new)||0}件${s.active?"":"・停止中"}</div>
+        <div class="st">最終確認 ${esc(fmtTime(s.last_checked_at))}・方式 ${s.mode==="feed"?"RSS":s.mode==="page"?"ページ解析":s.mode==="api"?"公式API":"未判定"}・前回新着 ${Number(s.last_new)||0}件${s.active?"":"・停止中"}</div>
         ${s.last_error?`<div class="err">⚠ ${esc(s.last_error)}</div>`:""}
         <div class="b">
           <button class="btn sub sm" onclick="crawlOne(${s.id})">今すぐ取得</button>
@@ -576,8 +586,8 @@ function renderSettings(){
           <button class="btn sub sm" onclick="delSource(${s.id})">削除</button>
         </div></div>`).join("")}
       <div class="addsrc">
-        <select name="kind"><option value="hp">公式HP</option><option value="youtube">YouTube</option></select>
-        <input name="url" type="url" placeholder="HPのブログ一覧／YouTubeチャンネルのURL" autocapitalize="off" autocorrect="off" spellcheck="false">
+        <select name="kind"><option value="hp">公式HP</option><option value="youtube">YouTube</option><option value="instagram">Instagram</option></select>
+        <input name="url" type="text" inputmode="url" placeholder="HP／YouTubeチャンネルのURL、Instagramは @ユーザー名 でも可" autocapitalize="off" autocorrect="off" spellcheck="false">
         <input name="label" placeholder="名前（任意）">
         <button class="btn sm" onclick="addSource(${r.id})">追加</button>
       </div>
@@ -675,6 +685,38 @@ async function resummarize(){
   finally{ busy(false); }
 }
 
+/* ---------- Instagram連携 ---------- */
+async function loadIgStatus(){
+  const el = $("igStatus");
+  try{
+    const j = await fn({action:"ig_status"});
+    const exp = t => !t ? "" : !t.valid ? "（無効）" : t.expires ? `（有効期限 ${fmtTime(t.expires)}）` : "（期限なし）";
+    if(!j.app){
+      el.innerHTML = `<span style="color:var(--warn)">未設定：Supabase の Secrets に META_APP_ID と META_APP_SECRET を登録してください。</span>`;
+    }else if(!j.connected){
+      el.innerHTML = `<span style="color:var(--warn)">未連携：下の「トークンを登録・更新する」から連携してください。</span>`;
+      $("igConnectBox").open = true;
+    }else{
+      const ok = (j.page_token && j.page_token.valid) || (j.user_token && j.user_token.valid);
+      el.innerHTML = (ok ? `<span style="color:var(--ok);font-weight:700">連携中</span>` : `<span style="color:var(--warn);font-weight:700">トークン切れ：再連携してください</span>`) +
+        `　自分のアカウント：@${esc(j.username||"")}（${esc(j.page||"")}）<br>ページ用トークン${esc(exp(j.page_token))}・ユーザー用トークン${esc(exp(j.user_token))}`;
+      if(!ok) $("igConnectBox").open = true;
+    }
+  }catch(e){ el.innerHTML = `<span style="color:var(--warn)">${esc(e.message)}</span>`; }
+}
+async function igConnect(){
+  const token = $("igToken").value.trim();
+  if(!token){ toast("トークンを貼り付けてください", true); return; }
+  busy(true, "Instagramと連携しています…");
+  try{
+    const j = await fn({action:"ig_connect", token});
+    $("igToken").value = ""; $("igConnectBox").open = false;
+    toast(`連携しました（@${j.username}）`);
+    await loadIgStatus();
+  }catch(e){ toast(e.message, true); }
+  finally{ busy(false); }
+}
+
 /* ---------- タブ ---------- */
 $("tabs").addEventListener("click", e => {
   const b = e.target.closest("button[data-tab]"); if(!b) return;
@@ -684,6 +726,7 @@ $("tabs").addEventListener("click", e => {
   const showFilters = S.tab === "digest" || S.tab === "timeline";
   $("filters").style.display = showFilters ? "" : "none";
   document.querySelectorAll(".tlonly").forEach(x => x.style.display = S.tab === "timeline" ? "" : "none");
+  if(S.tab === "settings") loadIgStatus();
   window.scrollTo(0,0);
 });
 document.querySelectorAll(".tlonly").forEach(x => x.style.display = "none");

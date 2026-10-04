@@ -45,6 +45,7 @@
   .tile::before{                       /* 機能ごとの色帯 */
     content:""; position:absolute; left:0; top:0; bottom:0; width:6px; background:var(--c);
   }
+  button.tile{font:inherit; text-align:left; cursor:pointer; width:100%;}
   .tile:active{background:#E9EFFA;}
   .tile:focus-visible{outline:3px solid var(--navy2); outline-offset:2px;}
   .tile .ico{font-size:28px; line-height:1;}
@@ -61,6 +62,22 @@
   }
   .links a:active{background:#E9EFFA;}
   .links a:focus-visible{outline:3px solid var(--navy2); outline-offset:2px;}
+
+  /* ===== サブメニュー（Second画面） ===== */
+  .sheet{display:none; position:fixed; inset:0; z-index:1200; background:rgba(20,30,55,.55);
+    align-items:flex-end; justify-content:center;}
+  .sheet.show{display:flex;}
+  .sheet .box{background:#fff; width:100%; max-width:560px; border-radius:16px 16px 0 0;
+    padding:16px 14px calc(18px + env(safe-area-inset-bottom));}
+  .sheet h2{font-size:15px; color:var(--navy); display:flex; align-items:center; margin:0 2px 12px;}
+  .sheet h2 .x{margin-left:auto; border:none; background:none; font-size:20px; color:var(--sub); cursor:pointer; padding:4px 8px;}
+  .sub-item{display:flex; align-items:center; gap:14px; padding:14px; margin-bottom:8px;
+    border:1px solid var(--line); border-radius:12px; text-decoration:none; color:var(--text);}
+  .sub-item:active{background:#E9EFFA;}
+  .sub-item:focus-visible{outline:3px solid var(--navy2); outline-offset:2px;}
+  .sub-item .ico{font-size:26px; line-height:1;}
+  .sub-item b{display:block; font-size:16px; color:var(--navy);}
+  .sub-item small{display:block; font-size:12px; color:var(--sub); margin-top:2px;}
 
   /* ===== パスコード ===== */
   #gate{position:fixed; inset:0; z-index:1400; background:var(--navy);
@@ -91,11 +108,11 @@
 
 <main>
   <nav class="grid" aria-label="メニュー">
-    <a class="tile" href="poster.html" style="--c:#D93025">
+    <button type="button" class="tile" style="--c:#D93025" onclick="openSub('subPoster')" aria-haspopup="dialog">
       <span class="ico">&#128247;</span>
       <span class="name">ビラ・ポスター</span>
-      <span class="desc">ポスター・地域掲示板の撮影と地図表示</span>
-    </a>
+      <span class="desc">ポスター・掲示板の撮影とビラ配布の記録</span>
+    </button>
     <a class="tile" href="meibo.html" style="--c:#7CB342">
       <span class="ico">&#128101;</span>
       <span class="name">名簿</span>
@@ -130,6 +147,21 @@
   </div>
 </main>
 
+<!-- ===== ビラ・ポスターのサブメニュー ===== -->
+<div class="sheet" id="subPoster" role="dialog" aria-label="ビラ・ポスター">
+  <div class="box">
+    <h2>ビラ・ポスター <button class="x" onclick="closeSub('subPoster')" aria-label="閉じる">&#10005;</button></h2>
+    <a class="sub-item" href="poster.html">
+      <span class="ico">&#128247;</span>
+      <span><b>ポスター・掲示板の撮影</b><small>撮影・一覧・地図（名刺・会話の撮影もこちら）</small></span>
+    </a>
+    <a class="sub-item" href="flyer.html">
+      <span class="ico">&#128694;</span>
+      <span><b>ビラ配布の記録</b><small>歩いた道のりと町名を自動で記録</small></span>
+    </a>
+  </div>
+</div>
+
 <script>
 const PASSCODE = "sano2026";      // 他の画面と共通（""で無効化）
 const $ = id => document.getElementById(id);
@@ -146,6 +178,14 @@ if(!PASSCODE || localStorage.getItem("poster_gate")==="ok"){
   $("gate").style.display="none";
 }
 $("gateInput").addEventListener("keydown", e=>{ if(e.key==="Enter") checkGate(); });
+
+/* サブメニュー */
+function openSub(id){ document.getElementById(id).classList.add("show"); }
+function closeSub(id){ document.getElementById(id).classList.remove("show"); }
+document.querySelectorAll(".sheet").forEach(sh=>{
+  sh.addEventListener("click", e=>{ if(e.target===sh) sh.classList.remove("show"); });
+});
+document.addEventListener("keydown", e=>{ if(e.key==="Escape") document.querySelectorAll(".sheet.show").forEach(s=>s.classList.remove("show")); });
 
 /* 日付表示 */
 (function(){

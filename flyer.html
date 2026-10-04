@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1F3864">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<title>ビラ配布記録｜選挙情報管理</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --card:#FFFFFF;
+    --line:#C8D2E4; --text:#1A2333; --sub:#5A6B8C; --red:#B5403B; --green:#2E7D52;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+    background:var(--bg); color:var(--text); font-size:15px;
+    padding-top:var(--hh,56px); padding-bottom:env(safe-area-inset-bottom);
+  }
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:50; background:var(--navy);
+    display:flex; align-items:center; gap:6px; padding:8px 10px;
+    padding-top:calc(8px + env(safe-area-inset-top));
+  }
+  .hbtn{
+    flex:1; border:1px solid rgba(255,255,255,.55); background:transparent; color:#fff;
+    border-radius:8px; padding:11px 2px; font-size:13.5px; font-weight:700; cursor:pointer;
+    white-space:nowrap; text-align:center; text-decoration:none;
+  }
+  .hbtn.home{flex:none; width:38px; padding:11px 0; font-size:16px; line-height:1;}
+  .hbtn.active{background:#fff; color:var(--navy); border-color:#fff;}
+  .hbtn:focus-visible,.btn:focus-visible{outline:3px solid #9FB6E0; outline-offset:2px;}
+
+  main{max-width:640px; margin:0 auto; padding:10px 12px;}
+  .view{display:none;}
+  .view.show{display:block;}
+
+  .btn{
+    border:none; border-radius:8px; font-weight:700; font-size:15px;
+    padding:13px 14px; cursor:pointer; color:#fff; background:var(--navy);
+  }
+  .btn:active{opacity:.8;}
+  .btn:disabled{opacity:.45;}
+  .btn.sub{background:#fff; color:var(--navy); border:1.5px solid var(--navy); font-size:13px; padding:10px 12px;}
+  .btn.danger{background:#fff; color:var(--red); border:1.5px solid var(--red); font-size:13px; padding:10px 12px;}
+  .btn.stop{background:var(--red);}
+  .btn.go{background:var(--green); font-size:19px; padding:18px; width:100%; letter-spacing:.1em;}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px;}
+  .lbl{display:block; font-size:12.5px; font-weight:700; color:var(--navy); margin:0 0 6px;}
+  .lbl + .lbl, .field + .lbl{margin-top:12px;}
+  select, input[type=text], input[type=number], input[type=date], textarea{
+    width:100%; border:1.5px solid var(--line); border-radius:8px; background:#fff;
+    padding:11px 12px; font-size:16px; font-family:inherit; color:var(--text);
+  }
+  select:focus, input:focus, textarea:focus{outline:2px solid var(--navy2); border-color:var(--navy2);}
+  .note{font-size:12px; color:var(--sub); line-height:1.7; margin-top:8px;}
+  .note a{color:var(--navy2);}
+
+  .gps-line{display:flex; align-items:center; gap:6px; margin:10px 2px; font-size:12px; color:var(--sub);}
+  .gps-dot{width:8px; height:8px; border-radius:50%; background:#C0392B; flex:none;}
+  .gps-dot.ok{background:var(--green);}
+
+  /* ===== 記録中 ===== */
+  #viewRec.show{display:flex; flex-direction:column; height:calc(100dvh - var(--hh,56px) - 20px - env(safe-area-inset-bottom));}
+  .status{
+    background:var(--navy); color:#fff; border-radius:12px; padding:12px 14px; margin-bottom:8px;
+    display:grid; grid-template-columns:auto 1fr; gap:2px 12px; align-items:center;
+  }
+  .status .rec{grid-row:span 2; display:flex; align-items:center; gap:7px; font-size:13px; font-weight:700;}
+  .status .rec i{width:11px; height:11px; border-radius:50%; background:#FF5A4F; animation:blink 1.4s infinite;}
+  @keyframes blink{50%{opacity:.25;}}
+  @media (prefers-reduced-motion:reduce){ .status .rec i{animation:none;} }
+  .status .time{font-size:26px; font-weight:700; letter-spacing:.04em; font-variant-numeric:tabular-nums;}
+  .status .stat{font-size:12px; color:#C9D6EE;}
+  .here{background:#fff; border:1px solid var(--line); border-radius:12px; padding:10px 14px; margin-bottom:8px;}
+  .here .town{font-size:18px; font-weight:700; color:var(--navy);}
+  .here .addr{font-size:12px; color:var(--sub); margin-top:2px; min-height:1.2em;}
+  #recMap{flex:1; min-height:200px; border:1px solid var(--line); border-radius:12px; position:relative; z-index:0; background:#DDE3EE;}
+  .rec-actions{display:flex; gap:8px; margin-top:8px;}
+  .rec-actions .btn{flex:1;}
+  .rec-actions .btn.stop{flex:1.4; font-size:17px;}
+  .warn{font-size:12px; color:var(--red); margin:0 2px 6px; display:none;}
+  .warn.show{display:block;}
+
+  /* ===== 履歴 ===== */
+  .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;}
+  .chip{
+    background:#fff; border:1.5px solid var(--line); border-radius:99px; padding:7px 13px;
+    font-size:12.5px; font-weight:700; color:var(--sub); cursor:pointer; user-select:none;
+  }
+  .chip.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
+  #histMap{scroll-margin-top:calc(var(--hh,56px) + 8px); height:44dvh; min-height:240px; border:1px solid var(--line); border-radius:12px; position:relative; z-index:0; background:#DDE3EE; margin-bottom:8px;}
+  .count-line{font-size:12px; color:var(--sub); margin:0 2px 8px; display:flex; align-items:center; gap:8px;}
+  .count-line .btn{margin-left:auto;}
+  .log{
+    background:#fff; border:1px solid var(--line); border-left:6px solid var(--c,#2E5496);
+    border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer;
+  }
+  .log.sel{outline:2px solid var(--navy2);}
+  .log .t1{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+  .log .dt{font-size:13px; font-weight:700; color:var(--navy);}
+  .log .nm{font-size:13px; font-weight:700;}
+  .log .n{margin-left:auto; font-size:13px; font-weight:700; color:var(--navy);}
+  .log .t2{font-size:12px; color:var(--sub); margin-top:3px; line-height:1.6;}
+  .log .dbtn{padding:5px 10px; font-size:12px;}
+  .log .t3{display:flex; gap:8px; align-items:flex-end;}
+  .log .t3 .t2{flex:1; min-width:0;}
+  .log .dbtn{flex:none;}
+  .log .badge{margin-left:auto; font-size:10.5px; font-weight:700; color:#fff; background:var(--red); border-radius:99px; padding:2px 8px;}
+  .empty{color:var(--sub); text-align:center; padding:30px 0; font-size:13px; line-height:1.8;}
+
+  /* ===== 町別 ===== */
+  .tbl-wrap{overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:10px;}
+  table{border-collapse:collapse; width:100%;}
+  th,td{border-bottom:1px solid var(--line); padding:9px 10px; font-size:13px; text-align:left; white-space:nowrap;}
+  th{background:var(--navy); color:#fff; font-size:12px;}
+  td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  td.old{color:var(--red); font-weight:700;}
+
+  /* ===== モーダル ===== */
+  .modal{display:none; position:fixed; inset:0; z-index:1200; background:rgba(20,30,55,.55); padding:14px; align-items:center; justify-content:center;}
+  .modal.show{display:flex;}
+  .modal .box{background:#fff; border-radius:12px; width:100%; max-width:520px; max-height:92dvh; overflow-y:auto; padding:14px;}
+  .modal h2{font-size:15px; color:var(--navy); border-bottom:2px solid var(--navy); padding-bottom:8px; margin-bottom:12px; display:flex; align-items:center;}
+  .modal h2 .x{margin-left:auto; border:none; background:none; font-size:20px; color:var(--sub); cursor:pointer;}
+  .cnt-row{display:flex; gap:6px; align-items:center;}
+  .cnt-row input{flex:1; font-size:22px; font-weight:700; text-align:right;}
+  .cnt-row .btn{flex:none; padding:12px 10px; font-size:13px;}
+  .memo-wrap{position:relative;}
+  .memo-wrap textarea{min-height:90px; padding-right:52px; resize:vertical;}
+  .mic-btn{position:absolute; right:8px; top:8px; width:40px; height:40px; border-radius:50%;
+    border:1.5px solid var(--navy); background:#fff; font-size:19px; color:var(--navy); cursor:pointer;}
+  .mic-btn.rec{background:var(--red); border-color:var(--red); color:#fff;}
+  .sum{font-size:13px; color:var(--sub); line-height:1.8; background:#F7F9FD; border-radius:8px; padding:10px 12px; margin-bottom:12px;}
+  .sum b{color:var(--text);}
+  .m-actions{display:flex; gap:8px; margin-top:14px;}
+  .m-actions .btn{flex:1;}
+  .towns{display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
+  .towns span{font-size:11.5px; background:#E9EFFA; color:var(--navy); border-radius:99px; padding:3px 9px; font-weight:700;}
+
+  .pin-ico{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+  .me{width:18px; height:18px; border-radius:50%; background:#2E7DF6; border:3px solid #fff; box-shadow:0 0 0 2px rgba(46,125,246,.35);}
+
+  #toast{position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--navy); color:#fff;
+    font-size:14px; font-weight:700; padding:11px 20px; border-radius:99px; z-index:1300; display:none;
+    box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:88%; text-align:center;}
+  #toast.err{background:var(--red);}
+  #toast.show{display:block;}
+
+  #gate{position:fixed; inset:0; z-index:1400; background:var(--navy);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:20px;}
+  #gate h1{color:#fff; font-size:18px; letter-spacing:.1em;}
+  #gate input{font-size:20px; padding:12px; border-radius:8px; border:none; text-align:center; width:220px; letter-spacing:.2em;}
+  #gate .btn{background:#fff; color:var(--navy);}
+  #gate .msg{color:#FFC7C2; font-size:13px; min-height:1.2em;}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>ビラ配布記録</h1>
+  <input id="gateInput" type="password" placeholder="パスコード" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button class="btn" onclick="checkGate()">開く</button>
+  <div class="msg" id="gateMsg"></div>
+</div>
+
+<header>
+  <a class="hbtn home" href="/" title="トップメニューへ" aria-label="トップメニューへ">&#8962;</a>
+  <button class="hbtn active" id="tRec" onclick="showView('rec')">記録</button>
+  <button class="hbtn" id="tHist" onclick="showView('hist')">履歴・地図</button>
+  <button class="hbtn" id="tTown" onclick="showView('town')">町別集計</button>
+</header>
+
+<main>
+  <!-- ===== 開始前 ===== -->
+  <section id="viewStart" class="view show">
+    <div class="card">
+      <label class="lbl" for="selPam">配るビラ</label>
+      <select id="selPam"><option value="">読み込み中…</option></select>
+      <label class="lbl" for="staff">担当者</label>
+      <input type="text" id="staff" placeholder="例：佐藤（次回から自動で入ります）">
+      <div class="gps-line"><span class="gps-dot" id="gpsDot"></span><span id="gpsText">位置情報を確認中…</span></div>
+      <button class="btn go" id="btnStart" onclick="startRec()">配布を開始</button>
+      <p class="note">
+        開始すると約1分ごとに現在地を記録し、町名・番地に変換して地図に道のりを描きます。<br>
+        記録中は<b>この画面を開いたまま</b>にしてください（画面は自動で消えないようにします）。他のアプリに切り替えたり画面を消したりすると、その間は記録が止まります。<br>
+        ビラの種類は、街頭演説の「配布物」タブで登録・印刷できます（<a href="enzetsu.html">街頭演説を開く</a>）。
+      </p>
+    </div>
+  </section>
+
+  <!-- ===== 記録中 ===== -->
+  <section id="viewRec" class="view">
+    <div class="status">
+      <div class="rec"><i></i>記録中</div>
+      <div class="time" id="recTime">00:00:00</div>
+      <div class="stat" id="recStat">—</div>
+    </div>
+    <div class="here">
+      <div class="town" id="hereTown">現在地を取得しています…</div>
+      <div class="addr" id="hereAddr"></div>
+    </div>
+    <div class="warn" id="recWarn"></div>
+    <div id="recMap"></div>
+    <div class="rec-actions">
+      <button class="btn sub" onclick="recordPoint(true)">今の地点を記録</button>
+      <button class="btn stop" onclick="openStop()">配布を終了</button>
+    </div>
+  </section>
+
+  <!-- ===== 履歴・地図 ===== -->
+  <section id="viewHist" class="view">
+    <div class="chips" id="histChips"></div>
+    <div id="histMap"></div>
+    <div class="count-line"><span id="histCount"></span><button class="btn sub" onclick="csvLogs()">CSV出力</button></div>
+    <div id="histList"></div>
+  </section>
+
+  <!-- ===== 町別集計 ===== -->
+  <section id="viewTown" class="view">
+    <div class="chips" id="townChips"></div>
+    <div class="chips" id="townSort"></div>
+    <div class="count-line"><span id="townCount"></span><button class="btn sub" onclick="csvTowns()">CSV出力</button></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr><th>町名</th><th>配布回数</th><th>最終配布日</th><th>経過日数</th><th>担当者</th></tr></thead>
+        <tbody id="townBody"></tbody>
+      </table>
+    </div>
+    <p class="note">「配布回数」はその町を通った配布の回数です。経過日数が30日以上の町は赤字で表示します。</p>
+  </section>
+</main>
+
+<!-- ===== 終了モーダル ===== -->
+<div class="modal" id="mStop">
+  <div class="box">
+    <h2>配布を終了 <button class="x" onclick="closeModal('mStop')" aria-label="閉じる">&#10005;</button></h2>
+    <div class="sum" id="stopSum"></div>
+    <label class="lbl" for="cnt">配布した枚数</label>
+    <div class="cnt-row">
+      <button class="btn sub" onclick="addCnt(-10)">−10</button>
+      <input type="number" id="cnt" inputmode="numeric" min="0" value="0">
+      <button class="btn sub" onclick="addCnt(10)">+10</button>
+      <button class="btn sub" onclick="addCnt(50)">+50</button>
+    </div>
+    <label class="lbl" for="memo" style="margin-top:12px;">メモ</label>
+    <div class="memo-wrap">
+      <textarea id="memo" placeholder="反応、留守が多かった地域など（音声入力できます）"></textarea>
+      <button class="mic-btn" id="micMemo" onclick="toggleMic('memo','micMemo')" aria-label="音声入力">&#127908;</button>
+    </div>
+    <div class="m-actions">
+      <button class="btn" id="btnFinish" onclick="finishRec()">記録を保存して終了</button>
+    </div>
+    <div class="m-actions">
+      <button class="btn sub" onclick="closeModal('mStop')">配布を続ける</button>
+      <button class="btn danger" onclick="discardRec()">記録を破棄</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 履歴の詳細モーダル ===== -->
+<div class="modal" id="mLog">
+  <div class="box">
+    <h2>配布記録 <button class="x" onclick="closeModal('mLog')" aria-label="閉じる">&#10005;</button></h2>
+    <div id="logBody"></div>
+    <div class="m-actions">
+      <button class="btn sub" onclick="closeModal('mLog')">閉じる</button>
+      <button class="btn danger" onclick="deleteLog()">この記録を削除</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ================================================================
+   設定
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const PASSCODE          = "sano2026";        // 他の画面と共通（Secrets の EVENTS_STAFF_KEY と同じ）
+const GEOCODE_FN        = "flyer-geocode";
+const INTERVAL_SEC      = 60;     // 地点を記録する間隔（秒）
+const MIN_MOVE_M        = 10;     // これ未満しか動いていなければ記録を省略（ただし5分に1回は記録）
+const GEO_MOVE_M        = 30;     // 住所変換をやり直す移動距離（これ未満なら直前の住所を流用＝API節約）
+const GEO_CAP           = 400;    // 1回の配布で住所変換を呼ぶ上限
+const MAX_ACC_M         = 100;    // これより精度が悪い位置は自動記録しない
+const OLD_DAYS          = 30;     // 町別集計で赤字にする経過日数
+/* ================================================================ */
+
+const $ = id => document.getElementById(id);
+const sb = (path, opt={}) => fetch(SUPABASE_URL + path, {
+  ...opt, headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, ...(opt.headers||{}) }
+});
+async function api(path, opt={}){
+  const r = await sb(path, opt);
+  const tx = await r.text().catch(()=> "");
+  if(!r.ok) throw new Error(`${r.status} ${tx.slice(0,160)}`);
+  if(!tx) return null;
+  try{ return JSON.parse(tx); }catch(e){ return null; }
+}
+const JSONH = {"Content-Type":"application/json","Prefer":"return=minimal"};
+const JSONR = {"Content-Type":"application/json","Prefer":"return=representation"};
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const WD = "日月火水木金土";
+const PALETTE = ["#D93025","#2E5496","#2E7D52","#9C27B0","#E37400","#00838F","#6D4C41","#C2185B"];
+
+/* ---------- パスコード ---------- */
+function checkGate(){
+  if($("gateInput").value === PASSCODE){ localStorage.setItem("poster_gate","ok"); $("gate").style.display="none"; boot(); }
+  else $("gateMsg").textContent="パスコードが違います";
+}
+$("gateInput").addEventListener("keydown", e=>{ if(e.key==="Enter") checkGate(); });
+
+/* ---------- ヘッダー高さ ---------- */
+function setHH(){ document.documentElement.style.setProperty("--hh", document.querySelector("header").offsetHeight+"px"); }
+setHH(); window.addEventListener("resize", setHH);
+
+let toastTimer;
+function toast(msg, err){
+  const t=$("toast"); t.textContent=msg; t.className= err? "err show":"show";
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), 2800);
+}
+function closeModal(id){ $(id).classList.remove("show"); }
+
+/* ---------- 共通計算 ---------- */
+function dist(a1,o1,a2,o2){
+  const R=6371000, r=x=>x*Math.PI/180;
+  const dA=r(a2-a1), dO=r(o2-o1);
+  const h=Math.sin(dA/2)**2 + Math.cos(r(a1))*Math.cos(r(a2))*Math.sin(dO/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+function fmtDur(ms){ const s=Math.max(0,Math.floor(ms/1000)); return `${pad(Math.floor(s/3600))}:${pad(Math.floor(s%3600/60))}:${pad(s%60)}`; }
+function fmtD(iso){ const d=new Date(iso); return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}（${WD[d.getDay()]}）`; }
+function fmtT(iso){ const d=new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function fmtKm(m){ return m>=1000 ? (m/1000).toFixed(1)+"km" : Math.round(m)+"m"; }
+function uniqTowns(pts){ const out=[]; pts.forEach(p=>{ if(p.town && !out.includes(p.town)) out.push(p.town); }); return out; }
+
+/* ---------- ビュー切替 ---------- */
+let curView="rec";
+function showView(v){
+  curView=v;
+  const recording=!!active;
+  $("viewStart").classList.toggle("show", v==="rec" && !recording);
+  $("viewRec").classList.toggle("show", v==="rec" && recording);
+  $("viewHist").classList.toggle("show", v==="hist");
+  $("viewTown").classList.toggle("show", v==="town");
+  $("tRec").classList.toggle("active", v==="rec");
+  $("tHist").classList.toggle("active", v==="hist");
+  $("tTown").classList.toggle("active", v==="town");
+  if(v==="rec" && recording){ initRecMap(); }
+  if(v==="hist"){ initHistMap(); loadHist(); }
+  if(v==="town"){ loadHist(); }
+}
+
+/* ================================================================
+   ビラの種類（街頭演説の配布物マスタ pamphlets を共通利用）
+================================================================ */
+let pams=[];
+async function loadPams(){
+  try{
+    pams = await api(`/rest/v1/pamphlets?select=id,name,kind,active,sort&order=sort.asc,id.asc`) || [];
+    const act = pams.filter(p=>p.active);
+    const last = localStorage.getItem("flyer_last_pam");
+    $("selPam").innerHTML = act.length
+      ? `<option value="">選んでください</option>` + act.map(p=>`<option value="${p.id}"${String(p.id)===last?" selected":""}>${esc(p.name)}${p.kind?`（${esc(p.kind)}）`:""}</option>`).join("")
+      : `<option value="">登録がありません（街頭演説の「配布物」で登録）</option>`;
+  }catch(e){
+    $("selPam").innerHTML = `<option value="">読み込み失敗：${esc(e.message)}</option>`;
+  }
+}
+function pamColor(id){
+  const i = pams.findIndex(p=>p.id===id);
+  return PALETTE[(i<0? 0 : i) % PALETTE.length];
+}
+
+/* ================================================================
+   位置情報
+================================================================ */
+let lastFix=null, watchId=null;
+function startWatch(){
+  if(watchId!=null) return;
+  if(!navigator.geolocation){ $("gpsText").textContent="この端末は位置情報に非対応です"; return; }
+  watchId = navigator.geolocation.watchPosition(
+    p=>{
+      lastFix={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, t:Date.now()};
+      $("gpsDot").classList.add("ok");
+      $("gpsText").textContent=`位置情報 取得済（精度 約${Math.round(p.coords.accuracy)}m）`;
+      if(active) updateMe();
+    },
+    e=>{
+      $("gpsDot").classList.remove("ok");
+      $("gpsText").textContent="位置情報が取得できません（端末の設定でブラウザに位置情報を許可してください）";
+      if(active) showWarn("位置情報が取得できません。設定で位置情報を許可してください。");
+    },
+    {enableHighAccuracy:true, maximumAge:10000, timeout:30000}
+  );
+}
+
+/* ---------- 画面の自動消灯を防ぐ ---------- */
+let wakeLock=null;
+async function keepAwake(){
+  if(!active || !("wakeLock" in navigator)) return;
+  try{
+    if(wakeLock && !wakeLock.released) return;
+    wakeLock = await navigator.wakeLock.request("screen");
+  }catch(e){ /* 非対応・拒否時は無視 */ }
+}
+function releaseAwake(){ try{ wakeLock && wakeLock.release(); }catch(e){} wakeLock=null; }
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState==="visible" && active){
+    keepAwake();
+    recordPoint(false);          // 画面に戻ったらすぐ1点記録
+  }
+});
+document.addEventListener("click", ()=>{ if(active) keepAwake(); });
+
+/* ================================================================
+   記録（開始・地点記録・終了）
+================================================================ */
+/* active は localStorage に保存し、再読み込みしても続きから再開できる */
+let active = null, points = [], recTimer=null, clockTimer=null;
+const LS_ACTIVE="flyer_active", LS_PENDING="flyer_pending";
+function saveActive(){ if(active) localStorage.setItem(LS_ACTIVE, JSON.stringify(active)); else localStorage.removeItem(LS_ACTIVE); }
+function getPending(){ try{ return JSON.parse(localStorage.getItem(LS_PENDING)||"[]"); }catch(e){ return []; } }
+function setPending(a){ localStorage.setItem(LS_PENDING, JSON.stringify(a)); }
+
+async function startRec(){
+  const pid = Number($("selPam").value);
+  if(!pid){ toast("配るビラを選んでください", true); return; }
+  const staff = $("staff").value.trim();
+  const p = pams.find(x=>x.id===pid);
+  const btn=$("btnStart"); btn.disabled=true; btn.textContent="開始しています…";
+  try{
+    const rows = await api(`/rest/v1/flyer_logs`, {method:"POST", headers:JSONR, body:JSON.stringify({
+      started_at:new Date().toISOString(), staff:staff||null, pamphlet_id:pid, pamphlet_name:p?p.name:null, status:"recording"
+    })});
+    const log = rows[0];
+    localStorage.setItem("flyer_staff", staff);
+    localStorage.setItem("flyer_last_pam", String(pid));
+    active = { logId:log.id, startedAt:log.started_at, pid, pname:p?p.name:"", staff,
+               lastPt:null, lastPtAt:0, lastGeo:null, geoCalls:0, distance:0 };
+    points = [];
+    saveActive();
+    beginTracking();
+    showView("rec");
+    toast("配布の記録を開始しました");
+  }catch(e){
+    toast("開始できませんでした："+e.message, true);
+  }finally{
+    btn.disabled=false; btn.textContent="配布を開始";
+  }
+}
+
+function beginTracking(){
+  startWatch();
+  keepAwake();
+  clearInterval(recTimer); clearInterval(clockTimer);
+  recTimer = setInterval(()=>recordPoint(false), INTERVAL_SEC*1000);
+  clockTimer = setInterval(updateClock, 1000);
+  updateClock();
+  // 最初の1点は位置が取れ次第すぐ記録
+  let tries=0;
+  const first = setInterval(()=>{
+    tries++;
+    if(!active){ clearInterval(first); return; }
+    if(lastFix && Date.now()-lastFix.t<60000){ clearInterval(first); recordPoint(true); }
+    else if(tries>30) clearInterval(first);
+  }, 1000);
+}
+
+function updateClock(){
+  if(!active) return;
+  $("recTime").textContent = fmtDur(Date.now() - new Date(active.startedAt).getTime());
+  $("recStat").textContent = `${active.pname||"ビラ"}／記録 ${points.length}地点／約${fmtKm(active.distance)}`;
+}
+function showWarn(msg){ const w=$("recWarn"); w.textContent=msg||""; w.classList.toggle("show", !!msg); }
+
+let recording=false;
+async function recordPoint(manual){
+  if(!active || recording) return;
+  if(!lastFix || Date.now()-lastFix.t > 120000){
+    showWarn("位置情報を待っています（屋外で、画面を開いたままにしてください）");
+    return;
+  }
+  if(!manual && lastFix.acc > MAX_ACC_M){
+    showWarn(`位置の精度が低いため記録を見送りました（約${Math.round(lastFix.acc)}m）`);
+    return;
+  }
+  const lat=lastFix.lat, lng=lastFix.lng;
+  const moved = active.lastPt ? dist(active.lastPt.lat, active.lastPt.lng, lat, lng) : Infinity;
+  if(!manual && moved < MIN_MOVE_M && Date.now()-active.lastPtAt < 5*60*1000) return;   // ほぼ動いていない
+  recording=true;
+  try{
+    showWarn("");
+    if(isFinite(moved) && moved < 2000) active.distance += moved;     // 2km以上の飛びはGPS誤差として距離に入れない
+    /* 住所変換（30m以上動いたときだけAPIを呼ぶ） */
+    let town=null, address=null;
+    const g = active.lastGeo;
+    if(g && dist(g.lat,g.lng,lat,lng) < GEO_MOVE_M){
+      town=g.town; address=g.address;
+    }else if(active.geoCalls < GEO_CAP){
+      const r = await geocode(lat,lng);
+      active.geoCalls++;
+      if(r){ town=r.town; address=r.address; active.lastGeo={lat,lng,town,address}; }
+      else if(g){ town=g.town; address=g.address; }
+    }else if(g){ town=g.town; address=g.address; }
+
+    const pt = {log_id:active.logId, ts:new Date().toISOString(), lat, lng, acc:Math.round(lastFix.acc), town, address};
+    active.lastPt={lat,lng}; active.lastPtAt=Date.now();
+    points.push(pt);
+    saveActive();
+    const q=getPending(); q.push(pt); setPending(q);
+    flushPending();
+    $("hereTown").textContent = town || "（町名を取得できませんでした）";
+    $("hereAddr").textContent = address && address!==town ? address : "";
+    drawRec();
+    updateClock();
+  }finally{ recording=false; }
+}
+
+async function geocode(lat,lng){
+  try{
+    const ctl=new AbortController(); const tm=setTimeout(()=>ctl.abort(), 9000);
+    const r = await sb(`/functions/v1/${GEOCODE_FN}`, {
+      method:"POST", signal:ctl.signal,
+      headers:{"Content-Type":"application/json","x-staff-key":PASSCODE},
+      body:JSON.stringify({lat,lng})
+    });
+    clearTimeout(tm);
+    if(!r.ok) return null;
+    const j = await r.json();
+    return (j && (j.town || j.address)) ? j : null;
+  }catch(e){ return null; }
+}
+
+/* 通信が切れても地点は端末に貯めておき、つながったらまとめて送る */
+let flushing=null;
+function flushPending(){
+  if(flushing) return flushing;                 // 送信中なら同じ処理の完了を待つ
+  const q=getPending(); if(!q.length) return Promise.resolve();
+  flushing=(async()=>{
+    try{
+      await api(`/rest/v1/flyer_points`, {method:"POST", headers:JSONH, body:JSON.stringify(q)});
+      setPending(getPending().slice(q.length));
+      if(!getPending().length && $("recWarn").textContent.startsWith("通信できない")) showWarn("");
+    }catch(e){
+      showWarn(`通信できないため ${q.length} 地点を端末に保存中です（つながると自動で送ります）`);
+    }finally{ flushing=null; }
+  })();
+  return flushing;
+}
+setInterval(flushPending, 30000);
+window.addEventListener("online", flushPending);
+
+/* ---------- 終了 ---------- */
+async function openStop(){
+  if(!active) return;
+  await recordPoint(true);
+  const towns=uniqTowns(points);
+  $("stopSum").innerHTML = `
+    <b>${esc(active.pname||"ビラ")}</b>　${fmtT(active.startedAt)}〜（${fmtDur(Date.now()-new Date(active.startedAt).getTime())}）<br>
+    記録 ${points.length}地点／約${fmtKm(active.distance)}<br>
+    ${towns.length? `<div class="towns">${towns.map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}`;
+  $("mStop").classList.add("show");
+}
+function addCnt(d){ const el=$("cnt"); el.value=Math.max(0,(parseInt(el.value,10)||0)+d); }
+
+async function finishRec(){
+  if(!active) return;
+  const count = Math.max(0, parseInt($("cnt").value,10)||0);
+  if(count===0 && !confirm("配布枚数が0枚です。このまま保存しますか？")) return;
+  const btn=$("btnFinish"); btn.disabled=true; btn.textContent="保存しています…";
+  try{
+    while(recording) await new Promise(r=>setTimeout(r,200));   // 地点記録の途中なら待つ
+    await flushPending();
+    if(getPending().length) throw new Error("地点データを送信できません。電波の良い場所でもう一度押してください");
+    /* 通った町はサーバーに保存された全地点から集計（再読み込み・通信断があっても漏れないように） */
+    let towns=uniqTowns(points);
+    try{
+      const all=await api(`/rest/v1/flyer_points?select=town&log_id=eq.${active.logId}&order=ts.asc&limit=10000`) || [];
+      if(all.length) towns=uniqTowns(all);
+    }catch(e){ /* 取れなければ端末側の地点で集計 */ }
+    const ended=new Date();
+    const minutes=Math.max(1, Math.round((ended - new Date(active.startedAt))/60000));
+    const body={
+      ended_at:ended.toISOString(), minutes, distance_m:Math.round(active.distance),
+      items:[{pamphlet_id:active.pid, name:active.pname, count}], total_count:count,
+      towns, memo:$("memo").value.trim()||null, status:"done"
+    };
+    await api(`/rest/v1/flyer_logs?id=eq.${active.logId}`, {method:"PATCH", headers:JSONH, body:JSON.stringify(body)});
+    endTracking();
+    $("cnt").value=0; $("memo").value="";
+    closeModal("mStop");
+    toast(`保存しました（${count}枚・${minutes}分）`);
+    histLoaded=false;
+    showView("hist");
+  }catch(e){
+    toast("保存に失敗しました："+e.message, true);
+  }finally{
+    btn.disabled=false; btn.textContent="記録を保存して終了";
+  }
+}
+
+async function discardRec(){
+  if(!active) return;
+  if(!confirm("この配布の記録をすべて削除します。よろしいですか？")) return;
+  try{
+    await api(`/rest/v1/flyer_logs?id=eq.${active.logId}`, {method:"DELETE"});
+  }catch(e){ /* 既に無い場合も続行 */ }
+  setPending([]);
+  endTracking();
+  closeModal("mStop");
+  toast("記録を破棄しました");
+  showView("rec");
+}
+
+function endTracking(){
+  clearInterval(recTimer); clearInterval(clockTimer);
+  releaseAwake();
+  active=null; points=[]; saveActive();
+  if(recLine){ recLine.setLatLngs([]); recDots.clearLayers(); }
+}
+
+/* 記録中の地点をサーバー＋端末の未送信分から読み直す（通信できなければ後で再試行） */
+async function reloadActivePoints(){
+  if(!active) return;
+  const id=active.logId;
+  try{
+    const srv = await api(`/rest/v1/flyer_points?select=ts,lat,lng,town,address&log_id=eq.${id}&order=ts.asc&limit=5000`) || [];
+    if(!active || active.logId!==id) return;
+    const pend = getPending().filter(p=>p.log_id===id);
+    const byTs = new Map();                       // 同じ時刻の地点は1つにまとめる
+    [...srv, ...pend, ...points].forEach(p=>{ const k=new Date(p.ts).getTime(); if(!byTs.has(k)) byTs.set(k,p); });
+    points = [...byTs.values()].sort((x,y)=>new Date(x.ts)-new Date(y.ts));
+    drawRec(); updateClock();
+  }catch(e){
+    if(!points.length) points = getPending().filter(p=>p.log_id===id);
+    setTimeout(reloadActivePoints, 20000);
+  }
+}
+
+/* 再読み込み後の再開 */
+async function resumeIfActive(){
+  let a=null;
+  try{ a=JSON.parse(localStorage.getItem(LS_ACTIVE)||"null"); }catch(e){}
+  if(!a) return;
+  active=a;
+  await reloadActivePoints();
+  const last=points[points.length-1];
+  if(last){ $("hereTown").textContent=last.town||"—"; $("hereAddr").textContent=last.address&&last.address!==last.town?last.address:""; }
+  beginTracking();
+  showView("rec");
+  toast("記録中の配布を再開しました");
+}
+
+/* ================================================================
+   地図（記録中）
+================================================================ */
+const TILE="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const ATTR='&copy; OpenStreetMap contributors';
+let recMap=null, recLine=null, recDots=null, meMarker=null, recFollow=true;
+function initRecMap(){
+  if(recMap){ setTimeout(()=>{ recMap.invalidateSize(); drawRec(); },60); return; }
+  recMap=L.map("recMap",{zoomControl:true});
+  L.tileLayer(TILE,{maxZoom:19, attribution:ATTR}).addTo(recMap);
+  recLine=L.polyline([], {color:"#D93025", weight:5, opacity:.85}).addTo(recMap);
+  recDots=L.layerGroup().addTo(recMap);
+  const c = lastFix ? [lastFix.lat,lastFix.lng] : [35.40,139.62];
+  recMap.setView(c, 17);
+  recMap.on("dragstart", ()=>{ recFollow=false; });
+  setTimeout(()=>{ recMap.invalidateSize(); drawRec(); },60);
+}
+function drawRec(){
+  if(!recMap || !active) return;
+  const col = pamColor(active.pid);
+  recLine.setStyle({color:col});
+  recLine.setLatLngs(points.map(p=>[p.lat,p.lng]));
+  recDots.clearLayers();
+  points.forEach(p=>{
+    L.circleMarker([p.lat,p.lng],{radius:4, color:"#fff", weight:1.5, fillColor:col, fillOpacity:1})
+      .bindPopup(`${fmtT(p.ts)}<br>${esc(p.address||p.town||"")}`).addTo(recDots);
+  });
+  updateMe();
+}
+function updateMe(){
+  if(!recMap || !lastFix) return;
+  const ll=[lastFix.lat,lastFix.lng];
+  if(!meMarker) meMarker=L.marker(ll,{icon:L.divIcon({className:"",html:'<div class="me"></div>',iconSize:[18,18],iconAnchor:[9,9]}), interactive:false}).addTo(recMap);
+  else meMarker.setLatLng(ll);
+  if(recFollow) recMap.panTo(ll);
+}
+
+/* ================================================================
+   履歴・地図
+================================================================ */
+const PERIODS=[{k:"today",l:"今日"},{k:"7",l:"7日"},{k:"30",l:"30日"},{k:"all",l:"全部"}];
+let period="7", histLogs=[], histPts=[], histLoaded=false, histLoading=null, selLog=null;
+function periodFrom(k){
+  const d=new Date(); d.setHours(0,0,0,0);
+  if(k==="today") return d;
+  if(k==="all") return null;
+  d.setDate(d.getDate()-Number(k)+1); return d;
+}
+function buildChips(){
+  const html = PERIODS.map(p=>`<div class="chip${p.k===period?" active":""}" onclick="setPeriod('${p.k}')">${p.l}</div>`).join("");
+  $("histChips").innerHTML=html; $("townChips").innerHTML=html;
+  $("townSort").innerHTML = [["old","配っていない順"],["count","回数の多い順"],["name","町名順"]]
+    .map(([k,l])=>`<div class="chip${k===townSortKey?" active":""}" onclick="setTownSort('${k}')">${l}</div>`).join("");
+}
+function setPeriod(k){ period=k; histLoaded=false; selLog=null; loadHist(); }
+
+async function loadHist(){
+  buildChips();
+  if(histLoaded){ renderHist(); renderTowns(); return; }
+  if(histLoading) return histLoading;
+  $("histCount").textContent="読み込み中…"; $("townCount").textContent="読み込み中…";
+  histLoading=(async()=>{
+    try{
+      const from=periodFrom(period);
+      const f = from ? `&started_at=gte.${encodeURIComponent(from.toISOString())}` : "";
+      histLogs = await api(`/rest/v1/flyer_logs?select=*${f}&order=started_at.desc&limit=1000`) || [];
+      histPts=[];
+      const ids=histLogs.map(l=>l.id);
+      for(let i=0;i<ids.length;i+=100){
+        const chunk=ids.slice(i,i+100);
+        const pts=await api(`/rest/v1/flyer_points?select=log_id,ts,lat,lng,town,address&log_id=in.(${chunk.join(",")})&order=ts.asc&limit=50000`) || [];
+        histPts.push(...pts);
+      }
+      histLoaded=true;
+    }catch(e){
+      toast("履歴の読み込みに失敗しました："+e.message, true);
+      histLogs=[]; histPts=[];
+    }
+    renderHist(); renderTowns();
+  })();
+  await histLoading; histLoading=null;
+}
+
+let histMap=null, histLayer=null, histFitted=false;
+function initHistMap(){
+  if(histMap){ setTimeout(()=>histMap.invalidateSize(),60); return; }
+  histMap=L.map("histMap",{zoomControl:true}).setView([35.40,139.62],14);
+  L.tileLayer(TILE,{maxZoom:19, attribution:ATTR}).addTo(histMap);
+  histLayer=L.layerGroup().addTo(histMap);
+  setTimeout(()=>histMap.invalidateSize(),60);
+}
+function ptsOf(id){ return histPts.filter(p=>p.log_id===id); }
+
+function renderHist(){
+  const n=histLogs.length, total=histLogs.reduce((a,l)=>a+(l.total_count||0),0);
+  $("histCount").textContent = n ? `${n}回／合計 ${total.toLocaleString()}枚` : "";
+  $("histList").innerHTML = n ? histLogs.map(l=>{
+    const col=pamColor(l.pamphlet_id);
+    const towns=(l.towns&&l.towns.length? l.towns : uniqTowns(ptsOf(l.id)));
+    const live = l.status==="recording";
+    return `<div class="log${selLog===l.id?" sel":""}" style="--c:${col}" onclick="selectLog(${l.id})">
+      <div class="t1">
+        <span class="dt">${fmtD(l.started_at)} ${fmtT(l.started_at)}${l.ended_at?"〜"+fmtT(l.ended_at):""}</span>
+        <span class="nm">${esc(l.pamphlet_name||"")}</span>
+        ${live?'<span class="badge">記録中</span>':`<span class="n">${(l.total_count||0).toLocaleString()}枚</span>`}
+      </div>
+      <div class="t3">
+        <div class="t2">${esc(l.staff||"担当者未入力")}${l.minutes?`／${l.minutes}分`:""}${l.distance_m?`／約${fmtKm(l.distance_m)}`:""}<br>
+          ${esc(towns.slice(0,6).join("、"))}${towns.length>6?` ほか${towns.length-6}町`:""}</div>
+        <button class="btn sub dbtn" onclick="event.stopPropagation(); openLog(${l.id})">詳細</button>
+      </div>
+    </div>`;
+  }).join("") : `<div class="empty">この期間の配布記録はありません。<br>「記録」タブから配布を開始してください。</div>`;
+  drawHist();
+}
+function drawHist(){
+  if(!histMap) return;
+  histLayer.clearLayers();
+  const all=[];
+  histLogs.forEach(l=>{
+    const pts=ptsOf(l.id); if(!pts.length) return;
+    const ll=pts.map(p=>[p.lat,p.lng]); all.push(...ll);
+    const col=pamColor(l.pamphlet_id), sel=selLog===l.id;
+    const line=L.polyline(ll,{color:col, weight:sel?7:4, opacity: selLog && !sel ? .3 : .85});
+    line.on("click",()=>selectLog(l.id));
+    line.bindTooltip(`${fmtD(l.started_at)} ${esc(l.pamphlet_name||"")}`,{sticky:true});
+    histLayer.addLayer(line);
+    if(sel) pts.forEach(p=>histLayer.addLayer(
+      L.circleMarker([p.lat,p.lng],{radius:4,color:"#fff",weight:1.5,fillColor:col,fillOpacity:1})
+        .bindPopup(`${fmtT(p.ts)}<br>${esc(p.address||p.town||"")}`)));
+  });
+  if(selLog){
+    const s=ptsOf(selLog).map(p=>[p.lat,p.lng]);
+    if(s.length) histMap.fitBounds(s,{padding:[30,30],maxZoom:18});
+  }else if(all.length){
+    histMap.fitBounds(all,{padding:[30,30],maxZoom:17});
+  }
+}
+function selectLog(id){
+  selLog = selLog===id ? null : id;            // 同じ記録をもう一度タップで選択解除
+  renderHist();
+  if(selLog) $("histMap").scrollIntoView({behavior:"smooth", block:"start"});
+}
+let openLogId=null;
+function openLog(id){
+  const l=histLogs.find(x=>x.id===id); if(!l) return;
+  openLogId=id;
+  const pts=ptsOf(id), towns=(l.towns&&l.towns.length? l.towns : uniqTowns(pts));
+  $("logBody").innerHTML=`
+    <div class="sum">
+      <b>${fmtD(l.started_at)} ${fmtT(l.started_at)}${l.ended_at?"〜"+fmtT(l.ended_at):""}</b><br>
+      ビラ：<b>${esc(l.pamphlet_name||"")}</b>　枚数：<b>${(l.total_count||0).toLocaleString()}枚</b><br>
+      担当：${esc(l.staff||"未入力")}${l.minutes?`／${l.minutes}分`:""}${l.distance_m?`／約${fmtKm(l.distance_m)}`:""}／${pts.length}地点
+      ${l.memo?`<br>メモ：${esc(l.memo)}`:""}
+      ${l.status==="recording"?`<br><span style="color:var(--red);font-weight:700;">この記録は終了処理がされていません（記録中または途中で閉じられた可能性があります）</span>`:""}
+    </div>
+    <label class="lbl">通った町</label>
+    <div class="towns">${towns.map(t=>`<span>${esc(t)}</span>`).join("")||"—"}</div>`;
+  $("mLog").classList.add("show");
+}
+async function deleteLog(){
+  if(!openLogId) return;
+  if(active && active.logId===openLogId){ toast("記録中の配布は「記録」タブの終了画面から破棄してください", true); return; }
+  if(!confirm("この配布記録を削除します。よろしいですか？")) return;
+  try{
+    await api(`/rest/v1/flyer_logs?id=eq.${openLogId}`, {method:"DELETE"});
+    closeModal("mLog"); selLog=null; histLoaded=false; await loadHist(); toast("削除しました");
+  }catch(e){ toast("削除に失敗しました："+e.message, true); }
+}
+
+/* ================================================================
+   町別集計
+================================================================ */
+let townSortKey="old";
+function setTownSort(k){ townSortKey=k; buildChips(); renderTowns(); }
+function townStats(){
+  const m=new Map();
+  const logById=new Map(histLogs.map(l=>[l.id,l]));
+  histPts.forEach(p=>{
+    if(!p.town) return;
+    const l=logById.get(p.log_id); if(!l) return;
+    let o=m.get(p.town);
+    if(!o){ o={town:p.town, logs:new Set(), last:null, staff:new Set()}; m.set(p.town,o); }
+    o.logs.add(p.log_id);
+    if(!o.last || p.ts>o.last) o.last=p.ts;
+    if(l.staff) o.staff.add(l.staff);
+  });
+  const now=Date.now();
+  const rows=[...m.values()].map(o=>({town:o.town, count:o.logs.size, last:o.last,
+    days:Math.floor((now-new Date(o.last).getTime())/86400000), staff:[...o.staff].join("、")}));
+  if(townSortKey==="old") rows.sort((a,b)=>b.days-a.days || a.town.localeCompare(b.town,"ja"));
+  else if(townSortKey==="count") rows.sort((a,b)=>b.count-a.count || a.town.localeCompare(b.town,"ja"));
+  else rows.sort((a,b)=>a.town.localeCompare(b.town,"ja"));
+  return rows;
+}
+function renderTowns(){
+  const rows=townStats();
+  $("townCount").textContent = rows.length ? `${rows.length}町` : "";
+  $("townBody").innerHTML = rows.length ? rows.map(r=>`<tr>
+      <td>${esc(r.town)}</td><td class="num">${r.count}回</td><td>${fmtD(r.last)}</td>
+      <td class="num${r.days>=OLD_DAYS?" old":""}">${r.days}日</td><td>${esc(r.staff)}</td></tr>`).join("")
+    : `<tr><td colspan="5" class="empty">この期間の配布記録はありません</td></tr>`;
+}
+
+/* ================================================================
+   CSV（BOM付きUTF-8・Excel向け）
+================================================================ */
+function downloadCsv(name, head, body){
+  const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+  const text="\uFEFF"+[head,...body].map(a=>a.map(q).join(",")).join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([text],{type:"text/csv"}));
+  const d=new Date(); a.download=`${name}_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+function csvLogs(){
+  if(!histLogs.length){ toast("出力する記録がありません", true); return; }
+  downloadCsv("flyer", ["日付","曜日","開始","終了","時間(分)","担当者","ビラ","枚数","距離(m)","通った町","メモ"],
+    [...histLogs].reverse().map(l=>{ const d=new Date(l.started_at);
+      return [`${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`, WD[d.getDay()], fmtT(l.started_at),
+        l.ended_at?fmtT(l.ended_at):"", l.minutes??"", l.staff||"", l.pamphlet_name||"", l.total_count||0,
+        l.distance_m??"", ((l.towns&&l.towns.length)?l.towns:uniqTowns(ptsOf(l.id))).join("、"), l.memo||""]; }));
+}
+function csvTowns(){
+  const rows=townStats();
+  if(!rows.length){ toast("出力するデータがありません", true); return; }
+  downloadCsv("flyer_towns", ["町名","配布回数","最終配布日","経過日数","担当者"],
+    rows.map(r=>[r.town, r.count, fmtD(r.last), r.days, r.staff]));
+}
+
+/* ================================================================
+   音声入力（メモ）
+================================================================ */
+let recog=null, recBtn=null;
+function toggleMic(targetId, btnId){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ toast("この端末は音声入力に非対応です（キーボードのマイクをご利用ください）", true); return; }
+  if(recog){ recog.stop(); return; }
+  const target=$(targetId); recBtn=$(btnId);
+  recog=new SR(); recog.lang="ja-JP"; recog.interimResults=false; recog.continuous=true;
+  recog.onresult=ev=>{
+    let txt=""; for(let i=ev.resultIndex;i<ev.results.length;i++) if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
+    if(txt) target.value = target.value ? target.value.replace(/\s+$/,"")+" "+txt : txt;
+  };
+  recog.onstart=()=>recBtn.classList.add("rec");
+  const done=()=>{ if(recBtn) recBtn.classList.remove("rec"); recog=null; recBtn=null; };
+  recog.onend=done; recog.onerror=done;
+  recog.start();
+}
+
+/* ================================================================
+   起動
+================================================================ */
+let booted=false;
+async function boot(){
+  if(booted) return; booted=true;
+  $("staff").value = localStorage.getItem("flyer_staff")||"";
+  startWatch();
+  await loadPams();
+  await resumeIfActive();
+  flushPending();
+}
+if(!PASSCODE || localStorage.getItem("poster_gate")==="ok"){ $("gate").style.display="none"; boot(); }
+</script>
+</body>
+</html>

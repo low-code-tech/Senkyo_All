@@ -194,7 +194,12 @@
   .btn.danger{background:#fff; color:var(--red); border:1.5px solid var(--red);}
 
   /* ===== 地図ビュー ===== */
-  #viewMap.show{display:block;}
+  /* 地図ビュー：検索・凡例・件数を除いた残り全部を地図に（下が切れないよう画面高から自動計算） */
+  #viewMap.show{
+    display:flex; flex-direction:column;
+    height:calc(100dvh - var(--hh,56px) - 20px - env(safe-area-inset-bottom));
+  }
+  #viewMap .search-bar{position:static; margin-bottom:4px; padding:0 0 6px;}
   .legend{
     display:flex; gap:6px; overflow-x:auto; padding:2px 0 8px;
     -webkit-overflow-scrolling:touch;
@@ -209,12 +214,20 @@
   .lg .sw{width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.25); flex:none;}
   .lg.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
   #map{
-    width:100%; height:calc(100dvh - var(--hh,56px) - 108px);
+    width:100%; flex:1; min-height:240px;
     border:1px solid var(--line); border-radius:10px; background:#DDE3EE;
     position:relative; z-index:0;   /* Leaflet内部のz-indexをこの枠内に閉じ込める */
   }
   #mapCount{font-size:12px; color:var(--sub); margin:6px 2px 0;}
   .pin-ico{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+  /* サムネイルマーカー（拡大時） */
+  .pm{
+    width:56px; height:56px; border-radius:8px; overflow:hidden;
+    border:3px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.45);
+    background:#fff; cursor:pointer;
+  }
+  .pm img,.pm .vph{width:100%; height:100%; object-fit:cover; display:block;}
+  .pm .vph{display:flex; align-items:center; justify-content:center; font-size:20px; background:#333; color:#fff;}
 
   /* トースト */
   #toast{
@@ -311,6 +324,11 @@
 
   <!-- ===== 地図ビュー（All Display Map） ===== -->
   <section id="viewMap" class="view">
+    <div class="search-bar">
+      <input id="mq" placeholder="人名・住所・メモで絞り込み" oninput="renderMarkers(true)">
+      <button class="mic-btn inline" id="micMap" onclick="toggleMic('mq','micMap')" title="音声入力">&#127908;</button>
+      <button class="btn sub" onclick="didFit=false; loadList(true)">検索</button>
+    </div>
     <div class="legend" id="legend"></div>
     <div id="map"></div>
     <div id="mapCount"></div>
@@ -679,12 +697,15 @@ async function loadList(force){
     toast("一覧の取得に失敗しました", true);
   }
 }
+function hayOf(r){
+  return [ r.memo||"", r.address||"", r.postal_code||"", r.person_name||"", r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
+}
 function renderList(){
   const q=$("q").value.trim().toLowerCase();
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(!terms.length) return true;
-    const hay=[ r.memo||"", r.address||"", r.postal_code||"", r.person_name||"", r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
+    const hay=hayOf(r);
     return terms.every(t=>hay.includes(t));
   });
   $("countLine").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
@@ -726,6 +747,7 @@ function initMap(){
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
+  map.on("zoomend", ()=>renderMarkers(true));   // ズームで 旗⇔サムネイル を切替
   // 初期表示：現在地があればそこ、なければ東京駅付近
   if(curPos) map.setView([curPos.lat, curPos.lon], 14);
   else map.setView([35.681, 139.767], 12);
@@ -767,24 +789,44 @@ function primaryColor(r){
   return c? c.color : ALL_COLOR;
 }
 
-function renderMarkers(){
+const THUMB_ZOOM = 17;   // このズーム以上で旗→サムネイル表示に切替（map.html と同じ）
+
+function thumbIcon(r, color){
+  const src = r.thumb_path ? pubUrl(r.thumb_path) : (r.media_type==="image" ? pubUrl(r.media_path) : "");
+  const inner = src ? `<img src="${src}" loading="lazy">` : `<div class="vph">&#127909;</div>`;
+  return L.divIcon({
+    className:"",
+    html:`<div class="pm" style="border-color:${color}">${inner}</div>`,
+    iconSize:[56,56], iconAnchor:[28,28]
+  });
+}
+
+function renderMarkers(zoomOnly){
   if(!map || !markerLayer) return;
   markerLayer.clearLayers();
-  const list=rows.filter(r=>
-    r.latitude!=null && r.longitude!=null &&
-    (mapFilter==="all" || r[mapFilter])
-  );
+  const q=$("mq").value.trim().toLowerCase();
+  const terms=q? q.split(/\s+/):[];
+  const list=rows.filter(r=>{
+    if(r.latitude==null || r.longitude==null) return false;
+    if(mapFilter!=="all" && !r[mapFilter]) return false;
+    if(!terms.length) return true;
+    const hay=hayOf(r);
+    return terms.every(t=>hay.includes(t));
+  });
+  const useThumb = map.getZoom() >= THUMB_ZOOM;
   const pts=[];
   list.forEach(r=>{
     const color = mapFilter==="all" ? primaryColor(r) : (CATS.find(c=>c.key===mapFilter)||{}).color || ALL_COLOR;
-    const m=L.marker([r.latitude, r.longitude], {icon:pinIcon(color)});
-    m.on("click", ()=>openDetail(r.id));   // 旗クリック → 選挙情報管理画面
+    const icon = useThumb ? thumbIcon(r, color) : pinIcon(color);
+    const m=L.marker([r.latitude, r.longitude], {icon});
+    m.on("click", ()=>openDetail(r.id));   // タップ → 詳細・修正画面
     markerLayer.addLayer(m);
     pts.push([r.latitude, r.longitude]);
   });
   const flabel = mapFilter==="all" ? "全部" : (CATS.find(c=>c.key===mapFilter)||{}).label;
-  $("mapCount").textContent=`${flabel}: ${list.length} 件（旗をタップすると詳細・修正画面が開きます）`;
-  if(pts.length && !didFit){
+  $("mapCount").textContent = `${flabel}: ${list.length} 件${q?`（検索: ${q}）`:""}／` +
+    (useThumb ? "写真をタップで詳細" : "拡大すると写真表示・旗をタップで詳細");
+  if(pts.length && !didFit && !zoomOnly){
     map.fitBounds(pts, {padding:[36,36], maxZoom:16});
     didFit=true;
   }

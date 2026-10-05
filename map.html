@@ -41,6 +41,7 @@
     padding:6px 12px; font-size:12.5px; font-weight:700; color:#fff; cursor:pointer; user-select:none; white-space:nowrap;}
   .lg .sw{width:12px; height:12px; border-radius:3px; border:1px solid rgba(0,0,0,.3);}
   .lg.active{background:#fff; color:var(--navy); border-color:#fff;}
+  .lg .n{font-size:11px; opacity:.75;}
   #count{font-size:12px; color:#C9D6EE; white-space:nowrap;}
 
   /* ===== 地図 ===== */
@@ -130,9 +131,8 @@ const PASSCODE   = "sano2026";
 const THUMB_ZOOM = 17;    // このズーム以上で旗→サムネイル表示に切替
 /* ==================================== */
 
+/* 固定の分類（候補者は poster.html の「設定」で登録した poster_candidates を使用） */
 const CATS = [
-  {key:"cat_sano",  label:"佐野",      color:"#D93025"},
-  {key:"cat_other", label:"他候補",    color:"#757575"},
   {key:"cat_region",label:"地域情報",  color:"#9C27B0"},
   {key:"cat_card",  label:"名刺",      color:"#7CB342"},
   {key:"cat_talk",  label:"後援者会話",color:"#F4C513"},
@@ -184,16 +184,47 @@ function toggleMic(){
   recog.start();
 }
 
-/* ---------- 凡例 ---------- */
-let mapFilter="all";
-function buildLegend(){
-  const chips=[...CATS.map(c=>({key:c.key,label:c.label,color:c.color})),
-               {key:"all",label:"全部",color:ALL_COLOR}];
-  $("legend").innerHTML=chips.map(c=>
-    `<div class="lg${c.key===mapFilter?" active":""}" onclick="setFilter('${c.key}')">
-       <span class="sw" style="background:${c.color}"></span>${c.label}</div>`).join("");
+/* ---------- 候補者（poster_candidates） ---------- */
+const LEGACY_COLOR="#757575";
+let cands=[];
+async function loadCands(){
+  try{
+    const res=await sb(`/rest/v1/poster_candidates?select=*&order=sort.asc,id.asc`);
+    if(res.ok) cands=await res.json();
+  }catch(e){}
 }
-function setFilter(k){ mapFilter=k; buildLegend(); didFit=false; renderMarkers(); }
+function candColor(n){ const c=cands.find(x=>x.name===n); return c? c.color: LEGACY_COLOR; }
+function isSelfName(n){ const c=cands.find(x=>x.name===n); return !!(c&&c.is_self); }
+function isLegacyOther(r){ return !!r.cat_other && !(r.candidates||[]).some(n=>!isSelfName(n)); }
+
+/* ---------- 凡例（複数選ぶと OR で表示） ---------- */
+const mapSel=new Set();     // 空 = 全部
+let legendCache=[];
+function legendItems(){
+  const items=[], known=new Set();
+  cands.filter(c=>c.active).forEach(c=>{ items.push({key:"cand:"+c.name,label:c.name,color:c.color}); known.add(c.name); });
+  rows.forEach(r=>(r.candidates||[]).forEach(n=>{ if(!known.has(n)){ known.add(n); items.push({key:"cand:"+n,label:n,color:candColor(n)}); } }));
+  if(rows.some(isLegacyOther)) items.push({key:"legacy_other",label:"他候補（未指定）",color:LEGACY_COLOR});
+  CATS.forEach(c=>items.push({key:c.key,label:c.label,color:c.color}));
+  return items;
+}
+function matchKey(r,key){
+  if(key.startsWith("cand:")) return (r.candidates||[]).includes(key.slice(5));
+  if(key==="legacy_other") return isLegacyOther(r);
+  return !!r[key];
+}
+function buildLegend(){
+  legendCache=legendItems();
+  const geo=rows.filter(r=>r.latitude!=null && r.longitude!=null);
+  $("legend").innerHTML=
+    `<div class="lg${mapSel.size?"":" active"}" onclick="setFilter('all')"><span class="sw" style="background:${ALL_COLOR}"></span>全部</div>`+
+    legendCache.map(c=>`<div class="lg${mapSel.has(c.key)?" active":""}" data-key="${esc(c.key)}" onclick="setFilter(this.dataset.key)">
+       <span class="sw" style="background:${c.color}"></span>${esc(c.label)}<span class="n">${geo.filter(r=>matchKey(r,c.key)).length}</span></div>`).join("");
+}
+function setFilter(k){
+  if(k==="all") mapSel.clear(); else if(mapSel.has(k)) mapSel.delete(k); else mapSel.add(k);
+  buildLegend(); didFit=false; renderMarkers();
+}
 
 /* ---------- 地図 ---------- */
 let map=L.map("map",{zoomControl:true}).setView([35.681,139.767],12);
@@ -223,7 +254,13 @@ function thumbIcon(r,color){
     iconSize:[60,60], iconAnchor:[30,30]
   });
 }
-function primaryColor(r){ const c=CATS.find(c=>r[c.key]); return c? c.color: ALL_COLOR; }
+function primaryColor(r){
+  const rc=r.candidates||[];
+  const c1=cands.find(c=>rc.includes(c.name)); if(c1) return c1.color;
+  if(rc.length) return candColor(rc[0]);
+  if(isLegacyOther(r)) return LEGACY_COLOR;
+  const c=CATS.find(c=>r[c.key]); return c? c.color: ALL_COLOR;
+}
 
 /* ---------- データ ---------- */
 let rows=[], meiboMap={}, didFit=false;
@@ -243,14 +280,22 @@ async function reload(){
         });
       }
     }catch(e){}
+    await loadCands();
+    buildLegend();
     renderMarkers();
   }catch(e){ console.error(e); toast("データ取得に失敗しました",true); }
 }
 
 function fmtDT(iso){ const d=new Date(iso); const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
-function catText(r){ return CATS.filter(c=>r[c.key]).map(c=>c.label).join("・"); }
-function catTags(r){ return CATS.filter(c=>r[c.key]).map(c=>`<span class="tag" style="background:${c.color}">${c.label}</span>`).join(""); }
+function catText(r){
+  return [...(r.candidates||[]), ...(isLegacyOther(r)?["他候補（未指定）"]:[]), ...CATS.filter(c=>r[c.key]).map(c=>c.label)].join("・");
+}
+function catTags(r){
+  return (r.candidates||[]).map(n=>`<span class="tag" style="background:${candColor(n)}">${esc(n)}</span>`).join("")
+    + (isLegacyOther(r)?`<span class="tag" style="background:${LEGACY_COLOR}">他候補（未指定）</span>`:"")
+    + CATS.filter(c=>r[c.key]).map(c=>`<span class="tag" style="background:${c.color}">${c.label}</span>`).join("");
+}
 
 /* ---------- マーカー描画（旗⇔サムネ切替＋検索＋凡例絞り込み） ---------- */
 function renderMarkers(zoomOnly){
@@ -259,7 +304,7 @@ function renderMarkers(zoomOnly){
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(r.latitude==null || r.longitude==null) return false;
-    if(mapFilter!=="all" && !r[mapFilter]) return false;
+    if(mapSel.size && ![...mapSel].some(k=>matchKey(r,k))) return false;
     if(!terms.length) return true;
     const hay=[r.memo||"", r.address||"", r.postal_code||"", r.person_name||"",
                r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r)].join(" ").toLowerCase();
@@ -268,16 +313,16 @@ function renderMarkers(zoomOnly){
   const useThumb=map.getZoom()>=THUMB_ZOOM;
   const pts=[];
   list.forEach(r=>{
-    const color=mapFilter==="all"? primaryColor(r): (CATS.find(c=>c.key===mapFilter)||{}).color||ALL_COLOR;
+    let color=primaryColor(r);
+    if(mapSel.size){ const hit=legendCache.find(it=>mapSel.has(it.key)&&matchKey(r,it.key)); if(hit) color=hit.color; }
     const icon=useThumb? thumbIcon(r,color): pinIcon(color);
     const m=L.marker([r.latitude,r.longitude],{icon});
     m.on("click",()=>openPanel(r.id));
     markerLayer.addLayer(m);
     pts.push([r.latitude,r.longitude]);
   });
-  const flabel=mapFilter==="all"? "全部": (CATS.find(c=>c.key===mapFilter)||{}).label;
+  const flabel=mapSel.size? legendCache.filter(it=>mapSel.has(it.key)).map(it=>it.label).join("・"): "全部";
   $("count").textContent=`${flabel}: ${list.length} 件（ズーム${map.getZoom()}／${useThumb?"サムネイル表示":"旗表示・拡大でサムネイル"}）`;
-  buildLegend();
   if(pts.length && !didFit && !zoomOnly){
     map.fitBounds(pts,{padding:[50,50],maxZoom:16});
     didFit=true;
@@ -312,7 +357,6 @@ function closePanel(){ $("panel").classList.remove("show"); }
 /* 60秒ごとに自動更新 */
 setInterval(reload, 60000);
 
-buildLegend();
 reload();
 </script>
 </body>

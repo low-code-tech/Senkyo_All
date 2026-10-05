@@ -28,7 +28,9 @@
   .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;}
   .chip{background:#fff; border:1.5px solid var(--line); border-radius:99px;
     padding:7px 14px; font-size:12.5px; font-weight:700; color:var(--sub); cursor:pointer; user-select:none;}
-  .chip.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
+  .chip.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy); box-shadow:inset 0 0 0 1px var(--navy);}
+  .chip .sw{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px;}
+  .chip .n{font-size:11px; margin-left:4px; opacity:.75;}
   #count{font-size:12px; color:var(--sub); margin-bottom:8px;}
   .tbl-wrap{overflow-x:auto; background:#fff; border:1px solid var(--line); border-radius:10px;}
   table{border-collapse:collapse; width:100%; min-width:1080px;}
@@ -71,7 +73,7 @@
 </div>
 <div class="empty" id="empty" style="display:none;">
   対象のデータがありません。<br>
-  アプリで「佐野」「他候補」「地域情報」のいずれかにチェックを入れて保存すると、ここに表示されます。
+  撮影画面で候補者ボタンか「地域情報」にチェックを入れて保存すると、ここに表示されます。
 </div>
 <p class="note">
   ・郵便番号・住所・人名・メモのセルはタップでその場修正でき、別のセルに移ると自動保存されます。<br>
@@ -87,12 +89,31 @@ const BUCKET   = "poster-media";
 const PASSCODE = "sano2026";
 /* ==================================== */
 
-/* Posterグループのインデックス定義 */
+/* Posterグループの固定インデックス（候補者は poster.html の「設定」で登録した poster_candidates） */
 const IDX=[
-  {key:"cat_sano",  label:"佐野",     color:"#D93025"},
-  {key:"cat_other", label:"他候補",   color:"#757575"},
   {key:"cat_region",label:"地域情報", color:"#9C27B0"}
 ];
+const LEGACY_COLOR="#757575";
+let cands=[];
+async function loadCands(){
+  try{ const res=await sb(`/rest/v1/poster_candidates?select=*&order=sort.asc,id.asc`); if(res.ok) cands=await res.json(); }catch(e){}
+}
+function candColor(n){ const c=cands.find(x=>x.name===n); return c? c.color: LEGACY_COLOR; }
+function isSelfName(n){ const c=cands.find(x=>x.name===n); return !!(c&&c.is_self); }
+function isLegacyOther(r){ return !!r.cat_other && !(r.candidates||[]).some(n=>!isSelfName(n)); }
+function chipItems(){
+  const items=[], known=new Set();
+  cands.filter(c=>c.active).forEach(c=>{ items.push({key:"cand:"+c.name,label:c.name,color:c.color}); known.add(c.name); });
+  rows.forEach(r=>(r.candidates||[]).forEach(n=>{ if(!known.has(n)){ known.add(n); items.push({key:"cand:"+n,label:n,color:candColor(n)}); } }));
+  if(rows.some(isLegacyOther)) items.push({key:"legacy_other",label:"他候補（未指定）",color:LEGACY_COLOR});
+  IDX.forEach(c=>items.push(c));
+  return items;
+}
+function matchKey(r,key){
+  if(key.startsWith("cand:")) return (r.candidates||[]).includes(key.slice(5));
+  if(key==="legacy_other") return isLegacyOther(r);
+  return !!r[key];
+}
 /* 編集可能セル：表示名 → posters の列名 */
 const EDIT_COLS=[
   {col:"postal_code", label:"郵便番号"},
@@ -141,14 +162,14 @@ function toggleMic(){
   recog.start();
 }
 
-/* インデックス絞り込みチップ */
-let idxFilter="all";
+/* インデックス絞り込みチップ（複数選ぶと OR） */
+const idxSel=new Set();   // 空 = 全部
 function buildChips(){
-  const chips=[{key:"all",label:"全部"},...IDX];
-  $("chips").innerHTML=chips.map(c=>
-    `<div class="chip${c.key===idxFilter?" active":""}" onclick="setIdx('${c.key}')">${c.label}</div>`).join("");
+  $("chips").innerHTML=`<div class="chip${idxSel.size?"":" active"}" onclick="setIdx('all')">全部</div>`+
+    chipItems().map(c=>`<div class="chip${idxSel.has(c.key)?" active":""}" data-key="${esc(c.key)}" onclick="setIdx(this.dataset.key)">`+
+      `<span class="sw" style="background:${c.color}"></span>${esc(c.label)}<span class="n">${rows.filter(r=>matchKey(r,c.key)).length}</span></div>`).join("");
 }
-function setIdx(k){ idxFilter=k; buildChips(); render(); }
+function setIdx(k){ if(k==="all") idxSel.clear(); else if(idxSel.has(k)) idxSel.delete(k); else idxSel.add(k); render(); }
 
 let rows=[];
 async function load(){
@@ -158,6 +179,7 @@ async function load(){
     const res=await sb(`/rest/v1/posters?select=*&or=(cat_sano.eq.true,cat_other.eq.true,cat_region.eq.true)&order=created_at.desc&limit=1000`);
     if(!res.ok) throw new Error(await res.text());
     rows=await res.json();
+    await loadCands();
     render();
   }catch(e){ console.error(e); $("count").textContent=""; toast("読み込みに失敗しました",true); }
 }
@@ -165,16 +187,20 @@ async function load(){
 function fmtDT(iso){ const d=new Date(iso); const z=n=>String(n).padStart(2,"0");
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; }
 function idxTags(r){
-  return IDX.filter(c=>r[c.key]).map(c=>`<span class="tag" style="background:${c.color}">${c.label}</span>`).join("")||"—";
+  return ((r.candidates||[]).map(n=>`<span class="tag" style="background:${candColor(n)}">${esc(n)}</span>`).join("")
+    + (isLegacyOther(r)?`<span class="tag" style="background:${LEGACY_COLOR}">他候補（未指定）</span>`:"")
+    + IDX.filter(c=>r[c.key]).map(c=>`<span class="tag" style="background:${c.color}">${c.label}</span>`).join(""))||"—";
 }
-function idxText(r){ return IDX.filter(c=>r[c.key]).map(c=>c.label).join("・"); }
+function idxText(r){
+  return [...(r.candidates||[]), ...(isLegacyOther(r)?["他候補（未指定）"]:[]), ...IDX.filter(c=>r[c.key]).map(c=>c.label)].join("・");
+}
 
 function render(){
   buildChips();
   const q=$("q").value.trim().toLowerCase();
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
-    if(idxFilter!=="all" && !r[idxFilter]) return false;
+    if(idxSel.size && ![...idxSel].some(k=>matchKey(r,k))) return false;
     if(!terms.length) return true;
     const hay=[r.person_name||"", r.address||"", r.postal_code||"", r.memo||"",
                r.ocr_text||"", idxText(r), fmtDT(r.created_at)].join(" ").toLowerCase();

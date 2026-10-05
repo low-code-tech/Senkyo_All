@@ -122,6 +122,10 @@
   .set-row .r1{display:flex; gap:8px; align-items:center;}
   .set-row .r1 input[type=text]{flex:1; min-width:0; border:1.5px solid var(--line); border-radius:8px; padding:10px; font-size:16px;}
   .set-row input[type=color]{width:44px; height:42px; border:1.5px solid var(--line); border-radius:8px; padding:2px; background:#fff; flex:none;}
+  .swatches{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px;}
+  .swc{width:28px; height:28px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line); cursor:pointer; padding:0;}
+  .swc.on{box-shadow:0 0 0 2.5px var(--navy);}
+  .swc:focus-visible{outline:3px solid var(--navy2); outline-offset:2px;}
   .set-row .r2{display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap;}
   .set-row .r2 label{display:flex; align-items:center; gap:5px; font-size:13px; font-weight:700; color:var(--sub); margin-right:6px;}
   .set-row .r2 label input{width:18px; height:18px; accent-color:var(--navy);}
@@ -366,6 +370,7 @@
     <h2>候補者ボタンの設定 <button class="x" onclick="closeModal('mSettings')" aria-label="閉じる">&#10005;</button></h2>
     <p class="set-note">
       撮影画面の「Poster:」に出す候補者ボタンです。色は地図のピンの色になります。<br>
+      色は下の丸から選ぶか、左の四角をタップすると自由に選べます。<br>
       名前を変えると、これまでの記録の候補者名も一緒に書き換わります。<br>
       この設定は全スタッフの端末に共通で反映されます。
     </p>
@@ -1093,7 +1098,7 @@ const DEFAULT_CANDS = [
   {name:"武田", color:"#8E24AA", is_self:false, active:true},
   {name:"新井", color:"#E67E00", is_self:false, active:true}
 ];
-const PALETTE = ["#D93025","#1E6FD9","#2E9E4F","#8E24AA","#E67E00","#00838F","#6D4C41","#C2185B","#5D6D00","#3949AB"];
+const PALETTE = ["#D93025","#1E6FD9","#2E9E4F","#8E24AA","#E67E00","#00838F","#6D4C41","#C2185B","#7CB342","#3949AB","#F4B400","#424242"];
 let cands = [];
 
 async function loadCands(){
@@ -1167,8 +1172,11 @@ function renderSettings(){
   $("setList").innerHTML = setRows.map((c,i)=>`
     <div class="set-row${c.active?"":" off"}">
       <div class="r1">
-        <input type="color" value="${escapeHtml(c.color)}" onchange="setRows[${i}].color=this.value" aria-label="色">
+        <input type="color" value="${escapeHtml(c.color)}" onchange="setColor(${i},this.value)" aria-label="色（タップで自由に選択）">
         <input type="text" value="${escapeHtml(c.name)}" placeholder="候補者名" oninput="setRows[${i}].name=this.value" aria-label="候補者名">
+      </div>
+      <div class="swatches" role="group" aria-label="色を選ぶ">
+        ${PALETTE.map(col=>`<button type="button" class="swc${col.toLowerCase()===String(c.color).toLowerCase()?" on":""}" style="background:${col}" onclick="setColor(${i},'${col}')" aria-label="色 ${col}"></button>`).join("")}
       </div>
       <div class="r2">
         <button class="sbtn" onclick="moveCand(${i},-1)" ${i===0?"disabled":""} aria-label="上へ">&#9650;</button>
@@ -1179,6 +1187,7 @@ function renderSettings(){
       </div>
     </div>`).join("") || `<div class="empty">候補者がいません。下のボタンから追加してください。</div>`;
 }
+function setColor(i,col){ setRows[i].color=col; renderSettings(); }
 function moveCand(i,d){ const j=i+d; if(j<0||j>=setRows.length) return; [setRows[i],setRows[j]]=[setRows[j],setRows[i]]; renderSettings(); }
 function removeCand(i){
   const c=setRows[i];

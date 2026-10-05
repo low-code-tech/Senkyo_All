@@ -308,29 +308,63 @@ function pinsFor(r){
   if(mapSel.size){ const hit=legendCache.find(it=>mapSel.has(it.key)&&matchKey(r,it.key)); if(hit) color=hit.color; }
   return [{r, color}];
 }
-/* 画面上で重なるピンを、元の位置を中心に輪の形に並べ直す（ズームのたびに再計算） */
-function spreadPins(entries, useThumb){
-  const TH = useThumb ? 44 : 18;                 // この画素数以内は「重なっている」とみなす
+/* 近くのピンをまとめる：
+   ・少数（8本以下）なら、重なる分だけ元の位置を中心に輪の形に並べる
+   ・多数なら「件数の丸」1つにまとめる（丸の色の割合＝候補者の内訳）。タップでその範囲を拡大
+   ズームのたびに計算し直す */
+const RING_MAX = 8;
+function groupBy(entries, th){
   const groups=[];
   entries.forEach(e=>{
-    const p=map.latLngToLayerPoint([e.r.latitude, e.r.longitude]);
-    const g=groups.find(g=>Math.abs(g.p.x-p.x)<TH && Math.abs(g.p.y-p.y)<TH);
+    const p=e.p || (e.p=map.latLngToLayerPoint([e.r.latitude, e.r.longitude]));
+    const g=groups.find(g=>Math.abs(g.p.x-p.x)<th && Math.abs(g.p.y-p.y)<th);
     if(g) g.items.push(e); else groups.push({p, items:[e]});
   });
-  groups.forEach(g=>{
-    const n=g.items.length;
-    const center=map.layerPointToLatLng(g.p);
-    g.items.forEach((e,i)=>{
-      e.ll = n>1 ? center : [e.r.latitude, e.r.longitude];
-      e.n = n;
-      if(n===1){ e.dx=0; e.dy=0; return; }
-      const gap = useThumb ? 64 : 22;            // 隣どうしが重ならない間隔（px）
-      const R = Math.max(useThumb ? 36 : 14, gap/2/Math.sin(Math.PI/n));
-      const a = -Math.PI/2 + 2*Math.PI*i/n;
-      e.dx=Math.round(R*Math.cos(a)); e.dy=Math.round(R*Math.sin(a));
+  return groups;
+}
+function layoutPins(entries, useThumb){
+  const out=[];
+  const canCluster = map.getZoom() < 18;            // 最大近くまで拡大したら全部輪で見せる
+  groupBy(entries, useThumb ? 70 : 44).forEach(big=>{
+    if(canCluster && big.items.length > RING_MAX){
+      const lat=big.items.reduce((a,e)=>a+e.r.latitude,0)/big.items.length;
+      const lng=big.items.reduce((a,e)=>a+e.r.longitude,0)/big.items.length;
+      out.push({type:"cluster", ll:[lat,lng], items:big.items});
+      return;
+    }
+    groupBy(big.items, useThumb ? 44 : 18).forEach(g=>{
+      const n=g.items.length;
+      const center=map.layerPointToLatLng(g.p);
+      g.items.forEach((e,i)=>{
+        e.ll = n>1 ? center : [e.r.latitude, e.r.longitude];
+        if(n===1){ e.dx=0; e.dy=0; return; }
+        const gap = useThumb ? 64 : 22;            // 隣どうしが重ならない間隔（px）
+        const R = Math.min(useThumb ? 160 : 70, Math.max(useThumb ? 36 : 14, gap/2/Math.sin(Math.PI/n)));
+        const a = -Math.PI/2 + 2*Math.PI*i/n;
+        e.dx=Math.round(R*Math.cos(a)); e.dy=Math.round(R*Math.sin(a));
+      });
+      out.push({type:"ring", items:g.items});
     });
   });
-  return groups;
+  return out;
+}
+function clusterIcon(items){
+  const cnt={};
+  items.forEach(e=>cnt[e.color]=(cnt[e.color]||0)+1);
+  let acc=0; const stops=[];
+  Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([c,k])=>{
+    const a0=acc/items.length*360; acc+=k; const a1=acc/items.length*360;
+    stops.push(`${c} ${a0}deg ${a1}deg`);
+  });
+  const size = items.length>=100 ? 50 : items.length>=30 ? 44 : 38;
+  return L.divIcon({
+    className:"",
+    html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:conic-gradient(${stops.join(",")});
+      box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;border:2px solid #fff;">
+      <div style="width:${size-16}px;height:${size-16}px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;
+        font:700 12px sans-serif;color:#1A2333;">${items.length}</div></div>`,
+    iconSize:[size,size], iconAnchor:[size/2,size/2]
+  });
 }
 
 function renderMarkers(zoomOnly){
@@ -349,8 +383,13 @@ function renderMarkers(zoomOnly){
   const pts=[];
   const entries=[];
   list.forEach(r=>{ pts.push([r.latitude, r.longitude]); entries.push(...pinsFor(r)); });
-  const groups=spreadPins(entries, useThumb);
-  groups.forEach(g=>{
+  layoutPins(entries, useThumb).forEach(g=>{
+    if(g.type==="cluster"){
+      const m=L.marker(g.ll, {icon:clusterIcon(g.items)});
+      m.on("click", ()=>map.fitBounds(g.items.map(e=>[e.r.latitude,e.r.longitude]), {padding:[50,50], maxZoom:18}));
+      markerLayer.addLayer(m);
+      return;
+    }
     if(g.items.length>1){                      // 輪の中心＝実際の場所に小さな点
       markerLayer.addLayer(L.circleMarker(g.items[0].ll,{radius:3.5, color:"#fff", weight:1.5, fillColor:"#1A2333", fillOpacity:.85, interactive:false}));
     }

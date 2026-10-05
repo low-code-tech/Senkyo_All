@@ -106,6 +106,29 @@
   }
   .cat input{width:17px; height:17px; accent-color:var(--navy); flex:none;}
   .cat.on{border-color:var(--navy); color:var(--navy); background:#E9EFFA;}
+  /* 候補者ボタン（設定で変更可・色付き・折り返し） */
+  .cat-group.wrap{align-items:flex-start;}
+  .cat-group.wrap .glabel{padding-top:12px;}
+  .cat-wrap{flex:1; display:flex; flex-wrap:wrap; gap:6px; min-width:0;}
+  .cat-wrap .cat{flex:1 1 calc(33.33% - 6px); min-width:0;}
+  .cat.cand .dot{width:10px; height:10px; border-radius:50%; background:var(--cc); flex:none;}
+  .cat.cand input{accent-color:var(--cc);}
+  .cat.cand.on{border-color:var(--cc); color:var(--text); background:#F4F6FA; box-shadow:inset 0 0 0 1px var(--cc);}
+  .cat.legacy{flex-basis:100%; font-size:12px;}
+
+  /* ===== 設定（候補者ボタンの編集） ===== */
+  .set-row{border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; background:#fff;}
+  .set-row.off{opacity:.55;}
+  .set-row .r1{display:flex; gap:8px; align-items:center;}
+  .set-row .r1 input[type=text]{flex:1; min-width:0; border:1.5px solid var(--line); border-radius:8px; padding:10px; font-size:16px;}
+  .set-row input[type=color]{width:44px; height:42px; border:1.5px solid var(--line); border-radius:8px; padding:2px; background:#fff; flex:none;}
+  .set-row .r2{display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap;}
+  .set-row .r2 label{display:flex; align-items:center; gap:5px; font-size:13px; font-weight:700; color:var(--sub); margin-right:6px;}
+  .set-row .r2 label input{width:18px; height:18px; accent-color:var(--navy);}
+  .sbtn{border:1.5px solid var(--line); background:#fff; color:var(--navy); border-radius:8px; padding:7px 11px; font-size:13px; font-weight:700; cursor:pointer;}
+  .sbtn.del{color:var(--red); border-color:var(--red); margin-left:auto;}
+  .sbtn:disabled{opacity:.35;}
+  .set-note{font-size:12px; color:var(--sub); line-height:1.7; margin:4px 2px 10px;}
 
   .save-row{display:flex; gap:8px; margin-top:4px;}
   #btnSave{flex:1; font-size:17px; padding:15px;}
@@ -212,7 +235,9 @@
     cursor:pointer; user-select:none; white-space:nowrap;
   }
   .lg .sw{width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.25); flex:none;}
-  .lg.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy);}
+  .lg.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy); box-shadow:inset 0 0 0 1px var(--navy);}
+  .lg .n{font-size:11px; color:var(--sub); font-weight:700;}
+  .lg.active .n{color:var(--navy);}
   #map{
     width:100%; flex:1; min-height:240px;
     border:1px solid var(--line); border-radius:10px; background:#DDE3EE;
@@ -267,7 +292,7 @@
 <!-- ===== ヘッダー1行：確認 一覧 動画 写真撮影 ===== -->
 <header>
   <a class="hbtn home" href="/" title="トップメニューへ" aria-label="トップメニューへ">&#8962;</a>
-  <button class="hbtn" onclick="openConfirm()">確認</button>
+  <button class="hbtn" onclick="openSettings()">設定</button>
   <button class="hbtn" id="hList" onclick="switchView('list')">一覧</button>
   <button class="hbtn" id="hMap" onclick="switchView('map')">地図</button>
   <button class="hbtn" onclick="switchView('shoot'); pickMedia('video')">動画</button>
@@ -292,11 +317,11 @@
       <button class="mic-btn" id="micMemo" onclick="toggleMic('memo','micMemo')" title="音声入力">&#127908;</button>
     </div>
 
-    <div class="cat-group">
+    <div class="cat-group wrap">
       <span class="glabel">Poster:</span>
-      <label class="cat"><input type="checkbox" id="catSano">佐野</label>
-      <label class="cat"><input type="checkbox" id="catOther">他候補</label>
-      <label class="cat"><input type="checkbox" id="catRegion">地域情報</label>
+      <div class="cat-wrap" id="candShoot">
+        <label class="cat"><input type="checkbox" id="catRegion">地域情報</label>
+      </div>
     </div>
     <div class="cat-group">
       <span class="glabel">People:</span>
@@ -335,11 +360,20 @@
   </section>
 </main>
 
-<!-- ===== 直前分・確認モーダル ===== -->
-<div class="modal" id="mConfirm">
+<!-- ===== 設定（候補者ボタン）モーダル ===== -->
+<div class="modal" id="mSettings">
   <div class="box">
-    <h2>直前の保存分 <button class="x" onclick="closeModal('mConfirm')">&#10005;</button></h2>
-    <div id="confirmBody"></div>
+    <h2>候補者ボタンの設定 <button class="x" onclick="closeModal('mSettings')" aria-label="閉じる">&#10005;</button></h2>
+    <p class="set-note">
+      撮影画面の「Poster:」に出す候補者ボタンです。色は地図のピンの色になります。<br>
+      名前を変えると、これまでの記録の候補者名も一緒に書き換わります。<br>
+      この設定は全スタッフの端末に共通で反映されます。
+    </p>
+    <div id="setList"></div>
+    <button class="btn sub" style="width:100%;margin-bottom:10px;" onclick="addCandRow()">＋ 候補者を追加</button>
+    <div class="actions">
+      <button class="btn wide" id="btnSetSave" onclick="saveSettings()">設定を保存</button>
+    </div>
   </div>
 </div>
 
@@ -354,11 +388,11 @@
       <textarea id="editMemo" placeholder="メモ（音声入力できます）"></textarea>
       <button class="mic-btn" id="micEdit" onclick="toggleMic('editMemo','micEdit')" title="音声入力">&#127908;</button>
     </div>
-    <div class="cat-group">
+    <div class="cat-group wrap">
       <span class="glabel">Poster:</span>
-      <label class="cat"><input type="checkbox" id="eSano">佐野</label>
-      <label class="cat"><input type="checkbox" id="eOther">他候補</label>
-      <label class="cat"><input type="checkbox" id="eRegion">地域情報</label>
+      <div class="cat-wrap" id="candEdit">
+        <label class="cat"><input type="checkbox" id="eRegion">地域情報</label>
+      </div>
     </div>
     <div class="cat-group">
       <span class="glabel">People:</span>
@@ -395,9 +429,8 @@ const GEOCODE_FN        = "geocode";
 const MAX_IMG_PX        = 1600;
 /* ================================================================ */
 
+/* 固定の分類（候補者は poster_candidates で設定。cat_sano / cat_other は自動で連動） */
 const CATS = [
-  {key:"cat_sano",  id:"catSano",  eid:"eSano",  label:"佐野",     color:"#D93025"},
-  {key:"cat_other", id:"catOther", eid:"eOther", label:"他候補",   color:"#757575"},
   {key:"cat_region",id:"catRegion",eid:"eRegion",label:"地域情報", color:"#9C27B0"},
   {key:"cat_card",  id:"catCard",  eid:"eCard",  label:"名刺",     color:"#7CB342"},
   {key:"cat_talk",  id:"catTalk",  eid:"eTalk",  label:"後援者会話",color:"#F4C513"},
@@ -551,15 +584,16 @@ function toggleMic(targetId, btnId){
 }
 
 /* ---------- チェックボックス見た目 ---------- */
-document.querySelectorAll(".cat input").forEach(cb=>{
-  cb.addEventListener("change", ()=>cb.closest(".cat").classList.toggle("on", cb.checked));
+document.addEventListener("change", e=>{
+  const cb=e.target;
+  if(cb.matches && cb.matches(".cat input")) cb.closest(".cat").classList.toggle("on", cb.checked);
 });
 
 /* ---------- 保存 ---------- */
 let lastSaved=null;
 async function save(){
   if(!curFile){ toast("先に写真撮影／動画を押してください", true); return; }
-  if(!CATS.some(c=>$(c.id).checked)){
+  if(!CATS.some(c=>$(c.id).checked) && !selCands("candShoot").length){
     toast("分類にチェックを入れてください", true); return;
   }
   const btn=$("btnSave");
@@ -604,6 +638,7 @@ async function save(){
       memo: $("memo").value.trim()
     };
     CATS.forEach(c=>rec[c.key]=$(c.id).checked);
+    Object.assign(rec, candFields(selCands("candShoot"), false));
     const ins=await sb(`/rest/v1/${TABLE}`,{
       method:"POST",
       headers:{"Content-Type":"application/json","Prefer":"return=representation"},
@@ -634,7 +669,7 @@ async function save(){
     /* 4) リセット（プレビューは残す） */
     curFile=null; $("fileP").value=""; $("fileV").value="";
     $("memo").value="";
-    CATS.forEach(c=>{ $(c.id).checked=false; $(c.id).closest(".cat").classList.remove("on"); });
+    $("viewShoot").querySelectorAll(".cat input").forEach(cb=>{ cb.checked=false; cb.closest(".cat").classList.remove("on"); });
     listLoaded=false;
     toast("保存しました");
   }catch(e){
@@ -645,22 +680,6 @@ async function save(){
   }
 }
 
-/* ---------- 確認（直前の保存分） ---------- */
-function openConfirm(){
-  const b=$("confirmBody");
-  if(!lastSaved){
-    b.innerHTML='<div class="empty">この端末での保存はまだありません。<br>（過去分は「一覧」から確認できます）</div>';
-  }else{
-    const r=lastSaved;
-    b.innerHTML = mediaTag(r, "media") + `
-      <div class="detail-meta">
-        ${fmtDT(r.created_at)}<br>
-        ${catText(r)}<br>
-        ${r.memo ? escapeHtml(r.memo) : "（メモなし）"}
-      </div>`;
-  }
-  $("mConfirm").classList.add("show");
-}
 function closeModal(id){ $(id).classList.remove("show"); }
 document.querySelectorAll(".modal").forEach(m=>{
   m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); });
@@ -690,7 +709,7 @@ async function loadList(force){
     }catch(e){ /* 名簿が無くても一覧は表示する */ }
     listLoaded=true;
     renderList();
-    if(map) renderMarkers();
+    if(map){ buildLegend(); renderMarkers(); }
   }catch(e){
     console.error(e);
     $("countLine").textContent="";
@@ -736,7 +755,7 @@ function renderList(){
 }
 
 /* ---------- 地図（All Display Map） ---------- */
-let map=null, markerLayer=null, mapFilter="all", didFit=false;
+let map=null, markerLayer=null, didFit=false, legendCache=[];
 
 function initMap(){
   if(map){ setTimeout(()=>map.invalidateSize(), 60); return; }
@@ -755,18 +774,40 @@ function initMap(){
   renderMarkers();
 }
 
+/* 地図の絞り込みボタン：候補者＋固定分類。複数選ぶと「いずれかに当てはまる」（OR）で表示 */
+const mapSel = new Set();          // 空 = 全部
+function legendItems(){
+  const items=[];
+  const known=new Set();
+  cands.filter(c=>c.active).forEach(c=>{ items.push({key:"cand:"+c.name, label:c.name, color:c.color}); known.add(c.name); });
+  // マスタから外した・非表示にした候補者でも、記録があれば出す
+  rows.forEach(r=>(r.candidates||[]).forEach(n=>{ if(!known.has(n)){ known.add(n); items.push({key:"cand:"+n, label:n, color:candColor(n)}); } }));
+  if(rows.some(isLegacyOther)) items.push({key:"legacy_other", label:"他候補（未指定）", color:LEGACY_COLOR});
+  CATS.forEach(c=>items.push({key:c.key, label:c.label, color:c.color}));
+  return items;
+}
+function matchKey(r,key){
+  if(key.startsWith("cand:")) return (r.candidates||[]).includes(key.slice(5));
+  if(key==="legacy_other") return isLegacyOther(r);
+  return !!r[key];
+}
 function buildLegend(){
   const lg=$("legend");
-  const chips=[...CATS.map(c=>({key:c.key,label:c.label,color:c.color})),
-               {key:"all",label:"全部",color:ALL_COLOR}];
-  lg.innerHTML=chips.map(c=>
-    `<div class="lg${c.key===mapFilter?" active":""}" data-key="${c.key}" onclick="setMapFilter('${c.key}')">
-       <span class="sw" style="background:${c.color}"></span>${c.label}
-     </div>`).join("");
+  const geo=rows.filter(r=>r.latitude!=null && r.longitude!=null);
+  const items=legendItems();
+  const allChip=`<div class="lg${mapSel.size?"":" active"}" onclick="setMapFilter('all')">
+       <span class="sw" style="background:${ALL_COLOR}"></span>全部</div>`;
+  lg.innerHTML = allChip + items.map(c=>{
+    const n=geo.filter(r=>matchKey(r,c.key)).length;
+    return `<div class="lg${mapSel.has(c.key)?" active":""}" data-key="${escapeHtml(c.key)}" onclick="setMapFilter(this.dataset.key)">
+       <span class="sw" style="background:${c.color}"></span>${escapeHtml(c.label)}<span class="n">${n}</span></div>`;
+  }).join("");
 }
 
 function setMapFilter(key){
-  mapFilter=key;
+  if(key==="all") mapSel.clear();
+  else if(mapSel.has(key)) mapSel.delete(key);
+  else mapSel.add(key);
   buildLegend();
   didFit=false;           // 絞り込み変更時は旗の範囲にズームし直す
   renderMarkers();
@@ -785,6 +826,11 @@ function pinIcon(color){
 }
 
 function primaryColor(r){
+  const rc=r.candidates||[];
+  const c1=cands.find(c=>rc.includes(c.name));
+  if(c1) return c1.color;
+  if(rc.length) return candColor(rc[0]);
+  if(isLegacyOther(r)) return LEGACY_COLOR;
   const c=CATS.find(c=>r[c.key]);
   return c? c.color : ALL_COLOR;
 }
@@ -808,22 +854,27 @@ function renderMarkers(zoomOnly){
   const terms=q? q.split(/\s+/):[];
   const list=rows.filter(r=>{
     if(r.latitude==null || r.longitude==null) return false;
-    if(mapFilter!=="all" && !r[mapFilter]) return false;
+    if(mapSel.size && ![...mapSel].some(k=>matchKey(r,k))) return false;
     if(!terms.length) return true;
     const hay=hayOf(r);
     return terms.every(t=>hay.includes(t));
   });
   const useThumb = map.getZoom() >= THUMB_ZOOM;
   const pts=[];
+  legendCache = legendItems();
   list.forEach(r=>{
-    const color = mapFilter==="all" ? primaryColor(r) : (CATS.find(c=>c.key===mapFilter)||{}).color || ALL_COLOR;
+    let color = primaryColor(r);
+    if(mapSel.size){                        // 選んだボタンのうち、凡例で先に並ぶものの色
+      const hit = legendCache.find(it=>mapSel.has(it.key) && matchKey(r,it.key));
+      if(hit) color = hit.color;
+    }
     const icon = useThumb ? thumbIcon(r, color) : pinIcon(color);
     const m=L.marker([r.latitude, r.longitude], {icon});
     m.on("click", ()=>openDetail(r.id));   // タップ → 詳細・修正画面
     markerLayer.addLayer(m);
     pts.push([r.latitude, r.longitude]);
   });
-  const flabel = mapFilter==="all" ? "全部" : (CATS.find(c=>c.key===mapFilter)||{}).label;
+  const flabel = mapSel.size ? legendCache.filter(it=>mapSel.has(it.key)).map(it=>it.label).join("・") : "全部";
   $("mapCount").textContent = `${flabel}: ${list.length} 件${q?`（検索: ${q}）`:""}／` +
     (useThumb ? "写真をタップで詳細" : "拡大すると写真表示・旗をタップで詳細");
   if(pts.length && !didFit && !zoomOnly){
@@ -860,6 +911,7 @@ function openDetail(id){
     $("detailOcr").innerHTML="";
   }
   CATS.forEach(c=>setCat(c.eid, r[c.key]));
+  renderCandButtons("candEdit", r);
   $("mDetail").classList.add("show");
 }
 function setCat(id,on){ const cb=$(id); cb.checked=!!on; cb.closest(".cat").classList.toggle("on",!!on); }
@@ -868,6 +920,8 @@ async function updateRecord(){
   if(!editId) return;
   const body={ memo:$("editMemo").value.trim() };
   CATS.forEach(c=>body[c.key]=$(c.eid).checked);
+  const legacy=$("candEdit").querySelector("input[data-legacy]");
+  Object.assign(body, candFields(selCands("candEdit"), !!(legacy && legacy.checked)));
   const res=await sb(`/rest/v1/${TABLE}?id=eq.${editId}`,{
     method:"PATCH",
     headers:{"Content-Type":"application/json","Prefer":"return=representation"},
@@ -876,7 +930,7 @@ async function updateRecord(){
   if(res.ok){
     const upd=(await res.json())[0];
     rows=rows.map(r=>r.id===editId? upd:r);
-    renderList(); if(map) renderMarkers();
+    renderList(); if(map){ buildLegend(); renderMarkers(); }
     closeModal("mDetail"); toast("修正を保存しました");
   }else{
     toast("修正に失敗しました", true);
@@ -927,11 +981,13 @@ function fmtDT(iso){
   return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
 }
 function catText(r){
-  const a=CATS.filter(c=>r[c.key]).map(c=>c.label);
+  const a=[...(r.candidates||[]), ...(isLegacyOther(r)?["他候補（未指定）"]:[]), ...CATS.filter(c=>r[c.key]).map(c=>c.label)];
   return a.join("・")||"（分類なし）";
 }
 function catTags(r){
-  return CATS.filter(c=>r[c.key]).map(c=>`<span class="tag">${c.label}</span>`).join("");
+  return (r.candidates||[]).map(n=>`<span class="tag" style="background:${candColor(n)}">${escapeHtml(n)}</span>`).join("")
+    + (isLegacyOther(r)? `<span class="tag" style="background:${LEGACY_COLOR}">他候補（未指定）</span>`:"")
+    + CATS.filter(c=>r[c.key]).map(c=>`<span class="tag">${c.label}</span>`).join("");
 }
 function mediaTag(r, cls){
   return r.media_type==="video"
@@ -1025,9 +1081,163 @@ zoomEl.addEventListener("wheel", e=>{
   applyZoom();
 },{passive:false});
 
+/* ================================================================
+   候補者ボタン（poster_candidates）
+================================================================ */
+const T_CAND = "poster_candidates";
+const LEGACY_COLOR = "#757575";
+const DEFAULT_CANDS = [
+  {name:"佐野", color:"#D93025", is_self:true,  active:true},
+  {name:"関",   color:"#1E6FD9", is_self:false, active:true},
+  {name:"二井", color:"#2E9E4F", is_self:false, active:true},
+  {name:"武田", color:"#8E24AA", is_self:false, active:true},
+  {name:"新井", color:"#E67E00", is_self:false, active:true}
+];
+const PALETTE = ["#D93025","#1E6FD9","#2E9E4F","#8E24AA","#E67E00","#00838F","#6D4C41","#C2185B","#5D6D00","#3949AB"];
+let cands = [];
+
+async function loadCands(){
+  try{
+    const res=await sb(`/rest/v1/${T_CAND}?select=*&order=sort.asc,id.asc`);
+    if(!res.ok) throw new Error(await res.text());
+    cands=await res.json();
+    localStorage.setItem("poster_cands", JSON.stringify(cands));
+  }catch(e){
+    try{ cands=JSON.parse(localStorage.getItem("poster_cands")||"null")||DEFAULT_CANDS; }catch(_){ cands=DEFAULT_CANDS; }
+  }
+  renderCandButtons("candShoot", null);
+  if(map){ buildLegend(); renderMarkers(true); }
+  if(listLoaded) renderList();
+}
+function candColor(name){
+  const c=cands.find(x=>x.name===name);
+  return c ? c.color : LEGACY_COLOR;
+}
+function isSelfName(name){ const c=cands.find(x=>x.name===name); return !!(c && c.is_self); }
+/* 旧データ：「他候補」にチェックしたが候補者名が無い記録 */
+function isLegacyOther(r){ return !!r.cat_other && !(r.candidates||[]).some(n=>!isSelfName(n)); }
+
+/* 候補者ボタンを描画（記録 r があればその状態を反映） */
+function renderCandButtons(boxId, r){
+  const box=$(boxId);
+  const keep=[...box.querySelectorAll(":scope > label:not(.cand)")];   // 地域情報（固定）
+  const sel=new Set(r ? (r.candidates||[]) : selCands(boxId));
+  const list=cands.filter(c=>c.active).map(c=>({name:c.name, color:c.color}));
+  sel.forEach(n=>{ if(!list.some(x=>x.name===n)) list.push({name:n, color:candColor(n)}); });  // 非表示にした候補者の既存記録
+  box.querySelectorAll(":scope > label.cand").forEach(el=>el.remove());
+  const frag=document.createDocumentFragment();
+  list.forEach(c=>{
+    const lb=document.createElement("label");
+    lb.className="cat cand"+(sel.has(c.name)?" on":"");
+    lb.style.setProperty("--cc", c.color);
+    lb.innerHTML=`<input type="checkbox"${sel.has(c.name)?" checked":""}><span class="dot"></span>`;
+    lb.querySelector("input").dataset.cand=c.name;
+    lb.appendChild(document.createTextNode(c.name));
+    frag.appendChild(lb);
+  });
+  if(r && isLegacyOther(r)){
+    const lb=document.createElement("label");
+    lb.className="cat cand legacy on";
+    lb.style.setProperty("--cc", LEGACY_COLOR);
+    lb.innerHTML=`<input type="checkbox" data-legacy="1" checked><span class="dot"></span>他候補（未指定・旧データ）`;
+    frag.appendChild(lb);
+  }
+  box.insertBefore(frag, keep[0]||null);
+}
+function selCands(boxId){
+  return [...$(boxId).querySelectorAll("input[data-cand]:checked")].map(i=>i.dataset.cand);
+}
+/* 保存用：候補者名＋旧来の cat_sano / cat_other を連動（posters.html・PC地図との互換用） */
+function candFields(names, legacyOther){
+  return {
+    candidates: names,
+    cat_sano:  names.some(isSelfName),
+    cat_other: names.some(n=>!isSelfName(n)) || !!legacyOther
+  };
+}
+
+/* ---------- 設定画面 ---------- */
+let setRows=[];
+function openSettings(){
+  setRows=cands.map(c=>({...c, orig:c.name}));
+  renderSettings();
+  $("mSettings").classList.add("show");
+}
+function renderSettings(){
+  $("setList").innerHTML = setRows.map((c,i)=>`
+    <div class="set-row${c.active?"":" off"}">
+      <div class="r1">
+        <input type="color" value="${escapeHtml(c.color)}" onchange="setRows[${i}].color=this.value" aria-label="色">
+        <input type="text" value="${escapeHtml(c.name)}" placeholder="候補者名" oninput="setRows[${i}].name=this.value" aria-label="候補者名">
+      </div>
+      <div class="r2">
+        <button class="sbtn" onclick="moveCand(${i},-1)" ${i===0?"disabled":""} aria-label="上へ">&#9650;</button>
+        <button class="sbtn" onclick="moveCand(${i},1)" ${i===setRows.length-1?"disabled":""} aria-label="下へ">&#9660;</button>
+        <label><input type="checkbox" ${c.active?"checked":""} onchange="setRows[${i}].active=this.checked; renderSettings()">表示</label>
+        <label><input type="checkbox" ${c.is_self?"checked":""} onchange="setRows[${i}].is_self=this.checked">自陣営</label>
+        <button class="sbtn del" onclick="removeCand(${i})">削除</button>
+      </div>
+    </div>`).join("") || `<div class="empty">候補者がいません。下のボタンから追加してください。</div>`;
+}
+function moveCand(i,d){ const j=i+d; if(j<0||j>=setRows.length) return; [setRows[i],setRows[j]]=[setRows[j],setRows[i]]; renderSettings(); }
+function removeCand(i){
+  const c=setRows[i];
+  if(c.id && !confirm(`「${c.orig||c.name}」のボタンを削除しますか？\n（これまでの記録に付いた名前は残り、地図でも絞り込めます。一時的に隠すだけなら「表示」を外してください）`)) return;
+  setRows.splice(i,1); renderSettings();
+}
+function addCandRow(){
+  const used=new Set(setRows.map(c=>c.color));
+  const color=PALETTE.find(p=>!used.has(p)) || PALETTE[setRows.length % PALETTE.length];
+  setRows.push({name:"", color, is_self:false, active:true});
+  renderSettings();
+  const inputs=$("setList").querySelectorAll('input[type=text]');
+  inputs[inputs.length-1].focus();
+}
+async function saveSettings(){
+  const rowsIn=setRows.map(c=>({...c, name:(c.name||"").trim()}));
+  if(rowsIn.some(c=>!c.name)){ toast("名前が空の候補者があります", true); return; }
+  const names=rowsIn.map(c=>c.name);
+  if(new Set(names).size!==names.length){ toast("同じ名前の候補者が重複しています", true); return; }
+  const btn=$("btnSetSave"); btn.disabled=true; btn.textContent="保存しています…";
+  try{
+    const H={"Content-Type":"application/json","Prefer":"return=minimal"};
+    const must=async res=>{ if(!res.ok) throw new Error(await res.text()); return res; };
+    /* 1) 名前を変えた候補者は、これまでの記録の名前も書き換え */
+    for(const c of rowsIn.filter(c=>c.id && c.orig && c.orig!==c.name)){
+      const f=encodeURIComponent(`{"${c.orig.replace(/"/g,'\\"')}"}`);
+      const hit=await (await must(await sb(`/rest/v1/${TABLE}?select=id,candidates&candidates=cs.${f}&limit=5000`))).json();
+      for(const r of hit){
+        const nc=[...new Set(r.candidates.map(n=>n===c.orig? c.name : n))];
+        await must(await sb(`/rest/v1/${TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:H,body:JSON.stringify({candidates:nc})}));
+      }
+    }
+    /* 2) 削除・更新・追加 */
+    const keepIds=new Set(rowsIn.filter(c=>c.id).map(c=>c.id));
+    for(const c of cands.filter(c=>!keepIds.has(c.id))){
+      await must(await sb(`/rest/v1/${T_CAND}?id=eq.${c.id}`,{method:"DELETE"}));
+    }
+    for(const [i,c] of rowsIn.entries()){
+      const body={name:c.name, color:c.color, sort:i+1, is_self:!!c.is_self, active:!!c.active};
+      if(c.id) await must(await sb(`/rest/v1/${T_CAND}?id=eq.${c.id}`,{method:"PATCH",headers:H,body:JSON.stringify(body)}));
+      else     await must(await sb(`/rest/v1/${T_CAND}`,{method:"POST",headers:H,body:JSON.stringify(body)}));
+    }
+    await loadCands();
+    if(listLoaded) await loadList(true);
+    closeModal("mSettings");
+    toast("設定を保存しました");
+  }catch(e){
+    console.error(e);
+    toast("設定の保存に失敗しました（初期設定のSQLが実行済みか確認してください）", true);
+  }finally{
+    btn.disabled=false; btn.textContent="設定を保存";
+  }
+}
+
 function escapeHtml(s){
   return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 }
+
+loadCands();   // 候補者ボタンを読み込み（全定義の後で実行）
 </script>
 </body>
 </html>

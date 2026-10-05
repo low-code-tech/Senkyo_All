@@ -233,17 +233,17 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
 let markerLayer=L.layerGroup().addTo(map);
 map.on("zoomend", ()=>renderMarkers(true));   // ズームで 旗⇔サムネ を切替
 
-function pinIcon(color){
+function pinIcon(color, dx=0, dy=0){
   return L.divIcon({
     className:"pin-ico",
     html:`<svg width="26" height="36" viewBox="0 0 26 36" xmlns="http://www.w3.org/2000/svg">
             <path d="M13 1C6.4 1 1 6.4 1 13c0 8.8 12 22 12 22s12-13.2 12-22C25 6.4 19.6 1 13 1z"
                   fill="${color}" stroke="#fff" stroke-width="1.6"/>
             <circle cx="13" cy="13" r="4.4" fill="#fff"/></svg>`,
-    iconSize:[26,36], iconAnchor:[13,35]
+    iconSize:[26,36], iconAnchor:[13-dx,35-dy]
   });
 }
-function thumbIcon(r,color){
+function thumbIcon(r,color, dx=0, dy=0){
   const src=r.thumb_path? pubUrl(r.thumb_path): (r.media_type==="image"? pubUrl(r.media_path): "");
   const inner=src
     ? `<img src="${src}" loading="lazy">`
@@ -251,7 +251,7 @@ function thumbIcon(r,color){
   return L.divIcon({
     className:"",
     html:`<div class="pm" style="border-color:${color}">${inner}</div>`,
-    iconSize:[60,60], iconAnchor:[30,30]
+    iconSize:[60,60], iconAnchor:[30-dx,30-dy]
   });
 }
 function primaryColor(r){
@@ -298,6 +298,41 @@ function catTags(r){
 }
 
 /* ---------- マーカー描画（旗⇔サムネ切替＋検索＋凡例絞り込み） ---------- */
+/* ---------- 同じ場所の複数ポスターを全部見せる ---------- */
+/* 1件の記録から描くピン：候補者が複数なら候補者ごとに1本ずつ */
+function pinsFor(r){
+  const rc=r.candidates||[];
+  const names = mapSel.size ? rc.filter(n=>mapSel.has("cand:"+n)) : rc;
+  if(names.length) return names.map(n=>({r, color:candColor(n)}));
+  let color=primaryColor(r);
+  if(mapSel.size){ const hit=legendCache.find(it=>mapSel.has(it.key)&&matchKey(r,it.key)); if(hit) color=hit.color; }
+  return [{r, color}];
+}
+/* 画面上で重なるピンを、元の位置を中心に輪の形に並べ直す（ズームのたびに再計算） */
+function spreadPins(entries, useThumb){
+  const TH = useThumb ? 44 : 18;                 // この画素数以内は「重なっている」とみなす
+  const groups=[];
+  entries.forEach(e=>{
+    const p=map.latLngToLayerPoint([e.r.latitude, e.r.longitude]);
+    const g=groups.find(g=>Math.abs(g.p.x-p.x)<TH && Math.abs(g.p.y-p.y)<TH);
+    if(g) g.items.push(e); else groups.push({p, items:[e]});
+  });
+  groups.forEach(g=>{
+    const n=g.items.length;
+    const center=map.layerPointToLatLng(g.p);
+    g.items.forEach((e,i)=>{
+      e.ll = n>1 ? center : [e.r.latitude, e.r.longitude];
+      e.n = n;
+      if(n===1){ e.dx=0; e.dy=0; return; }
+      const gap = useThumb ? 64 : 22;            // 隣どうしが重ならない間隔（px）
+      const R = Math.max(useThumb ? 36 : 14, gap/2/Math.sin(Math.PI/n));
+      const a = -Math.PI/2 + 2*Math.PI*i/n;
+      e.dx=Math.round(R*Math.cos(a)); e.dy=Math.round(R*Math.sin(a));
+    });
+  });
+  return groups;
+}
+
 function renderMarkers(zoomOnly){
   markerLayer.clearLayers();
   const q=$("q").value.trim().toLowerCase();
@@ -312,14 +347,19 @@ function renderMarkers(zoomOnly){
   });
   const useThumb=map.getZoom()>=THUMB_ZOOM;
   const pts=[];
-  list.forEach(r=>{
-    let color=primaryColor(r);
-    if(mapSel.size){ const hit=legendCache.find(it=>mapSel.has(it.key)&&matchKey(r,it.key)); if(hit) color=hit.color; }
-    const icon=useThumb? thumbIcon(r,color): pinIcon(color);
-    const m=L.marker([r.latitude,r.longitude],{icon});
-    m.on("click",()=>openPanel(r.id));
-    markerLayer.addLayer(m);
-    pts.push([r.latitude,r.longitude]);
+  const entries=[];
+  list.forEach(r=>{ pts.push([r.latitude, r.longitude]); entries.push(...pinsFor(r)); });
+  const groups=spreadPins(entries, useThumb);
+  groups.forEach(g=>{
+    if(g.items.length>1){                      // 輪の中心＝実際の場所に小さな点
+      markerLayer.addLayer(L.circleMarker(g.items[0].ll,{radius:3.5, color:"#fff", weight:1.5, fillColor:"#1A2333", fillOpacity:.85, interactive:false}));
+    }
+    g.items.forEach(e=>{
+      const icon = useThumb ? thumbIcon(e.r, e.color, e.dx, e.dy) : pinIcon(e.color, e.dx, e.dy);
+      const m=L.marker(e.ll, {icon});
+      m.on("click", ()=>openPanel(e.r.id));
+      markerLayer.addLayer(m);
+    });
   });
   const flabel=mapSel.size? legendCache.filter(it=>mapSel.has(it.key)).map(it=>it.label).join("・"): "全部";
   $("count").textContent=`${flabel}: ${list.length} 件（ズーム${map.getZoom()}／${useThumb?"サムネイル表示":"旗表示・拡大でサムネイル"}）`;

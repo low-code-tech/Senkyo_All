@@ -1,0 +1,80 @@
+/**
+ * 地域イベント → Googleカレンダー 書き込み窓口（Google Apps Script）
+ * Supabase Edge Function「crawl-events」から呼ばれます。
+ * 自分のGoogleアカウントの権限で書き込むため、サービスアカウントや鍵は不要です。
+ *
+ * ▼ 下の3か所を書き換えてから「デプロイ」してください
+ */
+const ADMIN_KEY = 'Kx7mQ2vLp9Rt4wZs8Nb3';   // Supabase の Secrets「GAS_KEY」と同じ文字列
+const CALENDARS = {
+  isogo:  '5ebed6ac60ae20224be81f50247f8776cc4ed12d6be068a59c30f43666a19ea8@group.calendar.google.com'//,   // 例: xxxx@group.calendar.google.com
+  //midori: 'c_57079fa31a89493f1a46a7e0404f0c5505c83758c4cd57a70a68565f5c3b0371@group.calendar.google.com',
+};
+
+function doPost(e) {
+  try {
+    const req = JSON.parse(e.postData.contents);
+    if (req.key !== ADMIN_KEY) return out_({ error: '合言葉が違います' });
+
+    const calId = CALENDARS[req.ward];
+    if (!calId) return out_({ error: '不明な区: ' + req.ward });
+    const cal = CalendarApp.getCalendarById(calId);
+    if (!cal) return out_({ error: 'カレンダーが見つかりません: ' + req.ward });
+
+    if (req.op === 'delete') {
+      const ev = findEvent_(cal, req.eventId);
+      if (ev) ev.deleteEvent();
+      return out_({ ok: true });
+    }
+
+    if (req.op === 'upsert') {
+      const d = req.event;
+      const opts = { location: d.location || '', description: d.description || '' };
+      let ev = findEvent_(cal, req.eventId);
+      if (ev) {
+        ev.setTitle(d.title);
+        ev.setLocation(opts.location);
+        ev.setDescription(opts.description);
+        if (d.start) ev.setTime(jst_(d.date, d.start), jst_(d.date, d.end));
+        else ev.setAllDayDate(day_(d.date));
+      } else if (d.start) {
+        ev = cal.createEvent(d.title, jst_(d.date, d.start), jst_(d.date, d.end), opts);
+      } else {
+        ev = cal.createAllDayEvent(d.title, day_(d.date), opts);
+      }
+      return out_({ ok: true, id: ev.getId() });
+    }
+
+    return out_({ error: '不明な操作: ' + req.op });
+  } catch (err) {
+    return out_({ error: String(err && err.message || err) });
+  }
+}
+
+/** 動作確認用：エディタで選んで「実行」すると、両カレンダーに届くか確認できます */
+function testCalendars() {
+  Object.keys(CALENDARS).forEach(function (w) {
+    const cal = CalendarApp.getCalendarById(CALENDARS[w]);
+    Logger.log(w + ': ' + (cal ? 'OK（' + cal.getName() + '）' : '見つかりません'));
+  });
+}
+
+function findEvent_(cal, id) {
+  if (!id) return null;
+  try { return cal.getEventById(id); } catch (e) { return null; }
+}
+
+/** "2026-10-20" + "10:30" → 日本時間の Date */
+function jst_(date, time) {
+  return new Date(date + 'T' + time + ':00+09:00');
+}
+
+/** "2026-10-20" → 終日予定用の Date（プロジェクトのタイムゾーン基準） */
+function day_(date) {
+  const p = date.split('-').map(Number);
+  return new Date(p[0], p[1] - 1, p[2]);
+}
+
+function out_(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}

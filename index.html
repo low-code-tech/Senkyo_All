@@ -52,6 +52,23 @@
   .tile .name{font-size:17px; font-weight:700; color:var(--navy); letter-spacing:.03em;}
   .tile .desc{font-size:12px; color:var(--sub); line-height:1.6;}
 
+  /* ===== 統計情報 ===== */
+  .stats{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 14px 6px; margin-top:16px;}
+  .stats-h{display:flex; align-items:baseline; gap:8px; margin-bottom:4px;}
+  .stats-h h2{font-size:15px; color:var(--navy); letter-spacing:.04em;}
+  .stats-h small{font-size:12px; color:var(--sub);}
+  .stats-h button{margin-left:auto; border:1px solid var(--line); background:#fff; color:var(--navy); border-radius:6px;
+    font-size:12px; font-weight:700; padding:4px 9px; cursor:pointer; font-family:inherit;}
+  .st-row{display:grid; grid-template-columns:7.4em 1fr; gap:2px 8px; padding:9px 0; border-top:1px solid #E6EBF4; align-items:baseline;}
+  .st-row:first-of-type{border-top:none;}
+  .st-row dt{font-size:13px; font-weight:700; color:var(--navy); white-space:nowrap;}
+  .st-row dd{font-size:12.5px; color:var(--sub); line-height:1.8; display:flex; flex-wrap:wrap; gap:0 12px;}
+  .st-row dd > span{white-space:nowrap;}
+  .st-row dd b{font-size:19px; color:var(--text); font-variant-numeric:tabular-nums; margin:0 2px 0 3px; font-weight:700;}
+  .st-row .sta{grid-column:1 / -1; gap:2px 12px; font-size:12px; background:#F4F7FC; border-radius:8px; padding:4px 10px; margin-top:4px;}
+  .st-row .sta span b{font-size:14px; margin-left:3px;}
+  .st-note{font-size:11px; color:var(--sub); padding:6px 0 4px; border-top:1px solid #E6EBF4;}
+
   /* ===== PC・管理用リンク ===== */
   .sub-h{font-size:13px; font-weight:700; color:var(--navy); margin:22px 2px 8px;}
   .links{display:flex; gap:8px; flex-wrap:wrap;}
@@ -140,6 +157,33 @@
     </a>
   </nav>
 
+  <section class="stats" aria-labelledby="statsTitle">
+    <div class="stats-h">
+      <h2 id="statsTitle">統計情報</h2><small id="statsFrom"></small>
+      <button type="button" onclick="loadStats()">更新</button>
+    </div>
+    <dl>
+      <div class="st-row">
+        <dt>① 街頭演説</dt>
+        <dd><span><b id="sSpeech">…</b>回</span><span>累計<b id="sHours">…</b>時間</span><span>ビラ配布<b id="sSpeechFlyer">…</b>枚</span></dd>
+        <dd class="sta" id="sStations"></dd>
+      </div>
+      <div class="st-row">
+        <dt>② ポスター</dt>
+        <dd><span><b id="sPoster">…</b>枚掲示</span></dd>
+      </div>
+      <div class="st-row">
+        <dt>③ ポスティング</dt>
+        <dd><span>累計<b id="sPosting">…</b>枚</span></dd>
+      </div>
+      <div class="st-row">
+        <dt>④ 会話</dt>
+        <dd><span><b id="sTalk">…</b>件</span><span>後援者数<b id="sSupporters">…</b>人</span></dd>
+      </div>
+    </dl>
+    <div class="st-note" id="statsNote"></div>
+  </section>
+
   <h2 class="sub-h">PC・管理用</h2>
   <div class="links">
     <a href="posters.html">&#128203; ポスター一覧（表形式）</a>
@@ -182,6 +226,83 @@
 </div>
 
 <script>
+/* ================================================================
+   統計情報（各画面のデータを集計）
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const STATS_FROM        = "2026-10-01";   // 集計の開始日（後援者数は全期間の登録人数）
+/* 街頭演説の場所の振り分け（上から順に判定。「杉田駅」は新杉田駅・京急杉田駅の合計） */
+const STATION_GROUPS = [
+  {label:"磯子駅",   re:/(?<![新京急])磯子駅/},
+  {label:"根岸駅",   re:/根岸駅/},
+  {label:"杉田駅",   re:/杉田駅/},
+  {label:"洋光台駅", re:/洋光台駅/}
+];
+const sbFetch = (path, opt={}) => fetch(SUPABASE_URL + path, {
+  ...opt, headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, ...(opt.headers||{}) }
+});
+async function sbRows(path){
+  const r=await sbFetch(path); if(!r.ok) throw new Error(r.status);
+  return await r.json();
+}
+/* 件数だけ数える（データ本体は取らない） */
+async function sbCount(path){
+  const r=await sbFetch(path, {method:"HEAD", headers:{"Prefer":"count=exact","Range":"0-0"}});
+  if(!r.ok && r.status!==206) throw new Error(r.status);
+  const m=/\/(\d+)$/.exec(r.headers.get("content-range")||"");
+  return m? Number(m[1]) : 0;
+}
+const fromIso = () => new Date(STATS_FROM+"T00:00:00+09:00").toISOString();
+const fmtN = n => n==null ? "—" : Number(n).toLocaleString("ja-JP");
+function setN(id, v){ document.getElementById(id).textContent = fmtN(v); }
+
+function stationOf(place){
+  const p=String(place||"").normalize("NFKC").replace(/\s/g,"");
+  const g=STATION_GROUPS.find(g=>g.re.test(p));
+  return g? g.label : "他";
+}
+
+async function loadStats(){
+  const d=new Date(STATS_FROM);
+  document.getElementById("statsFrom").textContent = `${d.getFullYear()}年${d.getMonth()+1}月～`;
+  ["sSpeech","sHours","sSpeechFlyer","sPoster","sPosting","sTalk","sSupporters"].forEach(id=>document.getElementById(id).textContent="…");
+  const since=encodeURIComponent(fromIso());
+  const failed=[];
+  const tasks=[
+    /* ① 街頭演説 */
+    sbRows(`/rest/v1/speeches?select=minutes,total_count,place&started_at=gte.${since}&limit=10000`).then(rows=>{
+      setN("sSpeech", rows.length);
+      const min=rows.reduce((a,r)=>a+(Number(r.minutes)||0),0);
+      document.getElementById("sHours").textContent = (Math.round(min/6)/10).toLocaleString("ja-JP",{minimumFractionDigits:1});
+      setN("sSpeechFlyer", rows.reduce((a,r)=>a+(Number(r.total_count)||0),0));
+      const cnt={}; STATION_GROUPS.forEach(g=>cnt[g.label]=0); cnt["他"]=0;
+      rows.forEach(r=>cnt[stationOf(r.place)]++);
+      document.getElementById("sStations").innerHTML = Object.entries(cnt).map(([k,v])=>`<span>${k}<b>${v}</b>回</span>`).join("");
+    }).catch(()=>{ failed.push("街頭演説"); ["sSpeech","sHours","sSpeechFlyer"].forEach(id=>setN(id,null)); }),
+    /* ② ポスター（佐野のポスターとして撮影・記録した枚数） */
+    sbCount(`/rest/v1/posters?select=id&cat_sano=is.true&created_at=gte.${since}`).then(n=>setN("sPoster",n))
+      .catch(()=>{ failed.push("ポスター"); setN("sPoster",null); }),
+    /* ③ ポスティング（ビラ配布記録の枚数） */
+    sbRows(`/rest/v1/flyer_logs?select=total_count&started_at=gte.${since}&limit=10000`).then(rows=>{
+      setN("sPosting", rows.reduce((a,r)=>a+(Number(r.total_count)||0),0));
+    }).catch(()=>{ failed.push("ポスティング"); setN("sPosting",null); }),
+    /* ④ 会話：後援者会話の記録＋名簿の活動履歴（面会・電話） */
+    Promise.all([
+      sbCount(`/rest/v1/posters?select=id&cat_talk=is.true&created_at=gte.${since}`).catch(()=>0),
+      sbCount(`/rest/v1/meibo_activity?select=id&kind=in.(%E9%9D%A2%E4%BC%9A,%E9%9B%BB%E8%A9%B1)&occurred_at=gte.${since}`).catch(()=>0)
+    ]).then(([a,b])=>setN("sTalk", a+b)),
+    /* 後援者数（後援会名簿の登録人数・全期間） */
+    sbCount(`/rest/v1/supporters?select=id`).then(n=>setN("sSupporters",n))
+      .catch(()=>{ failed.push("後援会名簿"); setN("sSupporters",null); })
+  ];
+  await Promise.all(tasks);
+  const now=new Date();
+  document.getElementById("statsNote").textContent =
+    `${now.getMonth()+1}/${now.getDate()} ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")} 時点` +
+    (failed.length? `／読み込めなかった項目：${failed.join("・")}` : "");
+}
+
 const PASSCODE = "sano2026";      // 他の画面と共通（""で無効化）
 const $ = id => document.getElementById(id);
 
@@ -189,12 +310,14 @@ function checkGate(){
   if($("gateInput").value === PASSCODE){
     localStorage.setItem("poster_gate","ok");
     $("gate").style.display="none";
+    loadStats();
   }else{
     $("gateMsg").textContent="パスコードが違います";
   }
 }
 if(!PASSCODE || localStorage.getItem("poster_gate")==="ok"){
   $("gate").style.display="none";
+  loadStats();
 }
 $("gateInput").addEventListener("keydown", e=>{ if(e.key==="Enter") checkGate(); });
 

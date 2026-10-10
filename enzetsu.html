@@ -103,15 +103,86 @@
     background:var(--navy); color:#fff; font-size:13px; font-weight:700; padding:10px 18px;
     border-radius:99px; display:none; z-index:100; max-width:92vw; text-align:center;}
   #toast.err{background:var(--red);} #toast.show{display:block;}
+
+  /* ===== コンパクト表示（スマホ1画面に収める） ===== */
+  [hidden]{display:none !important;}   /* hidden属性をCSSより優先（編集中の帯が常時出ていた不具合の修正） */
+  .gline{display:flex; align-items:baseline; gap:8px;}
+  .gline:has(#gpsInfo:empty):has(#btnWiden[hidden]){display:none;}
+  .gline #gpsInfo{flex:1; min-width:0;}
+  body{padding-bottom:0;}
+  header{padding:calc(env(safe-area-inset-top,0px) + 6px) 8px 0;}
+  nav{margin:0 auto; align-items:center; gap:2px;}
+  nav .home{flex:none; color:#fff; text-decoration:none; font-size:18px; line-height:1; padding:8px 10px 10px;
+    border:1px solid rgba(255,255,255,.5); border-radius:8px; margin:0 4px 5px 0;}
+  .tab{padding:9px 0 10px;}
+  main{padding:6px 10px 0;}
+  .card{padding:8px 10px; margin-bottom:6px;}
+  .banner{padding:7px 10px; margin-bottom:8px; font-size:12px;}
+  .lbl{font-size:12px; font-weight:700; color:var(--navy); margin-bottom:4px;}
+  .lrow{display:flex; align-items:center; gap:10px; margin-bottom:6px;}
+  .lrow .lbl{margin:0;}
+  .lrow .dur{margin:0 auto 0 0;}
+  .lrow .btn{margin-left:auto;}
+
+  .trow{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:6px;}
+  .timer{font-size:28px; margin:0; text-align:left; letter-spacing:1px; line-height:1.1;}
+  .timer.warn{font-size:13px;}
+  .dur{margin:0; font-size:13px; color:var(--sub);} .dur b{font-size:16px;}
+  .btn.big{font-size:16px; padding:11px 8px;}
+  .tedit{margin-top:4px;}
+  .tedit summary{font-size:12px; color:var(--navy2); cursor:pointer; padding:2px 0; list-style-position:inside;}
+  .tedit .row2{margin-top:2px;}
+  .tedit label.f{margin-top:4px;}
+  .tedit input{font-size:14px; padding:8px 6px;}
+
+  .inrow input{margin-top:0;}
+  .mic{margin-top:0; padding:0 10px;}
+  .btn.gps{flex:none; padding:0 10px; font-size:13px; background:#E3EAF6; color:var(--navy);}
+  #gpsInfo{margin-top:4px; font-size:11.5px;}
+  .stations{display:grid; grid-template-columns:repeat(3,1fr); gap:5px; margin-bottom:6px;}
+  .stn{border:1.5px solid var(--line); background:#F7F9FD; color:var(--navy); border-radius:8px; padding:7px 2px;
+    font-size:13px; font-weight:700; font-family:inherit; cursor:pointer; white-space:nowrap;}
+  .stn.sel{border-color:var(--navy2); background:#E3EDFF; box-shadow:inset 0 0 0 1px var(--navy2);}
+  #gpsInfo:empty{display:none;}
+  /* 目印の候補は横にスクロールするチップ */
+  #cands{display:flex; gap:6px; overflow-x:auto; -webkit-overflow-scrolling:touch; margin-top:6px; padding-bottom:2px;}
+  #cands:empty{display:none;}
+  #cands .clab{display:none;}
+  #cands .note{flex:1 0 100%; margin:0;}
+  .cand{flex:none; width:auto; max-width:220px; margin:0; padding:6px 10px; font-size:13px; gap:6px; border-radius:99px; white-space:nowrap;}
+  .cand > span:last-child{overflow:hidden; text-overflow:ellipsis;}
+  .cand .ci{font-size:15px; width:auto;}
+  .cand small{display:inline; font-size:10.5px; margin:0 0 0 4px;}
+  #btnWiden{flex:none; padding:4px 0 0; font-size:12px;}
+
+  .item{padding:6px 8px; margin-bottom:6px;}
+  .irow{align-items:center;}
+  .irow select{font-size:14px; padding:8px 6px; min-width:0;}
+  .irow select.kind{flex:none; width:108px;}
+  .cnt input{width:64px; flex:none; margin-top:0; padding:6px 4px; text-align:center; font-weight:700; font-size:16px;}
+  .x{padding:0 4px;}
+  .cnt{margin-top:6px; gap:4px;}
+  .cnt button{padding:6px 0; font-size:13px;}
+  #items .note{margin-top:0;}
+
+  .card.memo{position:relative; padding:8px;}
+  .card.memo textarea{margin-top:0; padding-right:48px; min-height:52px; font-size:15px;}
+  .mic.in{position:absolute; right:14px; top:14px; height:38px; width:38px; padding:0; border-radius:50%;}
+
+  .savebar{position:sticky; bottom:0; z-index:10; display:flex; gap:8px; align-items:center;
+    background:var(--bg); margin:0 -10px; padding:6px 10px calc(env(safe-area-inset-bottom,0px) + 6px);
+    border-top:1px solid var(--line);}
+  .savebar .btn.big{flex:1;}
+  .savebar .btn.ghost{flex:none; padding:10px 6px; font-size:13px;}
 </style>
 </head>
 <body>
 <header>
-  <div class="hrow"><h1>街頭演説記録</h1><a href="/">メインへ</a></div>
   <nav>
+    <a class="home" href="/" title="トップメニューへ" aria-label="トップメニューへ">&#8962;</a>
     <button class="tab on" data-t="rec">記録</button>
     <button class="tab" data-t="hist">履歴・集計</button>
-    <button class="tab" data-t="pam">配布物登録</button>
+    <button class="tab" data-t="pam">配布物</button>
   </nav>
 </header>
 
@@ -123,49 +194,59 @@
     <button class="btn sm sub" onclick="resetForm()">編集をやめる</button>
   </div>
 
+  <!-- ① 時間 -->
   <div class="card">
-    <div class="ttl">① 日時・滞在時間</div>
-    <div class="timer" id="timer">--:--:--</div>
+    <div class="trow">
+      <div class="timer" id="timer">--:--:--</div>
+      <div class="dur">滞在 <b id="durTxt">-</b></div>
+    </div>
     <div class="row2">
       <button class="btn big green" onclick="startNow()">▶ 演説開始</button>
       <button class="btn big red" onclick="endNow()">■ 演説終了</button>
     </div>
-    <label class="f">開始日時<input type="datetime-local" id="fStart" onchange="onTimeEdit()"></label>
-    <label class="f">終了日時<input type="datetime-local" id="fEnd" onchange="onTimeEdit()"></label>
-    <div class="dur">滞在時間：<b id="durTxt">-</b></div>
-    <p class="note">開始・終了ボタンで今の時刻が入ります。後から記録する場合は日時を直接入力してください。</p>
-  </div>
-
-  <div class="card">
-    <div class="ttl">② 場所</div>
-    <button class="btn sub full" onclick="locate()">📍 現在地から周辺の目印を探す</button>
-    <div id="gpsInfo" class="note"></div>
-    <div id="cands"></div>
-    <button class="btn ghost" id="btnWiden" onclick="widen()" hidden>もっと広い範囲で探す</button>
-    <label class="f">場所名（候補をタップして修正／直接入力もできます）
-      <div class="inrow">
-        <input id="fPlace" placeholder="例：JR磯子駅前" oninput="onPlaceInput()">
-        <button class="mic" data-target="fPlace" title="音声入力">🎤</button>
+    <details class="tedit">
+      <summary>時刻を手で入力・修正する</summary>
+      <div class="row2">
+        <label class="f">開始<input type="datetime-local" id="fStart" onchange="onTimeEdit()"></label>
+        <label class="f">終了<input type="datetime-local" id="fEnd" onchange="onTimeEdit()"></label>
       </div>
-    </label>
+    </details>
   </div>
 
+  <!-- ② 場所 -->
   <div class="card">
-    <div class="ttl">③ 配布物</div>
+    <div class="stations" id="stations" role="group" aria-label="場所（駅）"></div>
+    <div class="inrow">
+      <input id="fPlace" placeholder="駅以外は入力か🎤（例：杉田モール前）" oninput="onPlaceInput()">
+      <button class="mic" data-target="fPlace" data-replace="1" title="音声で場所を入力" aria-label="音声で場所を入力">🎤</button>
+      <button class="btn gps" onclick="locate()" title="GPSで周辺の施設を探す（少し時間がかかります）" aria-label="GPSで周辺の施設を探す">📍周辺施設</button>
+    </div>
+    <div class="gline">
+      <div id="gpsInfo" class="note"></div>
+      <button class="btn ghost" id="btnWiden" onclick="widen()" hidden>範囲を広げる</button>
+    </div>
+    <div id="cands"></div>
+  </div>
+
+  <!-- ③ 配布物 -->
+  <div class="card">
+    <div class="lrow">
+      <div class="lbl">配布物</div>
+      <div class="dur">合計 <b id="totTxt">0</b> 部</div>
+      <button class="btn sm sub" onclick="addItem()">＋追加</button>
+    </div>
     <div id="items"></div>
-    <button class="btn sub full" onclick="addItem()">＋ 配布物を追加</button>
-    <div class="dur">配布合計：<b id="totTxt">0</b> 部</div>
   </div>
 
-  <div class="card">
-    <div class="ttl">④ メモ</div>
-    <textarea id="fMemo" rows="4" placeholder="反応・気づいたこと・声をかけてきた方 など" oninput="saveDraft()"></textarea>
-    <button class="mic wide" data-target="fMemo">🎤 音声でメモを入力</button>
+  <!-- ④ メモ -->
+  <div class="card memo">
+    <textarea id="fMemo" rows="2" placeholder="メモ：反応・気づいたこと・声をかけてきた方 など" oninput="saveDraft()"></textarea>
+    <button class="mic in" data-target="fMemo" title="音声でメモを入力" aria-label="音声でメモを入力">🎤</button>
   </div>
 
-  <button class="btn big full" id="btnSave" onclick="save()">記録を保存</button>
-  <div style="text-align:center; margin-top:6px;">
-    <button class="btn ghost" id="btnClear" onclick="clearForm()">入力をすべてクリア</button>
+  <div class="savebar">
+    <button class="btn ghost" id="btnClear" onclick="clearForm()">クリア</button>
+    <button class="btn big" id="btnSave" onclick="save()">記録を保存</button>
   </div>
 </section>
 
@@ -304,7 +385,8 @@ function toggleMic(btn){
     for(let i=ev.resultIndex;i<ev.results.length;i++) if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
     if(!txt) return;
     const sep = target.tagName==="TEXTAREA" ? "\n" : " ";
-    target.value = target.value ? target.value.replace(/\s+$/,"")+sep+txt : txt;
+    if(btn.dataset.replace){ target.value = txt.replace(/[。、\s]+$/,""); recog.stop(); }   // 場所は言った内容で置き換え、1回で終了
+    else target.value = target.value ? target.value.replace(/\s+$/,"")+sep+txt : txt;
     target.dispatchEvent(new Event("input"));
   };
   recog.onerror=ev=>{ if(ev.error==="not-allowed") toast("マイクの使用が許可されていません",true); };
@@ -335,14 +417,14 @@ function renderForm(){
   $("editTxt").textContent = st.editId ? `過去の記録を編集中：${st.editLabel}` : "";
   $("btnSave").textContent = st.editId ? "変更を保存" : "記録を保存";
   $("btnClear").hidden = !!st.editId;
-  showGps(); renderItems(); tick();
+  showGps(); renderItems(); renderStations(); tick();
 }
 
 function startNow(){
   if(st.start && !confirm("開始時刻を今の時刻に入れ直しますか？")) return;
   st.start=new Date().toISOString(); st.end=null;
   renderForm(); saveDraft();
-  if(st.lat==null) locate();
+  if(st.lat==null) quickGps();      // 開始時は位置だけ記録（周辺施設の検索は別ボタン）
 }
 function endNow(){
   if(!st.start){ toast("先に「演説開始」を押してください",true); return; }
@@ -372,10 +454,18 @@ function tick(){
 setInterval(tick,1000);
 
 /* ---------- 配布物（記録側） ---------- */
+/* 配布物の行は「種別」＋「配布物名（任意）」＋部数。名前を登録していない配布物も種別だけで記録できる */
+function itKind(it){ if(it.kind) return it.kind; const p=pams.find(x=>x.id===it.pid); return p? (p.kind||"その他") : ""; }
+function itKey(it){ return it.pid ? "p"+it.pid : (itKind(it) ? "k:"+itKind(it) : ""); }
+function kindOptions(it){
+  const k=itKind(it);
+  return '<option value="">種別</option>'+KINDS.map(x=>`<option${x===k?" selected":""}>${esc(x)}</option>`).join("");
+}
 function pamOptions(it){
-  let h='<option value="">（選択してください）</option>';
-  h+=pams.filter(p=>p.active||p.id===it.pid).map(p=>
-    `<option value="${p.id}" ${p.id===it.pid?"selected":""}>${esc(p.name)}${p.kind?"（"+esc(p.kind)+"）":""}</option>`).join("");
+  const k=itKind(it);
+  const list=pams.filter(p=>(p.active||p.id===it.pid) && (!k || (p.kind||"その他")===k));
+  let h=`<option value="">${k? `（${esc(k)}・名前なし）` : "（配布物を選ぶ）"}</option>`;
+  h+=list.map(p=>`<option value="${p.id}" ${p.id===it.pid?"selected":""}>${esc(p.name)}</option>`).join("");
   if(it.pid && !pams.some(p=>p.id===it.pid))
     h+=`<option value="${it.pid}" selected>${esc(it.name||"削除済みの配布物")}</option>`;
   return h;
@@ -383,19 +473,18 @@ function pamOptions(it){
 function renderItems(){
   const box=$("items");
   if(!st.items.length){
-    box.innerHTML = pamsLoaded && !pams.some(p=>p.active)
-      ? '<p class="note">配布物が未登録です。「配布物登録」タブで登録してください。</p>'
-      : '<p class="note">配布物なし（演説のみ）。配る場合は「＋ 配布物を追加」を押してください。</p>';
+    box.innerHTML = '<p class="note">配布物なし（演説のみ）。配る場合は「＋追加」を押してください。</p>';
   }else{
     box.innerHTML = st.items.map((it,i)=>`
       <div class="item">
         <div class="irow">
-          <select onchange="setPid(${i},this.value)">${pamOptions(it)}</select>
-          <button class="x" onclick="delItem(${i})" title="この行を削除">✕</button>
+          <select class="kind" onchange="setKind(${i},this.value)" aria-label="配布物の種別">${kindOptions(it)}</select>
+          <select onchange="setPid(${i},this.value)" aria-label="配布物">${pamOptions(it)}</select>
+          <button class="x" onclick="delItem(${i})" title="この行を削除" aria-label="この行を削除">✕</button>
         </div>
         <div class="cnt">
+          <input type="number" inputmode="numeric" min="0" id="cnt${i}" value="${num(it.count)}" onchange="setCnt(${i},this.value)" onfocus="this.select()" aria-label="配布数">
           <button onclick="addCnt(${i},-1)">−1</button>
-          <input type="number" inputmode="numeric" min="0" id="cnt${i}" value="${num(it.count)}" onchange="setCnt(${i},this.value)" onfocus="this.select()">
           <button onclick="addCnt(${i},1)">＋1</button>
           <button onclick="addCnt(${i},10)">＋10</button>
           <button onclick="addCnt(${i},50)">＋50</button>
@@ -404,19 +493,50 @@ function renderItems(){
   }
   updTotal();
 }
-function updTotal(){ $("totTxt").textContent = st.items.reduce((a,it)=>a+(it.pid?num(it.count):0),0).toLocaleString(); }
-function setPid(i,v){ st.items[i].pid = v? Number(v) : null; const p=pams.find(x=>x.id===st.items[i].pid); if(p) st.items[i].name=p.name; updTotal(); saveDraft(); }
+function updTotal(){ $("totTxt").textContent = st.items.reduce((a,it)=>a+(itKey(it)?num(it.count):0),0).toLocaleString(); }
+function setKind(i,v){
+  const it=st.items[i]; it.kind=v||"";
+  const p=pams.find(x=>x.id===it.pid);
+  if(p && v && (p.kind||"その他")!==v){ it.pid=null; it.name=""; }      // 種別が変わったら名前の選択を外す
+  if(!it.pid){ const c=pams.filter(x=>x.active && (x.kind||"その他")===v); if(c.length===1){ it.pid=c[0].id; it.name=c[0].name; } }
+  renderItems(); saveDraft();
+}
+function setPid(i,v){
+  const it=st.items[i]; it.pid = v? Number(v) : null;
+  const p=pams.find(x=>x.id===it.pid);
+  if(p){ it.name=p.name; it.kind=p.kind||"その他"; } else it.name="";
+  updTotal(); saveDraft();
+}
 function setCnt(i,v){ st.items[i].count=num(v); $("cnt"+i).value=st.items[i].count; updTotal(); saveDraft(); }
 function addCnt(i,d){ st.items[i].count=Math.max(0, num(st.items[i].count)+d); $("cnt"+i).value=st.items[i].count; updTotal(); saveDraft(); }
 function delItem(i){ st.items.splice(i,1); renderItems(); saveDraft(); }
 function addItem(){
   const used=new Set(st.items.map(x=>x.pid));
   const p=pams.find(x=>x.active && !used.has(x.id));
-  st.items.push({pid:p?p.id:null, name:p?p.name:"", count:0});
+  st.items.push({pid:p?p.id:null, name:p?p.name:"", kind:p?(p.kind||"その他"):"ビラ", count:0});
   renderItems(); saveDraft();
 }
 
-/* ---------- 場所：GPS → 周辺の目印 ---------- */
+/* ---------- 場所：よく使う駅（ボタン1つで入力） ---------- */
+const STATIONS = ["磯子駅","根岸駅","新杉田駅","洋光台駅","京急杉田駅","京急屏風浦駅"];
+function renderStations(){
+  const cur=$("fPlace").value.trim();
+  $("stations").innerHTML = STATIONS.map(n=>`<button type="button" class="stn${n===cur?" sel":""}" data-label="${esc(n)}" onclick="pickStation(this)">${esc(n)}</button>`).join("");
+}
+function pickStation(b){
+  $("fPlace").value=b.dataset.label; saveDraft(); onPlaceInput();
+  if(st.lat==null) quickGps();         // 位置だけ記録（施設検索はしない）
+}
+/* 位置だけをすばやく記録（周辺施設の検索はしない） */
+function quickGps(){
+  if(!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(p=>{
+    st.lat=p.coords.latitude; st.lng=p.coords.longitude; st.acc=Math.round(p.coords.accuracy||0);
+    saveDraft(); showGps();
+  }, ()=>{}, {enableHighAccuracy:true, timeout:15000, maximumAge:60000});
+}
+
+/* ---------- 場所：GPS → 周辺の目印（時間がかかるので「📍周辺施設」ボタンを押したときだけ） ---------- */
 let radius=300, candSeq=0, pastCache=null;
 function locate(){
   if(!navigator.geolocation){ toast("この端末は位置情報に対応していません",true); return; }
@@ -470,6 +590,7 @@ function pickCand(b){
   toast("場所をセットしました（必要なら修正できます）");
 }
 function onPlaceInput(){
+  document.querySelectorAll(".stn").forEach(x=>x.classList.toggle("sel", x.dataset.label===$("fPlace").value.trim()));
   saveDraft();
   const v=$("fPlace").value.trim();
   document.querySelectorAll(".cand").forEach(x=>x.classList.toggle("sel", x.dataset.label===v));
@@ -582,12 +703,13 @@ async function save(){
   if(e<s){ toast("終了日時が開始日時より前になっています",true); return; }
   const merged=new Map();
   for(const it of st.items){
-    const c=num(it.count); if(!it.pid||c<=0) continue;
-    const p=pams.find(x=>x.id===it.pid);
-    const o=merged.get(it.pid);
-    if(o) o.count+=c; else merged.set(it.pid,{pamphlet_id:it.pid, name:p?p.name:(it.name||"不明"), count:c});
+    const c=num(it.count), key=itKey(it); if(!key||c<=0) continue;
+    const p=pams.find(x=>x.id===it.pid), kind=itKind(it);
+    const o=merged.get(key);
+    if(o) o.count+=c;
+    else merged.set(key,{pamphlet_id:it.pid||null, name:p?p.name:(it.pid?(it.name||"不明"):kind), kind, count:c});
   }
-  const noCnt = st.items.some(it=>it.pid && num(it.count)===0);
+  const noCnt = st.items.some(it=>itKey(it) && num(it.count)===0);
   if(noCnt && !confirm("配布数が0の配布物があります。0の行は記録されませんが、保存しますか？")) return;
   const items=[...merged.values()];
   const body={started_at:s.toISOString(), ended_at:e.toISOString(), minutes:calcMin(s,e), place,
@@ -626,7 +748,7 @@ function clearForm(){
 function addDefaultItem(){
   if(st.items.length) return;
   const p=pams.find(x=>x.active);
-  if(p) st.items.push({pid:p.id, name:p.name, count:0});
+  st.items.push(p ? {pid:p.id, name:p.name, kind:p.kind||"その他", count:0} : {pid:null, name:"", kind:"ビラ", count:0});
 }
 
 /* ================================================================
@@ -654,13 +776,14 @@ function filteredHist(){
   if(!w.length) return histRows;
   return histRows.filter(r=>{ const s=((r.place||"")+" "+(r.memo||"")+" "+(r.items||[]).map(i=>i.name).join(" ")); return w.every(x=>s.includes(x)); });
 }
-function pamName(it){ const p=pams.find(x=>x.id===it.pamphlet_id); return p?p.name:(it.name||"不明"); }
+function pamName(it){ const p=it.pamphlet_id!=null && pams.find(x=>x.id===it.pamphlet_id); return p?p.name:(it.name||it.kind||"不明"); }
+function hKey(it){ return it.pamphlet_id!=null ? "p"+it.pamphlet_id : "k:"+(it.kind||it.name||""); }
 function renderHist(){
   const rows=filteredHist();
   const totMin=rows.reduce((a,r)=>a+(r.minutes||0),0);
   const totCnt=rows.reduce((a,r)=>a+(r.total_count||0),0);
   const byP=new Map();
-  rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=it.pamphlet_id; const o=byP.get(k)||{name:pamName(it),n:0}; o.n+=it.count||0; byP.set(k,o); }));
+  rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=hKey(it); const o=byP.get(k)||{name:pamName(it),n:0}; o.n+=it.count||0; byP.set(k,o); }));
   $("sumCard").innerHTML = `<div class="ttl">集計（表示中の${rows.length}件）</div>
     <div class="sum"><div><b>${rows.length}</b><span>演説回数</span></div>
     <div><b>${esc(fmtMin(totMin))}</b><span>合計時間</span></div>
@@ -686,7 +809,7 @@ function editRec(id){
   if(!st.editId){ saveDraft(); try{ localStorage.setItem(STASH_KEY, JSON.stringify(st)); }catch(e){} }
   st={...blank(), editId:r.id, editLabel:`${fmtDate(r.started_at)} ${r.place}`,
       start:r.started_at, end:r.ended_at, place:r.place||"", lat:r.lat, lng:r.lng,
-      items:(r.items||[]).map(it=>({pid:it.pamphlet_id, name:it.name, count:it.count||0})), memo:r.memo||""};
+      items:(r.items||[]).map(it=>({pid:it.pamphlet_id||null, name:it.name, kind:it.kind||"", count:it.count||0})), memo:r.memo||""};
   $("cands").innerHTML=""; $("btnWiden").hidden=true;
   saveDraft(); showTab("rec"); renderForm();
 }
@@ -700,13 +823,13 @@ function csvHist(){
   const rows=filteredHist();
   if(!rows.length){ toast("出力する記録がありません",true); return; }
   const ids=[], names=new Map();
-  rows.forEach(r=>(r.items||[]).forEach(it=>{ if(!names.has(it.pamphlet_id)){ ids.push(it.pamphlet_id); names.set(it.pamphlet_id,pamName(it)); } }));
+  rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=hKey(it); if(!names.has(k)){ ids.push(k); names.set(k,pamName(it)); } }));
   const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
   const head=["日付","曜日","開始","終了","滞在時間(分)","場所",...ids.map(i=>names.get(i)),"配布合計","メモ","緯度","経度"];
   const lines=[head.map(q).join(",")];
   [...rows].reverse().forEach(r=>{
     const d=new Date(r.started_at);
-    const cnt=id=>{ const it=(r.items||[]).find(x=>x.pamphlet_id===id); return it?it.count:""; };
+    const cnt=id=>{ const it=(r.items||[]).find(x=>hKey(x)===id); return it?it.count:""; };
     lines.push([ymd(d).replace(/-/g,"/"), WD[d.getDay()], fmtTime(r.started_at), r.ended_at?fmtTime(r.ended_at):"",
       r.minutes??"", r.place, ...ids.map(cnt), r.total_count??0, r.memo||"", r.lat??"", r.lng??""].map(q).join(","));
   });

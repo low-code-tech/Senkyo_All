@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1F3864">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<title>団体名簿｜選挙情報管理</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --card:#FFFFFF;
+    --line:#C8D2E4; --text:#1A2333; --sub:#5A6B8C; --red:#B5403B; --green:#2E7D52;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{min-height:100%;}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+    background:var(--bg); color:var(--text); font-size:15px;
+    padding-top:var(--hh,56px); padding-bottom:env(safe-area-inset-bottom);
+  }
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:50; background:var(--navy);
+    display:flex; align-items:center; gap:6px; padding:8px 10px;
+    padding-top:calc(8px + env(safe-area-inset-top));
+  }
+  .hbtn{
+    flex:1; border:1px solid rgba(255,255,255,.55); background:transparent; color:#fff;
+    border-radius:8px; padding:11px 2px; font-size:13.5px; font-weight:700; cursor:pointer;
+    white-space:nowrap; text-align:center; text-decoration:none; font-family:inherit;
+  }
+  .hbtn.home{flex:none; width:38px; padding:11px 0; font-size:16px; line-height:1;}
+  .hbtn.active{background:#fff; color:var(--navy); border-color:#fff;}
+  .hbtn:focus-visible,.btn:focus-visible{outline:3px solid #9FB6E0; outline-offset:2px;}
+
+  main{max-width:1200px; margin:0 auto; padding:10px 12px 24px;}
+  h1{font-size:16px; color:var(--navy); margin:2px 2px 10px; display:flex; align-items:baseline; gap:10px;}
+  h1 small{font-size:12px; color:var(--sub); font-weight:400;}
+  .view{display:none;}
+  .view.show{display:block;}
+
+  .btn{
+    border:none; border-radius:8px; font-weight:700; font-size:14px; font-family:inherit;
+    padding:11px 14px; cursor:pointer; color:#fff; background:var(--navy); white-space:nowrap;
+  }
+  .btn:active{opacity:.8;}
+  .btn:disabled{opacity:.45;}
+  .btn.sub{background:#fff; color:var(--navy); border:1.5px solid var(--navy); font-size:13px; padding:9px 12px;}
+  .btn.danger{background:#fff; color:var(--red); border:1.5px solid var(--red); font-size:13px; padding:9px 12px;}
+
+  .bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;}
+  .bar input[type=search]{flex:1; min-width:180px; border:1.5px solid var(--line); border-radius:8px;
+    padding:10px 12px; font-size:16px; background:#fff;}
+  .bar input:focus{outline:2px solid var(--navy2); border-color:var(--navy2);}
+  .count{font-size:12px; color:var(--sub); margin:0 2px 8px;}
+
+  .tbl-wrap{overflow:auto; max-height:calc(100dvh - var(--hh,56px) - 150px);
+    background:#fff; border:1px solid var(--line); border-radius:10px;}
+  table{border-collapse:collapse; width:100%; min-width:900px;}
+  th,td{border-bottom:1px solid var(--line); padding:9px 10px; font-size:13.5px; text-align:left; vertical-align:middle;}
+  th{background:var(--navy); color:#fff; font-size:12px; white-space:nowrap; position:sticky; top:0; z-index:2;}
+  tbody tr{cursor:pointer;}
+  tbody tr:hover td{background:#F4F7FC;}
+  tr.town-h td{background:#E9EFFA; color:var(--navy); font-weight:700; font-size:12.5px; cursor:default; padding:6px 10px;}
+  td.num{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  td.nw{white-space:nowrap;}
+  td.sub{color:var(--sub); font-size:12.5px;}
+  td a{color:var(--navy2);}
+  .visit{display:inline-flex; align-items:center; gap:6px;}
+  .visit b{min-width:1.6em; text-align:right; font-variant-numeric:tabular-nums;}
+  .plus{border:1.5px solid var(--green); color:var(--green); background:#fff; border-radius:6px;
+    font-weight:700; font-size:12px; padding:4px 8px; cursor:pointer; font-family:inherit;}
+  .plus:active{background:#E6F2EA;}
+  /* スマホ：カード表示 */
+  #cards{display:none;}
+  @media (max-width:760px){
+    .tbl-wrap{display:none;}
+    #cards{display:block;}
+  }
+  .town-h2{position:sticky; top:var(--hh,56px); z-index:3; background:var(--bg); color:var(--navy);
+    font-size:13px; font-weight:700; padding:8px 2px 6px; border-bottom:2px solid var(--navy); margin:4px 0 8px;}
+  .pc{background:#fff; border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; cursor:pointer;}
+  .pc:active{background:#F4F7FC;}
+  .pc .t1{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .pc .nm{font-size:16px; font-weight:700; color:var(--navy);}
+  .pc .kn{font-size:12px; color:var(--sub);}
+  .pc .t2{font-size:13px; color:var(--text); margin-top:4px; line-height:1.7; word-break:break-all;}
+  .pc .t2 a{color:var(--navy2);}
+  .pc .t3{display:flex; align-items:center; gap:8px; margin-top:6px; font-size:12px; color:var(--sub);}
+  .pc .t3 .visit{margin-left:auto; font-size:13px; color:var(--text);}
+  .pc .plus{padding:7px 12px; font-size:13px;}
+  .empty{color:var(--sub); text-align:center; padding:36px 10px; font-size:13px; line-height:1.9;}
+  .note{font-size:12px; color:var(--sub); line-height:1.7; margin-top:8px;}
+
+  /* ===== 地図 ===== */
+  #viewMap.show{display:flex; flex-direction:column; height:calc(100dvh - var(--hh,56px) - 20px - env(safe-area-inset-bottom));}
+  #rmap{flex:1; min-height:260px; border:1px solid var(--line); border-radius:12px; position:relative; z-index:0; background:#DDE3EE;}
+  .legend{display:flex; gap:10px; flex-wrap:wrap; font-size:12px; color:var(--sub); margin:6px 2px;}
+  .legend i{display:inline-block; width:11px; height:11px; border-radius:50%; margin-right:4px; vertical-align:-1px;}
+  .pop b{font-size:14px; color:var(--navy);}
+  .pop{font-size:12.5px; line-height:1.7;}
+  .pop button{margin-top:6px;}
+
+  /* ===== モーダル ===== */
+  .modal{display:none; position:fixed; inset:0; z-index:1200; background:rgba(20,30,55,.55); padding:12px; align-items:center; justify-content:center;}
+  .modal.show{display:flex;}
+  .modal .box{background:#fff; border-radius:12px; width:100%; max-width:560px; max-height:94dvh; overflow-y:auto; padding:14px;}
+  .modal .box.wide{max-width:900px;}
+  .modal h2{font-size:15px; color:var(--navy); border-bottom:2px solid var(--navy); padding-bottom:8px; margin-bottom:12px; display:flex; align-items:center;}
+  .modal h2 .x{margin-left:auto; border:none; background:none; font-size:20px; color:var(--sub); cursor:pointer;}
+  .f{margin-bottom:10px;}
+  .f label{display:block; font-size:12.5px; font-weight:700; color:var(--navy); margin-bottom:4px;}
+  .f label .req{color:var(--red); margin-left:4px;}
+  .f input,.f textarea{width:100%; border:1.5px solid var(--line); border-radius:8px; padding:10px 12px; font-size:16px; font-family:inherit; background:#fff;}
+  .f input:focus,.f textarea:focus{outline:2px solid var(--navy2); border-color:var(--navy2);}
+  .f textarea{min-height:76px; resize:vertical;}
+  .f .hint{font-size:11.5px; color:var(--sub); margin-top:3px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .m-actions{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap;}
+  .m-actions .btn{flex:1;}
+  .meta-line{font-size:12px; color:var(--sub); margin:-4px 0 10px;}
+
+  .imp-sum{font-size:13px; line-height:1.9; background:#F7F9FD; border-radius:8px; padding:10px 12px; margin-bottom:10px;}
+  .imp-sum b{color:var(--navy);}
+  .imp-map{font-size:12px; color:var(--sub); margin-bottom:8px; line-height:1.7;}
+  .imp-map span{display:inline-block; background:#E9EFFA; color:var(--navy); border-radius:99px; padding:2px 9px; margin:2px 3px 2px 0; font-weight:700;}
+  .imp-tbl{overflow:auto; max-height:44dvh; border:1px solid var(--line); border-radius:8px;}
+  .imp-tbl table{min-width:640px;}
+  .imp-tbl td,.imp-tbl th{font-size:12px; padding:6px 8px; white-space:nowrap;}
+  .st{font-size:10.5px; font-weight:700; color:#fff; border-radius:99px; padding:2px 8px; white-space:nowrap;}
+  .st.new{background:var(--green);} .st.dup{background:#9AA5B8;} .st.err{background:var(--red);}
+  .chk{display:flex; align-items:center; gap:6px; font-size:13px; font-weight:700; color:var(--navy); margin:8px 0;}
+  .chk input{width:18px; height:18px; accent-color:var(--navy);}
+
+  #toast{position:fixed; left:50%; bottom:28px; transform:translateX(-50%); background:var(--navy); color:#fff;
+    font-size:14px; font-weight:700; padding:11px 20px; border-radius:99px; z-index:1300; display:none;
+    box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:90%; text-align:center;}
+  #toast.err{background:var(--red);}
+  #toast.show{display:block;}
+
+  #gate{position:fixed; inset:0; z-index:1400; background:var(--navy);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:20px;}
+  #gate h1{color:#fff; font-size:18px; letter-spacing:.1em;}
+  #gate input{font-size:20px; padding:12px; border-radius:8px; border:none; text-align:center; width:220px; letter-spacing:.2em;}
+  #gate .btn{background:#fff; color:var(--navy);}
+  #gate .msg{color:#FFC7C2; font-size:13px; min-height:1.2em;}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <h1>団体名簿</h1>
+  <input id="gateInput" type="password" placeholder="パスコード" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button class="btn" onclick="checkGate()">開く</button>
+  <div class="msg" id="gateMsg"></div>
+</div>
+
+<header>
+  <a class="hbtn home" href="/" title="トップメニューへ" aria-label="トップメニューへ">&#8962;</a>
+  <button class="hbtn active" id="tList" onclick="showView('list')">一覧</button>
+  <button class="hbtn" id="tMap" onclick="showView('map')">地図</button>
+  <button class="hbtn" onclick="openEdit(null)">＋入力</button>
+  <button class="hbtn" onclick="openImport()">Excel取込</button>
+</header>
+
+<main>
+  <section id="viewList" class="view show">
+    <h1>団体名簿 <small>町名順（同じ町は団体名順）</small></h1>
+    <div class="bar">
+      <input type="search" id="q" placeholder="名前・住所・電話などで検索" oninput="renderList()">
+      <button class="btn sub" onclick="exportXlsx()">Excel出力</button>
+    </div>
+    <div class="count" id="count"></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div id="cards"></div>
+    <p class="note">行（カード）をタップすると修正画面が開きます。「＋1」で訪問回数を1回増やします（最終訪問日も記録）。</p>
+  </section>
+
+  <section id="viewMap" class="view">
+    <div class="legend">
+      <span><i style="background:#9AA5B8"></i>訪問0回</span>
+      <span><i style="background:#1E6FD9"></i>1〜2回</span>
+      <span><i style="background:#2E7D52"></i>3回以上</span>
+      <span id="mapInfo"></span>
+    </div>
+    <div id="rmap"></div>
+    <div class="m-actions" id="geoRow" style="display:none;">
+      <button class="btn sub" id="btnGeo" onclick="geocodeMissing()">住所から位置を取得</button>
+    </div>
+  </section>
+</main>
+
+<!-- ===== 入力・修正 ===== -->
+<div class="modal" id="mEdit">
+  <div class="box">
+    <h2 id="editTitle">入力 <button class="x" onclick="closeModal('mEdit')" aria-label="閉じる">&#10005;</button></h2>
+    <div class="meta-line" id="editMeta"></div>
+    <div id="editForm"></div>
+    <div class="m-actions">
+      <button class="btn" id="btnSave" onclick="saveEdit()">保存</button>
+    </div>
+    <div class="m-actions" id="editDelRow">
+      <button class="btn sub" onclick="closeModal('mEdit')">閉じる</button>
+      <button class="btn danger" onclick="deleteRow()">削除</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Excel取込 ===== -->
+<div class="modal" id="mImport">
+  <div class="box wide">
+    <h2>Excel一括取込 <button class="x" onclick="closeModal('mImport')" aria-label="閉じる">&#10005;</button></h2>
+    <div id="impStep1">
+      <p class="note" style="margin:0 0 10px;">
+        1行目に見出し（団体名・担当者・電話・メール・住所 など）がある Excel（.xlsx / .xls）または CSV を選んでください。<br>
+        見出しの名前が多少違っても自動で対応づけます。最初のシートを読み込みます。
+      </p>
+      <div class="m-actions">
+        <button class="btn" onclick="$('impFile').click()">ファイルを選ぶ</button>
+        <button class="btn sub" onclick="downloadTemplate()">ひな形をダウンロード</button>
+      </div>
+      <input type="file" id="impFile" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+    <div id="impStep2" style="display:none;">
+      <div class="imp-sum" id="impSum"></div>
+      <div class="imp-map" id="impMap"></div>
+      <label class="chk"><input type="checkbox" id="impSkipDup" checked onchange="paintImport()">すでに登録済みの人（同じ名前で電話・住所・メールのどれかが一致）は取り込まない</label>
+      <div class="imp-tbl"><table><thead><tr id="impHead"></tr></thead><tbody id="impBody"></tbody></table></div>
+      <div class="m-actions">
+        <button class="btn sub" onclick="resetImport()">ファイルを選び直す</button>
+        <button class="btn" id="btnImp" onclick="runImport()">取り込む</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ================================================================
+   設定
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const PASSCODE          = "sano2026";
+const TABLE       = "organizations";
+const FILE_PREFIX = "団体名簿";
+const NAME_KEY    = "name";
+const SORT_KANA   = null;              // 同じ町の中は団体名順
+const DUP_KEYS    = ["phone","address","email"];
+const FIELDS = [
+  {key:"name",    label:"団体名",  required:true, aliases:["団体","名称","会社名","会社団体","組織名","name"]},
+  {key:"contact", label:"担当者",  nw:true, half:true, aliases:["担当","代表者","担当者名","窓口","氏名"]},
+  {key:"phone",   label:"電話",    type:"tel", nw:true, half:true, aliases:["電話番号","TEL","連絡先","phone"]},
+  {key:"email",   label:"メール",  type:"email", half:true, aliases:["メールアドレス","Eメール","email","e-mail","mail"]},
+  {key:"visits",  label:"訪問回数", type:"number", half:true, aliases:["訪問"]},
+  {key:"address", label:"住所",    ph:"例：横浜市磯子区森1-2-3", hint:"保存すると町名と地図の位置を自動で付けます", aliases:["所在地","address"]},
+  {key:"memo",    label:"備考",    type:"textarea", aliases:["メモ","memo","備考欄"]}
+];
+const LIST_COLS = ["name","contact","phone","email","address","memo","visits"];
+const MAP_SUB   = ["contact","phone"];
+const TEMPLATE_ROW = ["磯子町内会","山田 太郎","045-000-0000","info@example.com",0,"横浜市磯子区森1-2-3",""];
+const CARD_SUB  = ["contact"];
+const CARD_MEMO = true;
+/* ================================================================ */
+
+const $ = id => document.getElementById(id);
+const sb = (path, opt={}) => fetch(SUPABASE_URL + path, {
+  ...opt, headers:{ "apikey":SUPABASE_ANON_KEY, "Authorization":"Bearer "+SUPABASE_ANON_KEY, ...(opt.headers||{}) }
+});
+async function api(path, opt={}){
+  const r = await sb(path, opt);
+  const tx = await r.text().catch(()=> "");
+  if(!r.ok) throw new Error(`${r.status} ${tx.slice(0,160)}`);
+  if(!tx) return null;
+  try{ return JSON.parse(tx); }catch(e){ return null; }
+}
+const JSONH = {"Content-Type":"application/json","Prefer":"return=minimal"};
+const JSONR = {"Content-Type":"application/json","Prefer":"return=representation"};
+const esc = s => String(s??"").replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+function fmtD(iso){ if(!iso) return ""; const d=new Date(iso); return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`; }
+
+/* ---------- パスコード ---------- */
+function checkGate(){
+  if($("gateInput").value === PASSCODE){ localStorage.setItem("poster_gate","ok"); $("gate").style.display="none"; load(); }
+  else $("gateMsg").textContent="パスコードが違います";
+}
+$("gateInput").addEventListener("keydown", e=>{ if(e.key==="Enter") checkGate(); });
+
+function setHH(){ document.documentElement.style.setProperty("--hh", document.querySelector("header").offsetHeight+"px"); }
+setHH(); window.addEventListener("resize", setHH);
+
+let toastTimer;
+function toast(msg, err){
+  const t=$("toast"); t.textContent=msg; t.className= err? "err show":"show";
+  clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), 2800);
+}
+function closeModal(id){ $(id).classList.remove("show"); }
+document.querySelectorAll(".modal").forEach(m=>m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); }));
+
+/* ================================================================
+   住所 → 町名・位置
+================================================================ */
+/* 全角英数・記号を半角に */
+function toHalf(s){
+  return String(s??"").replace(/[０-９Ａ-Ｚａ-ｚ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))
+    .replace(/[－−ー‐―]/g,(c,i,str)=>/[0-9]/.test(str[i-1]||"")&&/[0-9]/.test(str[i+1]||"")?"-":c)
+    .replace(/　/g," ").trim();
+}
+/* 住所から「区＋町名」（丁目・番地は除く）を取り出す。並べ替え・見出しに使う */
+function townOf(addr){
+  let a = toHalf(addr).replace(/\s/g,"").replace(/^〒?\d{3}-?\d{4}/,"");
+  if(!a) return "";
+  a = a.replace(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/,"");
+  a = a.replace(/^[^区]*?市(?=.+区)/,"");        // 政令市の「横浜市」などを省く
+  a = a.replace(/[一二三四五六七八九十]+丁目.*$/,"");
+  a = a.replace(/[0-9].*$/,"");
+  a = a.replace(/(番地|番|号)$/,"");
+  return a;
+}
+/* 国土地理院の住所検索（無料・キー不要）で緯度経度を取得 */
+async function geocodeAddr(addr){
+  const q = toHalf(addr).replace(/^〒?\d{3}-?\d{4}\s*/,"");
+  if(!q) return null;
+  try{
+    const r = await fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q="+encodeURIComponent(q));
+    if(!r.ok) return null;
+    const j = await r.json();
+    if(!Array.isArray(j) || !j.length) return null;
+    const [lng,lat] = j[0].geometry.coordinates;
+    return (isFinite(lat)&&isFinite(lng)) ? {lat,lng} : null;
+  }catch(e){ return null; }
+}
+
+/* ================================================================
+   一覧
+================================================================ */
+let rows=[], loaded=false;
+async function load(){
+  $("count").textContent="読み込み中…";
+  try{
+    rows = await api(`/rest/v1/${TABLE}?select=*&order=id.asc&limit=10000`) || [];
+    loaded=true;
+    renderList();
+    if(rmap) drawMap();
+  }catch(e){
+    $("count").textContent="";
+    toast("読み込みに失敗しました（初期設定のSQLが実行済みか確認してください）", true);
+    console.error(e);
+  }
+}
+function sortRows(list){
+  const t=x=>x.town||"￿";              // 住所なしは最後
+  const k=x=>(SORT_KANA && x[SORT_KANA]) || x[NAME_KEY] || "";
+  return list.sort((a,b)=> t(a).localeCompare(t(b),"ja") || k(a).localeCompare(k(b),"ja"));
+}
+function hay(r){ return FIELDS.map(f=>r[f.key]??"").concat([r.town||""]).join(" ").toLowerCase(); }
+
+function renderList(){
+  $("thead").innerHTML = `<th>町名</th>` + LIST_COLS.map(k=>{ const f=F(k); return `<th>${esc(f.label)}</th>`; }).join("") + `<th>最終訪問</th>`;
+  const q=$("q").value.trim().toLowerCase(), terms=q? q.split(/\s+/):[];
+  const list=sortRows(rows.filter(r=>!terms.length || terms.every(t=>hay(r).includes(t))));
+  $("count").textContent = loaded ? `${list.length} 件${q?`（検索: ${q}）`:""}／全 ${rows.length} 件` : "";
+  const ncol = LIST_COLS.length + 2;
+  if(!list.length){
+    const msg = rows.length?"該当するデータがありません":"まだ登録がありません。<br>上の「＋入力」または「Excel取込」から登録してください。";
+    $("tbody").innerHTML = `<tr><td colspan="${ncol}" class="empty">${msg}</td></tr>`;
+    $("cards").innerHTML = `<div class="empty">${msg}</div>`;
+    return;
+  }
+  let html="", prev=null;
+  list.forEach(r=>{
+    const town=r.town||"（住所なし）";
+    if(town!==prev){
+      const n=list.filter(x=>(x.town||"（住所なし）")===town).length;
+      html+=`<tr class="town-h"><td colspan="${ncol}">${esc(town)}　${n}件</td></tr>`; prev=town;
+    }
+    html+=`<tr onclick="openEdit(${r.id})"><td class="sub nw">${esc(r.town||"")}</td>`+
+      LIST_COLS.map(k=>cellHtml(F(k), r)).join("") +
+      `<td class="sub nw">${fmtD(r.last_visit)}</td></tr>`;
+  });
+  $("tbody").innerHTML=html;
+  renderCards(list);
+}
+/* スマホ用：町名ごとの見出し＋カード */
+function renderCards(list){
+  let html="", prev=null;
+  list.forEach(r=>{
+    const town=r.town||"（住所なし）";
+    if(town!==prev){ html+=`<div class="town-h2">${esc(town)}　${list.filter(x=>(x.town||"（住所なし）")===town).length}件</div>`; prev=town; }
+    const sub = CARD_SUB.filter(k=>r[k]!=null && r[k]!=="").map(k=>esc(r[k])+(k==="age"?"歳":"")).join("　");
+    const tel = r.phone ? `<a href="tel:${esc(String(r.phone).replace(/[^0-9+]/g,""))}" onclick="event.stopPropagation()">${esc(r.phone)}</a>` : "";
+    const mail= r.email ? `<a href="mailto:${esc(r.email)}" onclick="event.stopPropagation()">${esc(r.email)}</a>` : "";
+    html+=`<div class="pc" onclick="openEdit(${r.id})">
+      <div class="t1"><span class="nm">${esc(r[NAME_KEY])}</span><span class="kn">${sub}</span></div>
+      <div class="t2">${esc(r.address||"")}${r.address&&(tel||mail)?"<br>":""}${[tel,mail].filter(Boolean).join("　")}${r.memo&&CARD_MEMO?`<br><span style="color:var(--sub)">${esc(r.memo)}</span>`:""}</div>
+      <div class="t3">${r.last_visit?`最終訪問 ${fmtD(r.last_visit)}`:""}
+        <span class="visit"><b>${r.visits||0}</b>回<button class="plus" onclick="event.stopPropagation(); addVisit(${r.id})" aria-label="訪問を1回追加">＋1</button></span></div>
+    </div>`;
+  });
+  $("cards").innerHTML=html;
+}
+function F(k){ return FIELDS.find(f=>f.key===k); }
+function cellHtml(f, r){
+  const v=r[f.key];
+  if(f.key==="visits") return `<td class="nw"><span class="visit"><b>${v||0}</b>回<button class="plus" onclick="event.stopPropagation(); addVisit(${r.id})" aria-label="訪問を1回追加">＋1</button></span></td>`;
+  if(f.type==="tel" && v) return `<td class="nw"><a href="tel:${esc(String(v).replace(/[^0-9+]/g,""))}" onclick="event.stopPropagation()">${esc(v)}</a></td>`;
+  if(f.type==="email" && v) return `<td><a href="mailto:${esc(v)}" onclick="event.stopPropagation()">${esc(v)}</a></td>`;
+  if(f.type==="number") return `<td class="num">${v??""}</td>`;
+  return `<td${f.nw?' class="nw"':""}>${esc(v)}</td>`;
+}
+
+async function addVisit(id){
+  const r=rows.find(x=>x.id===id); if(!r) return;
+  const body={visits:(r.visits||0)+1, last_visit:new Date().toISOString()};
+  try{
+    await api(`/rest/v1/${TABLE}?id=eq.${id}`, {method:"PATCH", headers:JSONH, body:JSON.stringify(body)});
+    Object.assign(r, body); renderList(); if(rmap) drawMap();
+    toast(`${r[NAME_KEY]}：訪問 ${body.visits} 回目を記録しました`);
+  }catch(e){ toast("保存に失敗しました", true); }
+}
+
+/* ================================================================
+   入力・修正
+================================================================ */
+let editId=null;
+function openEdit(id){
+  editId=id;
+  const r = id ? rows.find(x=>x.id===id) : {};
+  $("editTitle").firstChild.textContent = id ? "修正 " : "新規入力 ";
+  $("editMeta").textContent = id ? `登録 ${fmtD(r.created_at)}${r.last_visit?`／最終訪問 ${fmtD(r.last_visit)}`:""}${r.lat!=null?"／地図に表示中":r.address?"／位置未取得":""}` : "";
+  $("editDelRow").style.display = id ? "flex" : "none";
+  const fields=FIELDS.map(f=>{
+    const v=r[f.key]??(f.key==="visits"?0:"");
+    const input = f.type==="textarea"
+      ? `<textarea id="f_${f.key}">${esc(v)}</textarea>`
+      : `<input id="f_${f.key}" type="${f.type==="number"?"number":f.type==="tel"?"tel":f.type==="email"?"email":"text"}"${f.type==="number"?' inputmode="numeric" min="0"':""} value="${esc(v)}"${f.ph?` placeholder="${esc(f.ph)}"`:""}>`;
+    return `<div class="f"${f.half?' data-half="1"':""}><label for="f_${f.key}">${esc(f.label)}${f.required?'<span class="req">必須</span>':""}</label>${input}${f.hint?`<div class="hint">${esc(f.hint)}</div>`:""}</div>`;
+  });
+  /* 半幅の項目は2つずつ横並び */
+  let html="", buf=[];
+  fields.forEach(h=>{ if(h.includes('data-half="1"')){ buf.push(h); if(buf.length===2){ html+=`<div class="row2">${buf.join("")}</div>`; buf=[]; } } else { if(buf.length){ html+=`<div class="row2">${buf.join("")}<div></div></div>`; buf=[]; } html+=h; } });
+  if(buf.length) html+=`<div class="row2">${buf.join("")}<div></div></div>`;
+  $("editForm").innerHTML=html;
+  $("mEdit").classList.add("show");
+  if(!id) setTimeout(()=>$("f_"+NAME_KEY).focus(), 50);
+}
+function readForm(){
+  const o={};
+  FIELDS.forEach(f=>{
+    let v=$("f_"+f.key).value.trim();
+    if(f.type==="number"){ v = v==="" ? null : Math.max(0, parseInt(toHalf(v),10)||0); if(f.key==="visits" && v==null) v=0; }
+    else if(f.type==="tel" || f.type==="email") v = toHalf(v) || null;
+    else v = v || null;
+    o[f.key]=v;
+  });
+  return o;
+}
+async function saveEdit(){
+  const o=readForm();
+  if(!o[NAME_KEY]){ toast(`${F(NAME_KEY).label}を入力してください`, true); return; }
+  const old = editId ? rows.find(x=>x.id===editId) : null;
+  o.town = townOf(o.address);
+  o.updated_at = new Date().toISOString();
+  const btn=$("btnSave"); btn.disabled=true; btn.textContent="保存しています…";
+  try{
+    if(!old || (old.address||"")!==(o.address||"")){
+      const g = o.address ? await geocodeAddr(o.address) : null;
+      o.lat = g? g.lat : null; o.lng = g? g.lng : null;
+    }
+    if(old){
+      await api(`/rest/v1/${TABLE}?id=eq.${editId}`, {method:"PATCH", headers:JSONH, body:JSON.stringify(o)});
+      Object.assign(old, o);
+    }else{
+      const ins = await api(`/rest/v1/${TABLE}`, {method:"POST", headers:JSONR, body:JSON.stringify(o)});
+      rows.push(ins[0]);
+    }
+    closeModal("mEdit"); renderList(); if(rmap) drawMap();
+    toast(o.address && o.lat==null ? "保存しました（住所から地図の位置が見つかりませんでした）" : "保存しました");
+  }catch(e){
+    toast("保存に失敗しました："+e.message, true);
+  }finally{ btn.disabled=false; btn.textContent="保存"; }
+}
+async function deleteRow(){
+  const r=rows.find(x=>x.id===editId); if(!r) return;
+  if(!confirm(`「${r[NAME_KEY]}」を削除します。よろしいですか？`)) return;
+  try{
+    await api(`/rest/v1/${TABLE}?id=eq.${editId}`, {method:"DELETE"});
+    rows=rows.filter(x=>x.id!==editId); closeModal("mEdit"); renderList(); if(rmap) drawMap();
+    toast("削除しました");
+  }catch(e){ toast("削除に失敗しました", true); }
+}
+
+/* ================================================================
+   地図
+================================================================ */
+let rmap=null, rlayer=null, fitted=false;
+function showView(v){
+  $("viewList").classList.toggle("show", v==="list");
+  $("viewMap").classList.toggle("show", v==="map");
+  $("tList").classList.toggle("active", v==="list");
+  $("tMap").classList.toggle("active", v==="map");
+  if(v==="map"){
+    if(!rmap){
+      rmap=L.map("rmap").setView([35.40,139.62],14);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19, attribution:'&copy; OpenStreetMap contributors'}).addTo(rmap);
+      rlayer=L.layerGroup().addTo(rmap);
+    }
+    setTimeout(()=>{ rmap.invalidateSize(); drawMap(); }, 60);
+  }
+}
+function visitColor(n){ return !n ? "#9AA5B8" : n<3 ? "#1E6FD9" : "#2E7D52"; }
+function drawMap(){
+  if(!rmap) return;
+  rlayer.clearLayers();
+  const pts=[];
+  rows.forEach(r=>{
+    if(r.lat==null || r.lng==null) return;
+    const m=L.circleMarker([r.lat,r.lng],{radius:8, color:"#fff", weight:2, fillColor:visitColor(r.visits), fillOpacity:.95});
+    const sub=MAP_SUB.map(k=>r[k]).filter(Boolean).map(esc).join("<br>");
+    m.bindPopup(`<div class="pop"><b>${esc(r[NAME_KEY])}</b><br>${sub}${sub?"<br>":""}${esc(r.address||"")}<br>
+      訪問 ${r.visits||0} 回${r.last_visit?`（最終 ${fmtD(r.last_visit)}）`:""}<br>
+      <button class="btn sub" onclick="addVisit(${r.id})">訪問＋1</button>
+      <button class="btn sub" onclick="openEdit(${r.id})">詳細</button></div>`);
+    rlayer.addLayer(m); pts.push([r.lat,r.lng]);
+  });
+  const missing=rows.filter(r=>r.address && (r.lat==null||r.lng==null)).length;
+  $("mapInfo").textContent = `表示 ${pts.length} 件` + (missing? `／位置未取得 ${missing} 件`:"");
+  $("geoRow").style.display = missing ? "flex" : "none";
+  if(pts.length && !fitted){ rmap.fitBounds(pts,{padding:[30,30], maxZoom:16}); fitted=true; }
+}
+let geoRunning=false;
+async function geocodeMissing(){
+  if(geoRunning) return;
+  const list=rows.filter(r=>r.address && (r.lat==null||r.lng==null));
+  if(!list.length) return;
+  geoRunning=true;
+  const btn=$("btnGeo"); btn.disabled=true;
+  let ok=0, ng=0;
+  for(const [i,r] of list.entries()){
+    btn.textContent=`位置を取得中… ${i+1}/${list.length}`;
+    const g=await geocodeAddr(r.address);
+    if(g){
+      try{ await api(`/rest/v1/${TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:JSONH,body:JSON.stringify({lat:g.lat,lng:g.lng})}); r.lat=g.lat; r.lng=g.lng; ok++; }
+      catch(e){ ng++; }
+    }else ng++;
+    await new Promise(res=>setTimeout(res,250));       // 国土地理院への負荷を抑える
+  }
+  geoRunning=false; btn.disabled=false; btn.textContent="住所から位置を取得";
+  fitted=false; drawMap();
+  toast(`位置を取得しました：${ok}件${ng?`（見つからない住所 ${ng}件。住所を見直してください）`:""}`, ng>0 && ok===0);
+}
+
+/* ================================================================
+   Excel 一括取込
+================================================================ */
+const normH = s => toHalf(s).toLowerCase().replace(/[\s_\-・（）()［］\[\]:：]/g,"");
+let imp=null;   // {colMap, items:[{data,status,reason}]}
+function openImport(){ resetImport(); $("mImport").classList.add("show"); }
+function resetImport(){ imp=null; $("impFile").value=""; $("impStep1").style.display="block"; $("impStep2").style.display="none"; }
+$("impFile").addEventListener("change", async e=>{
+  const file=e.target.files[0]; if(!file) return;
+  if(typeof XLSX==="undefined"){ toast("Excel読み込み部品を取得できませんでした。通信状態を確認してください", true); return; }
+  try{
+    const buf=await file.arrayBuffer();
+    const wb=XLSX.read(buf,{type:"array", cellDates:true, codepage:932});
+    const ws=wb.Sheets[wb.SheetNames[0]];
+    const aoa=XLSX.utils.sheet_to_json(ws,{header:1, defval:"", raw:false});
+    parseImport(aoa);
+  }catch(err){ console.error(err); toast("ファイルを読み込めませんでした", true); }
+});
+function parseImport(aoa){
+  /* 見出し行を探す（先頭10行のうち、項目名が一番多く一致する行） */
+  let hi=0, best=-1;
+  for(let i=0;i<Math.min(10,aoa.length);i++){
+    const n=aoa[i].filter(h=>matchField(h)).length;
+    if(n>best){ best=n; hi=i; }
+  }
+  const head=aoa[hi]||[];
+  const colMap={};      // field key -> column index
+  head.forEach((h,ci)=>{ const f=matchField(h); if(f && colMap[f.key]==null) colMap[f.key]=ci; });
+  if(colMap[NAME_KEY]==null){ toast(`「${F(NAME_KEY).label}」の列が見つかりません。1行目の見出しを確認してください`, true); return; }
+  const items=[];
+  aoa.slice(hi+1).forEach((row,ri)=>{
+    if(!row.some(c=>String(c).trim()!=="")) return;
+    const d={};
+    FIELDS.forEach(f=>{
+      if(colMap[f.key]==null) return;
+      let v=String(row[colMap[f.key]]??"").trim();
+      if(f.type==="number"){ const n=parseInt(toHalf(v).replace(/[^0-9]/g,""),10); v=isFinite(n)?n:null; }
+      else if(f.type==="tel"||f.type==="email") v=toHalf(v)||null;
+      else v=v||null;
+      d[f.key]=v;
+    });
+    if(d.visits==null) d.visits=0;
+    const it={line:hi+2+ri, data:d};
+    if(!d[NAME_KEY]){ it.status="err"; it.reason=`${F(NAME_KEY).label}なし`; }
+    else if(isDup(d, rows)){ it.status="dup"; it.reason="登録済み"; }
+    else if(isDup(d, items.filter(x=>x.status==="new").map(x=>x.data))){ it.status="dup"; it.reason="ファイル内で重複"; }
+    else it.status="new";
+    items.push(it);
+  });
+  imp={colMap, items};
+  $("impStep1").style.display="none"; $("impStep2").style.display="block";
+  paintImport();
+}
+function matchField(h){
+  const n=normH(h); if(!n) return null;
+  return FIELDS.find(f=>[f.label,...(f.aliases||[])].some(a=>normH(a)===n))
+      || FIELDS.find(f=>[f.label,...(f.aliases||[])].some(a=>normH(a).length>=2 && n.includes(normH(a))));
+}
+function digits(s){ return toHalf(s).replace(/[^0-9]/g,""); }
+function isDup(d, list){
+  const nm=normH(d[NAME_KEY]);
+  return list.some(r=>{
+    if(normH(r[NAME_KEY])!==nm) return false;
+    const keys=DUP_KEYS.filter(k=>d[k] && r[k]);
+    if(!keys.length) return !DUP_KEYS.some(k=>d[k]) && !DUP_KEYS.some(k=>r[k]);   // 両方とも名前しか無いなら同一とみなす
+    return keys.some(k=> k==="address" ? townOf(d[k])+digits(d[k])===townOf(r[k])+digits(r[k]) : k==="email" ? normH(d[k])===normH(r[k]) : digits(d[k])===digits(r[k]));
+  });
+}
+function paintImport(){
+  const it=imp.items, skip=$("impSkipDup").checked;
+  const nNew=it.filter(x=>x.status==="new").length, nDup=it.filter(x=>x.status==="dup").length, nErr=it.filter(x=>x.status==="err").length;
+  const willAdd = nNew + (skip?0:nDup);
+  $("impSum").innerHTML=`読み込み <b>${it.length}</b> 行：新規 <b>${nNew}</b>／登録済み・重複 <b>${nDup}</b>／${F(NAME_KEY).label}なし <b>${nErr}</b><br>取り込む件数：<b>${willAdd}</b> 件`;
+  $("impMap").innerHTML="対応づけた列："+FIELDS.map(f=>imp.colMap[f.key]!=null?`<span>${esc(f.label)}</span>`:"").join("")
+    + (FIELDS.some(f=>imp.colMap[f.key]==null)? "　見つからない列：" + FIELDS.filter(f=>imp.colMap[f.key]==null).map(f=>esc(f.label)).join("・") : "");
+  const cols=FIELDS.filter(f=>imp.colMap[f.key]!=null);
+  $("impHead").innerHTML=`<th>行</th><th>判定</th>`+cols.map(f=>`<th>${esc(f.label)}</th>`).join("");
+  $("impBody").innerHTML=it.slice(0,300).map(x=>`<tr><td class="sub">${x.line}</td><td><span class="st ${x.status}">${x.status==="new"?"新規":esc(x.reason)}</span></td>`+
+    cols.map(f=>`<td>${esc(x.data[f.key])}</td>`).join("")+`</tr>`).join("")
+    + (it.length>300? `<tr><td colspan="${cols.length+2}" class="sub">…ほか ${it.length-300} 行（表示は先頭300行まで。取込は全行）</td></tr>`:"");
+  $("btnImp").disabled = willAdd===0;
+  $("btnImp").textContent = willAdd ? `${willAdd} 件を取り込む` : "取り込む対象がありません";
+}
+async function runImport(){
+  const skip=$("impSkipDup").checked;
+  const list=imp.items.filter(x=>x.status==="new" || (!skip && x.status==="dup")).map(x=>({...x.data, town:townOf(x.data.address)}));
+  if(!list.length) return;
+  const btn=$("btnImp"); btn.disabled=true;
+  let done=0;
+  try{
+    for(let i=0;i<list.length;i+=200){
+      btn.textContent=`取り込み中… ${Math.min(i+200,list.length)}/${list.length}`;
+      const ins=await api(`/rest/v1/${TABLE}`, {method:"POST", headers:JSONR, body:JSON.stringify(list.slice(i,i+200))});
+      rows.push(...(ins||[])); done+=(ins||[]).length;
+    }
+    closeModal("mImport"); renderList();
+    toast(`${done} 件を取り込みました。地図の位置は「地図」→「住所から位置を取得」で付けられます`);
+  }catch(e){
+    toast(`取り込みに失敗しました（${done}件まで登録済み）：${e.message}`, true);
+    renderList();
+  }finally{ btn.disabled=false; }
+}
+function downloadTemplate(){
+  const ws=XLSX.utils.aoa_to_sheet([FIELDS.map(f=>f.label), TEMPLATE_ROW]);
+  ws["!cols"]=FIELDS.map(f=>({wch:f.key==="address"?32:f.type==="textarea"?24:14}));
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "名簿");
+  XLSX.writeFile(wb, `${FILE_PREFIX}_ひな形.xlsx`);
+}
+function exportXlsx(){
+  if(!rows.length){ toast("出力するデータがありません", true); return; }
+  const head=["町名",...FIELDS.map(f=>f.label),"最終訪問日","登録日"];
+  const body=sortRows([...rows]).map(r=>[r.town||"",...FIELDS.map(f=>r[f.key]??""),fmtD(r.last_visit),fmtD(r.created_at)]);
+  const ws=XLSX.utils.aoa_to_sheet([head,...body]);
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "名簿");
+  const d=new Date(); XLSX.writeFile(wb, `${FILE_PREFIX}_${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}.xlsx`);
+}
+
+/* ---------- 起動 ---------- */
+renderList();
+if(!PASSCODE || localStorage.getItem("poster_gate")==="ok"){ $("gate").style.display="none"; load(); }
+</script>
+</body>
+</html>

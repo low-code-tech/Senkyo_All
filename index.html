@@ -113,11 +113,11 @@
       <span class="name">ビラ・ポスター</span>
       <span class="desc">ポスター・掲示板の撮影とビラ配布の記録</span>
     </button>
-    <a class="tile" href="meibo.html" style="--c:#7CB342">
+    <button type="button" class="tile" style="--c:#7CB342" onclick="openSub('subMeibo')" aria-haspopup="dialog">
       <span class="ico">&#128101;</span>
       <span class="name">名簿</span>
-      <span class="desc">名刺のAI読み取り結果と後援者の名簿</span>
-    </a>
+      <span class="desc">後援会・団体の名簿と名刺の管理</span>
+    </button>
     <a class="tile" href="enzetsu.html" style="--c:#2E5496">
       <span class="ico">&#128226;</span>
       <span class="name">街頭演説</span>
@@ -158,6 +158,25 @@
     <a class="sub-item" href="flyer.html">
       <span class="ico">&#128694;</span>
       <span><b>ビラ配布の記録</b><small>歩いた道のりと町名を自動で記録</small></span>
+    </a>
+  </div>
+</div>
+
+<!-- ===== 名簿のサブメニュー ===== -->
+<div class="sheet" id="subMeibo" role="dialog" aria-label="名簿">
+  <div class="box">
+    <h2>名簿 <button class="x" onclick="closeSub('subMeibo')" aria-label="閉じる">&#10005;</button></h2>
+    <a class="sub-item" href="supporters.html">
+      <span class="ico">&#128106;</span>
+      <span><b>後援会名簿</b><small>町名順の一覧・地図・入力・Excel一括取込</small></span>
+    </a>
+    <a class="sub-item" href="card.html">
+      <span class="ico">&#128179;</span>
+      <span><b>名刺管理</b><small>名刺・会話の撮影（裏でAI読み取り）とAI名簿</small></span>
+    </a>
+    <a class="sub-item" href="groups.html">
+      <span class="ico">&#127970;</span>
+      <span><b>団体名簿</b><small>団体・担当者・訪問回数の一覧</small></span>
     </a>
   </div>
 </div>

@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#1F3864">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
+<link rel="manifest" href="/manifest.json">
+<title>名刺管理｜選挙情報管理</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root{
+    --navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --card:#FFFFFF;
+    --line:#C8D2E4; --text:#1A2333; --sub:#5A6B8C; --red:#B5403B; --green:#2E7D52;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif;
+    background:var(--bg); color:var(--text); font-size:15px;
+    padding-top:var(--hh,56px);              /* 固定ヘッダー分の余白 */
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  /* ===== ヘッダー（1行・常に最上部に固定） ===== */
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    background:var(--navy);
+    display:flex; align-items:center; gap:6px;
+    padding:8px 10px;
+  }
+  .hbtn{
+    flex:1; border:1px solid rgba(255,255,255,.55); background:transparent; color:#fff;
+    border-radius:8px; padding:11px 2px; font-size:13.5px; font-weight:700; cursor:pointer;
+    white-space:nowrap;
+  }
+  .hbtn:active{opacity:.75;}
+  .hbtn.primary{background:#fff; color:var(--navy); border-color:#fff; flex:1.35;}
+  .hbtn.active{background:var(--navy2); border-color:var(--navy2);}
+  .hbtn.home{flex:none; width:38px; padding:11px 0; text-decoration:none; text-align:center;
+    font-size:16px; line-height:1;}
+
+  main{max-width:560px; margin:0 auto; padding:10px 12px;}
+  .view{display:none;}
+  .view.show{display:block;}
+
+  .btn{
+    border:none; border-radius:8px; font-weight:700; font-size:15px;
+    padding:13px 14px; cursor:pointer; color:#fff; background:var(--navy);
+  }
+  .btn:active{opacity:.8;}
+  .btn.sub{background:#fff; color:var(--navy); border:1.5px solid var(--navy); font-size:13px; padding:10px 12px;}
+  .btn.wide{flex:1;}
+  .btn:disabled{opacity:.45;}
+
+  /* ===== 撮影画面（カメラ枠は縦長） ===== */
+  .preview{
+    background:#DDE3EE; border:1px solid var(--line); border-radius:10px;
+    width:100%; aspect-ratio:3/4; max-height:46dvh; overflow:hidden;
+    display:flex; align-items:center; justify-content:center; position:relative;
+    margin:0 auto;
+  }
+  .preview img,.preview video{width:100%; height:100%; object-fit:contain; background:#000;}
+  .preview .ph{color:#9AA8C4; text-align:center; font-size:13px; line-height:1.7;}
+  .preview .ph .ico{font-size:44px; display:block;}
+  .badge-media{
+    position:absolute; top:8px; left:8px; background:rgba(31,56,100,.85);
+    color:#fff; font-size:11px; font-weight:700; padding:3px 8px; border-radius:99px; z-index:2;
+  }
+  .gps-line{
+    display:flex; align-items:center; gap:6px; margin:7px 2px 8px;
+    font-size:12px; color:var(--sub);
+  }
+  .gps-dot{width:8px; height:8px; border-radius:50%; background:#C0392B;}
+  .gps-dot.ok{background:var(--green);}
+
+  /* メモ（高さ拡大＋音声入力） */
+  .memo-wrap{position:relative; margin-bottom:10px;}
+  .memo-wrap textarea{
+    width:100%; min-height:150px; resize:vertical;
+    border:1.5px solid var(--line); border-radius:10px; background:#fff;
+    padding:12px 52px 12px 12px; font-size:16px; line-height:1.6; font-family:inherit;
+  }
+  .memo-wrap textarea:focus{outline:2px solid var(--navy2); border-color:var(--navy2);}
+  .mic-btn{
+    position:absolute; right:8px; top:8px; width:40px; height:40px;
+    border-radius:50%; border:1.5px solid var(--navy); background:#fff;
+    font-size:19px; color:var(--navy); cursor:pointer;
+  }
+  .mic-btn.rec{background:var(--red); border-color:var(--red); color:#fff; animation:pulse 1.1s infinite;}
+  @keyframes pulse{50%{box-shadow:0 0 0 8px rgba(181,64,59,.25);}}
+
+  /* ===== 分類チェック（Poster / People 2段） ===== */
+  .cat-group{display:flex; align-items:center; gap:6px; margin-bottom:8px;}
+  .glabel{
+    width:56px; flex:none; font-size:12px; font-weight:700; color:var(--navy);
+    letter-spacing:.02em;
+  }
+  .cat{
+    flex:1; display:flex; align-items:center; justify-content:center; gap:5px;
+    background:#fff; border:1.5px solid var(--line); border-radius:8px;
+    padding:11px 2px; font-size:13px; font-weight:700; color:var(--sub); cursor:pointer;
+    user-select:none; white-space:nowrap;
+  }
+  .cat input{width:17px; height:17px; accent-color:var(--navy); flex:none;}
+  .cat.on{border-color:var(--navy); color:var(--navy); background:#E9EFFA;}
+  /* 候補者ボタン（設定で変更可・色付き・折り返し） */
+  .cat-group.wrap{align-items:flex-start;}
+  .cat-group.wrap .glabel{padding-top:12px;}
+  .cat-wrap{flex:1; display:flex; flex-wrap:wrap; gap:6px; min-width:0;}
+  .cat-wrap .cat{flex:1 1 calc(33.33% - 6px); min-width:0;}
+  .cat.cand .dot{width:10px; height:10px; border-radius:50%; background:var(--cc); flex:none;}
+  .cat.cand input{accent-color:var(--cc);}
+  .cat.cand.on{border-color:var(--cc); color:var(--text); background:#F4F6FA; box-shadow:inset 0 0 0 1px var(--cc);}
+  .cat.legacy{flex-basis:100%; font-size:12px;}
+
+  /* ===== 設定（候補者ボタンの編集） ===== */
+  .set-row{border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:8px; background:#fff;}
+  .set-row.off{opacity:.55;}
+  .set-row .r1{display:flex; gap:8px; align-items:center;}
+  .set-row .r1 input[type=text]{flex:1; min-width:0; border:1.5px solid var(--line); border-radius:8px; padding:10px; font-size:16px;}
+  .set-row input[type=color]{width:44px; height:42px; border:1.5px solid var(--line); border-radius:8px; padding:2px; background:#fff; flex:none;}
+  .swatches{display:flex; flex-wrap:wrap; gap:7px; margin-top:9px;}
+  .swc{width:28px; height:28px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px var(--line); cursor:pointer; padding:0;}
+  .swc.on{box-shadow:0 0 0 2.5px var(--navy);}
+  .swc:focus-visible{outline:3px solid var(--navy2); outline-offset:2px;}
+  .set-row .r2{display:flex; gap:6px; align-items:center; margin-top:8px; flex-wrap:wrap;}
+  .set-row .r2 label{display:flex; align-items:center; gap:5px; font-size:13px; font-weight:700; color:var(--sub); margin-right:6px;}
+  .set-row .r2 label input{width:18px; height:18px; accent-color:var(--navy);}
+  .sbtn{border:1.5px solid var(--line); background:#fff; color:var(--navy); border-radius:8px; padding:7px 11px; font-size:13px; font-weight:700; cursor:pointer;}
+  .sbtn.del{color:var(--red); border-color:var(--red); margin-left:auto;}
+  .sbtn:disabled{opacity:.35;}
+  .set-note{font-size:12px; color:var(--sub); line-height:1.7; margin:4px 2px 10px;}
+
+  .save-row{display:flex; gap:8px; margin-top:4px;}
+  #btnSave{flex:1; font-size:17px; padding:15px;}
+
+  /* ===== 一覧画面 ===== */
+  .search-bar{
+    display:flex; gap:8px; margin-bottom:10px;
+    position:sticky; top:var(--hh,56px); z-index:40;   /* スクロールしても上部固定 */
+    background:var(--bg); padding:8px 0;
+  }
+  .search-bar input{
+    flex:1; border:1.5px solid var(--line); border-radius:8px; padding:11px 12px;
+    font-size:15px; background:#fff; min-width:0;
+  }
+  .search-bar input:focus{outline:2px solid var(--navy2);}
+  .mic-btn.inline{position:static; flex:none;}
+
+  /* ===== 画像拡大ビューア（ピンチで拡大） ===== */
+  #zoom{
+    display:none; position:fixed; inset:0; z-index:1500; background:#000;
+    touch-action:none; overflow:hidden;
+  }
+  #zoom.show{display:block;}
+  #zoomImg{
+    position:absolute; left:0; top:0; width:100%; height:100%;
+    object-fit:contain; transform-origin:0 0; will-change:transform;
+    user-select:none; -webkit-user-drag:none;
+  }
+  #zoomClose{
+    position:absolute; top:calc(10px + env(safe-area-inset-top)); right:12px; z-index:2;
+    width:42px; height:42px; border-radius:50%; border:none;
+    background:rgba(255,255,255,.22); color:#fff; font-size:20px; cursor:pointer;
+  }
+  #zoomHint{
+    position:absolute; bottom:calc(14px + env(safe-area-inset-bottom)); left:0; right:0;
+    text-align:center; color:rgba(255,255,255,.75); font-size:12px; pointer-events:none;
+  }
+  .count-line{font-size:12px; color:var(--sub); margin:0 2px 8px;}
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    overflow:hidden; cursor:pointer;
+  }
+  .card .thumb{width:100%; aspect-ratio:3/4; object-fit:cover; background:#DDE3EE; display:block;}
+  .card .meta{padding:7px 8px 8px;}
+  .card .dt{font-size:11px; color:var(--navy); font-weight:700;}
+  .card .addr{font-size:11px; color:var(--sub); overflow:hidden; white-space:nowrap; text-overflow:ellipsis;}
+  .card .memo1{font-size:12px; color:var(--text); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; margin-top:2px;}
+  .card .tags{margin-top:4px; display:flex; gap:4px; flex-wrap:wrap;}
+  .tag{font-size:10px; font-weight:700; color:#fff; background:var(--navy2); border-radius:99px; padding:2px 7px;}
+  .vbadge{position:absolute; margin:6px; background:rgba(0,0,0,.6); color:#fff; font-size:10px; border-radius:4px; padding:2px 6px;}
+  .thumb-wrap{position:relative;}
+  .empty{color:var(--sub); text-align:center; padding:40px 0; font-size:13px; line-height:1.8;}
+
+  /* ===== モーダル共通 ===== */
+  .modal{
+    display:none; position:fixed; inset:0; z-index:1200;
+    background:rgba(20,30,55,.55); padding:14px;
+    align-items:center; justify-content:center;
+  }
+  .modal.show{display:flex;}
+  .modal .box{
+    background:#fff; border-radius:12px; width:100%; max-width:520px;
+    max-height:92dvh; overflow-y:auto; padding:14px;
+  }
+  .modal .box h2{
+    font-size:15px; color:var(--navy); border-bottom:2px solid var(--navy);
+    padding-bottom:8px; margin-bottom:10px; display:flex; align-items:center;
+  }
+  .modal .box h2 .x{margin-left:auto; border:none; background:none; font-size:20px; color:var(--sub); cursor:pointer;}
+  .modal .media{width:100%; max-height:48dvh; object-fit:contain; background:#000; border-radius:8px; display:block;}
+  .detail-meta{font-size:12px; color:var(--sub); margin:8px 2px; line-height:1.8;}
+  .ocr-box{margin:0 0 8px;}
+  .ocr-box summary{
+    font-size:12.5px; font-weight:700; color:var(--navy); cursor:pointer;
+    padding:8px 10px; background:#E9EFFA; border-radius:8px; user-select:none;
+  }
+  .ocr-text{
+    font-size:12.5px; line-height:1.7; color:var(--text); white-space:pre-wrap;
+    background:#F7F9FD; border:1px solid var(--line); border-radius:8px;
+    padding:10px; margin-top:6px; max-height:180px; overflow-y:auto;
+  }
+  .ocr-run{width:100%; margin:0 0 8px;}
+  .modal .memo-wrap textarea{min-height:110px; padding-right:52px;}
+  .modal .actions{display:flex; gap:8px; margin-top:8px;}
+  .btn.danger{background:#fff; color:var(--red); border:1.5px solid var(--red);}
+
+  /* ===== 地図ビュー ===== */
+  /* 地図ビュー：検索・凡例・件数を除いた残り全部を地図に（下が切れないよう画面高から自動計算） */
+  #viewMap.show{
+    display:flex; flex-direction:column;
+    height:calc(100dvh - var(--hh,56px) - 20px - env(safe-area-inset-bottom));
+  }
+  #viewMap .search-bar{position:static; margin-bottom:4px; padding:0 0 6px;}
+  .legend{
+    display:flex; gap:6px; overflow-x:auto; padding:2px 0 8px;
+    -webkit-overflow-scrolling:touch;
+  }
+  .legend::-webkit-scrollbar{display:none;}
+  .lg{
+    flex:none; display:flex; align-items:center; gap:5px;
+    background:#fff; border:1.5px solid var(--line); border-radius:99px;
+    padding:7px 11px; font-size:12.5px; font-weight:700; color:var(--text);
+    cursor:pointer; user-select:none; white-space:nowrap;
+  }
+  .lg .sw{width:13px; height:13px; border-radius:3px; border:1px solid rgba(0,0,0,.25); flex:none;}
+  .lg.active{border-color:var(--navy); background:#E9EFFA; color:var(--navy); box-shadow:inset 0 0 0 1px var(--navy);}
+  .lg .n{font-size:11px; color:var(--sub); font-weight:700;}
+  .lg.active .n{color:var(--navy);}
+  #map{
+    width:100%; flex:1; min-height:240px;
+    border:1px solid var(--line); border-radius:10px; background:#DDE3EE;
+    position:relative; z-index:0;   /* Leaflet内部のz-indexをこの枠内に閉じ込める */
+  }
+  #mapCount{font-size:12px; color:var(--sub); margin:6px 2px 0;}
+  .pin-ico{filter:drop-shadow(0 2px 2px rgba(0,0,0,.35));}
+  /* サムネイルマーカー（拡大時） */
+  .pm{
+    width:56px; height:56px; border-radius:8px; overflow:hidden;
+    border:3px solid #fff; box-shadow:0 2px 8px rgba(0,0,0,.45);
+    background:#fff; cursor:pointer;
+  }
+  .pm img,.pm .vph{width:100%; height:100%; object-fit:cover; display:block;}
+  .pm .vph{display:flex; align-items:center; justify-content:center; font-size:20px; background:#333; color:#fff;}
+
+  /* トースト */
+  #toast{
+    position:fixed; left:50%; bottom:28px; transform:translateX(-50%);
+    background:var(--navy); color:#fff; font-size:14px; font-weight:700;
+    padding:11px 20px; border-radius:99px; z-index:1300; display:none;
+    box-shadow:0 4px 16px rgba(0,0,0,.25); max-width:88%; text-align:center;
+  }
+  #toast.err{background:var(--red);}
+  #toast.show{display:block;}
+
+  /* パスコード */
+  #gate{position:fixed; inset:0; z-index:1400; background:var(--navy);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:14px; padding:20px;}
+  #gate h1{color:#fff; font-size:18px; letter-spacing:.1em;}
+  #gate input{font-size:20px; padding:12px; border-radius:8px; border:none; text-align:center; width:220px; letter-spacing:.2em;}
+  #gate button{font-size:15px;}
+  #gate .msg{color:#FFC7C2; font-size:13px; min-height:1.2em;}
+
+  .spinner{
+    display:inline-block; width:15px; height:15px; border:2.5px solid rgba(255,255,255,.4);
+    border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:6px;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+</style>
+</head>
+<body>
+
+<!-- ===== 簡易パスコードゲート ===== -->
+<div id="gate">
+  <h1>名刺管理</h1>
+  <input id="gateInput" type="password" placeholder="パスコード" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  <button class="btn" onclick="checkGate()">開く</button>
+  <div class="msg" id="gateMsg"></div>
+</div>
+
+<!-- ===== ヘッダー1行：確認 一覧 動画 写真撮影 ===== -->
+<header>
+  <a class="hbtn home" href="/" title="トップメニューへ" aria-label="トップメニューへ">&#8962;</a>
+  <a class="hbtn" href="meibo.html" style="text-decoration:none;text-align:center;" title="名刺のAI読み取り結果（名簿・メール・活動履歴）">AI名簿</a>
+  <button class="hbtn" id="hList" onclick="switchView('list')">一覧</button>
+  <button class="hbtn" id="hMap" onclick="switchView('map')">地図</button>
+  <button class="hbtn" onclick="switchView('shoot'); pickMedia('video')">動画</button>
+  <button class="hbtn primary" onclick="switchView('shoot'); pickMedia('photo')">&#128247; 写真撮影</button>
+</header>
+
+<main>
+  <!-- ===== 撮影ビュー ===== -->
+  <section id="viewShoot" class="view show">
+    <input type="file" id="fileP" accept="image/*" capture="environment" hidden>
+    <input type="file" id="fileV" accept="video/*" capture="environment" hidden>
+
+    <div class="preview" id="preview">
+      <div class="ph"><span class="ico">&#128247;</span>上の「写真撮影」を押して<br>記録を開始してください</div>
+    </div>
+    <div class="gps-line">
+      <span class="gps-dot" id="gpsDot"></span><span id="gpsText">位置情報を取得中…</span>
+    </div>
+
+    <div class="memo-wrap">
+      <textarea id="memo" placeholder="名刺・後援者との会話などを記録&#10;※場所と時間は自動記録。名刺は裏でAIが読み取り名簿に登録します"></textarea>
+      <button class="mic-btn" id="micMemo" onclick="toggleMic('memo','micMemo')" title="音声入力">&#127908;</button>
+    </div>
+
+    <div class="cat-group wrap" style="display:none;">
+      <span class="glabel">Poster:</span>
+      <div class="cat-wrap" id="candShoot">
+        <label class="cat"><input type="checkbox" id="catRegion">地域情報</label>
+      </div>
+    </div>
+    <div class="cat-group">
+      <span class="glabel">People:</span>
+      <label class="cat"><input type="checkbox" id="catCard">名刺</label>
+      <label class="cat"><input type="checkbox" id="catTalk">後援者会話</label>
+      <label class="cat"><input type="checkbox" id="catMisc">その他</label>
+    </div>
+
+    <div class="save-row">
+      <button class="btn" id="btnSave" onclick="save()">保存</button>
+    </div>
+  </section>
+
+  <!-- ===== 一覧ビュー ===== -->
+  <section id="viewList" class="view">
+    <div class="search-bar">
+      <input id="q" placeholder="メモ・日時・住所・分類のフリー検索" oninput="renderList()">
+      <button class="mic-btn inline" id="micSearch" onclick="toggleMic('q','micSearch')" title="音声入力">&#127908;</button>
+      <button class="btn sub" onclick="loadList(true)">検索</button>
+    </div>
+    <div class="count-line" id="countLine"></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="emptyMsg" style="display:none;">データがありません。<br>「写真撮影」から保存してください。</div>
+  </section>
+
+  <!-- ===== 地図ビュー（All Display Map） ===== -->
+  <section id="viewMap" class="view">
+    <div class="search-bar">
+      <input id="mq" placeholder="人名・住所・メモで絞り込み" oninput="renderMarkers(true)">
+      <button class="mic-btn inline" id="micMap" onclick="toggleMic('mq','micMap')" title="音声入力">&#127908;</button>
+      <button class="btn sub" onclick="didFit=false; loadList(true)">検索</button>
+    </div>
+    <div class="legend" id="legend"></div>
+    <div id="map"></div>
+    <div id="mapCount"></div>
+  </section>
+</main>
+
+<!-- ===== 設定（候補者ボタン）モーダル ===== -->
+<div class="modal" id="mSettings">
+  <div class="box">
+    <h2>候補者ボタンの設定 <button class="x" onclick="closeModal('mSettings')" aria-label="閉じる">&#10005;</button></h2>
+    <p class="set-note">
+      撮影画面の「Poster:」に出す候補者ボタンです。色は地図のピンの色になります。<br>
+      色は下の丸から選ぶか、左の四角をタップすると自由に選べます。<br>
+      名前を変えると、これまでの記録の候補者名も一緒に書き換わります。<br>
+      この設定は全スタッフの端末に共通で反映されます。
+    </p>
+    <div id="setList"></div>
+    <button class="btn sub" style="width:100%;margin-bottom:10px;" onclick="addCandRow()">＋ 候補者を追加</button>
+    <div class="actions">
+      <button class="btn wide" id="btnSetSave" onclick="saveSettings()">設定を保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 詳細・修正モーダル ===== -->
+<div class="modal" id="mDetail">
+  <div class="box">
+    <h2>修正・追加 <button class="x" onclick="closeModal('mDetail')">&#10005;</button></h2>
+    <div id="detailMedia"></div>
+    <div class="detail-meta" id="detailMeta"></div>
+    <div id="detailOcr"></div>
+    <div class="memo-wrap">
+      <textarea id="editMemo" placeholder="メモ（音声入力できます）"></textarea>
+      <button class="mic-btn" id="micEdit" onclick="toggleMic('editMemo','micEdit')" title="音声入力">&#127908;</button>
+    </div>
+    <div class="cat-group wrap" style="display:none;">
+      <span class="glabel">Poster:</span>
+      <div class="cat-wrap" id="candEdit">
+        <label class="cat"><input type="checkbox" id="eRegion">地域情報</label>
+      </div>
+    </div>
+    <div class="cat-group">
+      <span class="glabel">People:</span>
+      <label class="cat"><input type="checkbox" id="eCard">名刺</label>
+      <label class="cat"><input type="checkbox" id="eTalk">後援者会話</label>
+      <label class="cat"><input type="checkbox" id="eMisc">その他</label>
+    </div>
+    <div class="actions">
+      <button class="btn wide" onclick="updateRecord()">修正を保存</button>
+      <button class="btn danger" onclick="deleteRecord()">削除</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- ===== 画像拡大ビューア ===== -->
+<div id="zoom">
+  <img id="zoomImg" draggable="false">
+  <button id="zoomClose" onclick="closeZoom()">&#10005;</button>
+  <div id="zoomHint">ピンチで拡大／ダブルタップで切替</div>
+</div>
+
+<script>
+/* ================================================================
+   設定
+================================================================ */
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const BUCKET            = "poster-media";
+const TABLE             = "posters";
+const PASSCODE          = "sano2026";      // ""で無効化
+const GEOCODE_FN        = "geocode";
+const MAX_IMG_PX        = 1600;
+/* ================================================================ */
+
+/* 固定の分類（候補者は poster_candidates で設定。cat_sano / cat_other は自動で連動） */
+const CATS = [
+  {key:"cat_region",id:"catRegion",eid:"eRegion",label:"地域情報", color:"#9C27B0"},
+  {key:"cat_card",  id:"catCard",  eid:"eCard",  label:"名刺",     color:"#7CB342"},
+  {key:"cat_talk",  id:"catTalk",  eid:"eTalk",  label:"後援者会話",color:"#F4C513"},
+  {key:"cat_misc",  id:"catMisc",  eid:"eMisc",  label:"その他",   color:"#266489"}
+];
+const ALL_COLOR = "#F0A500";   // 「全部」の凡例色
+
+const $ = id => document.getElementById(id);
+const sb = (path, opt={}) => fetch(SUPABASE_URL + path, {
+  ...opt,
+  headers: {
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+    ...(opt.headers||{})
+  }
+});
+const pubUrl = p => `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${p}`;
+
+/* ---------- パスコード ---------- */
+function checkGate(){
+  if($("gateInput").value === PASSCODE){
+    localStorage.setItem("poster_gate","ok");
+    $("gate").style.display="none";
+  }else{
+    $("gateMsg").textContent="パスコードが違います";
+  }
+}
+if(!PASSCODE || localStorage.getItem("poster_gate")==="ok"){
+  $("gate").style.display="none";
+}
+$("gateInput").addEventListener("keydown", e=>{ if(e.key==="Enter") checkGate(); });
+
+/* ---------- ヘッダー高さ → 検索窓の固定位置に反映 ---------- */
+function setHH(){
+  document.documentElement.style.setProperty("--hh", document.querySelector("header").offsetHeight + "px");
+}
+setHH(); window.addEventListener("resize", setHH);
+
+/* ---------- トースト ---------- */
+let toastTimer;
+function toast(msg, err){
+  const t=$("toast");
+  t.textContent=msg; t.className= err ? "err show" : "show";
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove("show"), 2600);
+}
+
+/* ---------- ビュー切替 ---------- */
+function switchView(v){
+  $("viewShoot").classList.toggle("show", v==="shoot");
+  $("viewList").classList.toggle("show", v==="list");
+  $("viewMap").classList.toggle("show", v==="map");
+  $("hList").classList.toggle("active", v==="list");
+  $("hMap").classList.toggle("active", v==="map");
+  if(v==="list") loadList(!listLoaded);
+  if(v==="map"){ initMap(); loadList(true); }   // 地図は開くたびに自動で最新取得（更新ボタン不要）
+}
+
+/* ---------- 位置情報（起動時から先読み） ---------- */
+let curPos=null;
+function watchGPS(){
+  if(!navigator.geolocation){ $("gpsText").textContent="この端末は位置情報に非対応です"; return; }
+  navigator.geolocation.watchPosition(
+    p=>{
+      curPos={lat:p.coords.latitude, lon:p.coords.longitude, acc:p.coords.accuracy};
+      $("gpsDot").classList.add("ok");
+      $("gpsText").textContent=`位置情報 取得済（精度 約${Math.round(p.coords.accuracy)}m）`;
+    },
+    e=>{ $("gpsText").textContent="位置情報が取得できません（設定で許可してください）"; },
+    {enableHighAccuracy:true, maximumAge:15000, timeout:20000}
+  );
+}
+watchGPS();
+
+/* ---------- 撮影・プレビュー ---------- */
+let curFile=null, curType="image";
+function pickMedia(kind){ (kind==="photo" ? $("fileP") : $("fileV")).click(); }
+$("fileP").addEventListener("change", e=>setMedia(e.target.files[0], "image"));
+$("fileV").addEventListener("change", e=>setMedia(e.target.files[0], "video"));
+
+function setMedia(f, type){
+  if(!f) return;
+  curFile=f; curType=type;
+  const url=URL.createObjectURL(f);
+  $("preview").innerHTML = type==="image"
+    ? `<span class="badge-media">写真</span><img src="${url}">`
+    : `<span class="badge-media">動画</span><video src="${url}" controls playsinline muted></video>`;
+}
+
+/* 画像を長辺 maxPx に縮小して JPEG 化 */
+async function compressImage(file, maxPx = MAX_IMG_PX, quality = 0.85){
+  try{
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, maxPx / Math.max(bmp.width, bmp.height));
+    if(scale >= 1 && file.type === "image/jpeg" && maxPx === MAX_IMG_PX) return file;
+    const cv = document.createElement("canvas");
+    cv.width  = Math.max(1, Math.round(bmp.width * scale));
+    cv.height = Math.max(1, Math.round(bmp.height * scale));
+    cv.getContext("2d").drawImage(bmp, 0, 0, cv.width, cv.height);
+    const blob = await new Promise(r=>cv.toBlob(r, "image/jpeg", quality));
+    return blob || file;
+  }catch(e){ return file; }
+}
+
+/* 動画の先頭フレームからサムネイルJPEGを生成（失敗時は null） */
+function videoThumb(file){
+  return new Promise(resolve=>{
+    try{
+      const v=document.createElement("video");
+      v.muted=true; v.playsInline=true; v.preload="auto";
+      v.src=URL.createObjectURL(file);
+      const giveup=setTimeout(()=>resolve(null), 5000);
+      v.onloadeddata=()=>{ try{ v.currentTime=0.1; }catch(e){} };
+      v.onseeked=()=>{
+        try{
+          const scale=Math.min(1, 480/Math.max(v.videoWidth, v.videoHeight));
+          const cv=document.createElement("canvas");
+          cv.width=Math.max(1, Math.round(v.videoWidth*scale));
+          cv.height=Math.max(1, Math.round(v.videoHeight*scale));
+          cv.getContext("2d").drawImage(v, 0, 0, cv.width, cv.height);
+          cv.toBlob(b=>{ clearTimeout(giveup); resolve(b); }, "image/jpeg", 0.7);
+        }catch(e){ clearTimeout(giveup); resolve(null); }
+      };
+      v.onerror=()=>{ clearTimeout(giveup); resolve(null); };
+    }catch(e){ resolve(null); }
+  });
+}
+
+/* ---------- 音声入力（撮影メモ／修正メモ 共用） ---------- */
+let recog=null, recTarget=null, recBtn=null;
+function toggleMic(targetId, btnId){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ toast("この端末は音声入力に非対応です（キーボードのマイクをご利用ください）", true); return; }
+  if(recog){ recog.stop(); return; }   // 稼働中なら停止
+  recTarget=$(targetId); recBtn=$(btnId);
+  recog = new SR();
+  recog.lang="ja-JP"; recog.interimResults=false; recog.continuous=true;
+  recog.onresult = ev=>{
+    let txt="";
+    for(let i=ev.resultIndex;i<ev.results.length;i++)
+      if(ev.results[i].isFinal) txt+=ev.results[i][0].transcript;
+    if(txt && recTarget){
+      recTarget.value = recTarget.value ? (recTarget.value.replace(/\s+$/,"") + " " + txt) : txt;
+      recTarget.dispatchEvent(new Event("input"));   // 検索窓なら即絞り込み
+    }
+  };
+  recog.onstart=()=>{ recBtn.classList.add("rec"); };
+  const done=()=>{ if(recBtn) recBtn.classList.remove("rec"); recog=null; recTarget=null; recBtn=null; };
+  recog.onend=done; recog.onerror=done;
+  recog.start();
+}
+
+/* ---------- チェックボックス見た目 ---------- */
+document.addEventListener("change", e=>{
+  const cb=e.target;
+  if(cb.matches && cb.matches(".cat input")) cb.closest(".cat").classList.toggle("on", cb.checked);
+});
+
+/* ---------- 保存 ---------- */
+let lastSaved=null;
+async function save(){
+  if(!curFile){ toast("先に写真撮影／動画を押してください", true); return; }
+  if(!CATS.some(c=>$(c.id).checked) && !selCands("candShoot").length){
+    toast("分類にチェックを入れてください", true); return;
+  }
+  const btn=$("btnSave");
+  btn.disabled=true; btn.innerHTML='<span class="spinner"></span>保存中…';
+  try{
+    /* 1) メディア＋サムネイルをアップロード */
+    let blob=curFile, ext, thumbBlob=null;
+    if(curType==="image"){
+      blob=await compressImage(curFile, MAX_IMG_PX, 0.85);
+      thumbBlob=await compressImage(curFile, 420, 0.7);   // 一覧用サムネイル
+      ext="jpg";
+    }else{
+      ext=(curFile.name.split(".").pop()||"mp4").toLowerCase();
+      thumbBlob=await videoThumb(curFile);                 // 動画は先頭フレーム
+    }
+    const now=new Date();
+    const base=`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${now.getTime()}`;
+    const path=`${base}.${ext}`;
+    const up=await sb(`/storage/v1/object/${BUCKET}/${path}`,{
+      method:"POST",
+      headers:{"Content-Type": blob.type || (curType==="image"?"image/jpeg":"video/mp4")},
+      body: blob
+    });
+    if(!up.ok) throw new Error("アップロード失敗: "+await up.text());
+
+    let thumbPath=null;
+    if(thumbBlob){
+      thumbPath=`${base}_t.jpg`;
+      const upT=await sb(`/storage/v1/object/${BUCKET}/${thumbPath}`,{
+        method:"POST", headers:{"Content-Type":"image/jpeg"}, body:thumbBlob
+      });
+      if(!upT.ok) thumbPath=null;   // サムネ失敗は本体保存を妨げない
+    }
+
+    /* 2) レコード INSERT */
+    const rec={
+      media_path: path,
+      media_type: curType,
+      thumb_path: thumbPath,
+      latitude:  curPos ? curPos.lat : null,
+      longitude: curPos ? curPos.lon : null,
+      memo: $("memo").value.trim()
+    };
+    CATS.forEach(c=>rec[c.key]=$(c.id).checked);
+    Object.assign(rec, candFields(selCands("candShoot"), false));
+    const ins=await sb(`/rest/v1/${TABLE}`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Prefer":"return=representation"},
+      body: JSON.stringify(rec)
+    });
+    if(!ins.ok) throw new Error("DB保存失敗: "+await ins.text());
+    const row=(await ins.json())[0];
+    lastSaved=row;
+
+    /* 3) 住所付与（サーバー側・待たない） */
+    if(row.latitude!=null){
+      sb(`/functions/v1/${GEOCODE_FN}`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id:row.id, lat:row.latitude, lon:row.longitude})
+      }).catch(()=>{});
+    }
+
+    /* 3.5) AI読み取り（画像のみ・サーバー側・待たない） */
+    if(curType==="image"){
+      sb(`/functions/v1/ocr`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({id:row.id})
+      }).catch(()=>{});
+    }
+
+    /* 4) リセット（プレビューは残す） */
+    curFile=null; $("fileP").value=""; $("fileV").value="";
+    $("memo").value="";
+    $("viewShoot").querySelectorAll(".cat input").forEach(cb=>{ cb.checked=false; cb.closest(".cat").classList.remove("on"); });
+    listLoaded=false;
+    toast("保存しました");
+  }catch(e){
+    console.error(e);
+    toast("保存に失敗しました。通信環境を確認して再度お試しください", true);
+  }finally{
+    btn.disabled=false; btn.textContent="保存";
+  }
+}
+
+function closeModal(id){ $(id).classList.remove("show"); }
+document.querySelectorAll(".modal").forEach(m=>{
+  m.addEventListener("click", e=>{ if(e.target===m) m.classList.remove("show"); });
+});
+
+/* ---------- 一覧 ---------- */
+let rows=[], listLoaded=false, meiboMap={};
+async function loadList(force){
+  if(listLoaded && !force) return;
+  $("countLine").textContent="読み込み中…";
+  try{
+    const res=await sb(`/rest/v1/${TABLE}?select=*&or=(cat_card.eq.true,cat_talk.eq.true,cat_misc.eq.true)&order=created_at.desc&limit=500`);
+    if(!res.ok) throw new Error(await res.text());
+    rows=await res.json();
+    /* 名簿（名刺のAI抽出結果）も取得して検索対象に含める */
+    try{
+      const cols=["poster_id","氏名","会社団体","役職","住所","電話","メール","備考"]
+        .map(encodeURIComponent).join(",");
+      const mres=await sb(`/rest/v1/meibo?select=${cols}&limit=3000`);
+      if(mres.ok){
+        meiboMap={};
+        (await mres.json()).forEach(m=>{
+          const t=[m.氏名,m.会社団体,m.役職,m.住所,m.電話,m.メール,m.備考].filter(Boolean).join(" ");
+          if(m.poster_id) meiboMap[m.poster_id]=((meiboMap[m.poster_id]||"")+" "+t).trim();
+        });
+      }
+    }catch(e){ /* 名簿が無くても一覧は表示する */ }
+    listLoaded=true;
+    renderList();
+    if(map){ buildLegend(); renderMarkers(); }
+  }catch(e){
+    console.error(e);
+    $("countLine").textContent="";
+    toast("一覧の取得に失敗しました", true);
+  }
+}
+function hayOf(r){
+  return [ r.memo||"", r.address||"", r.postal_code||"", r.person_name||"", r.ocr_text||"", meiboMap[r.id]||"", fmtDT(r.created_at), catText(r) ].join(" ").toLowerCase();
+}
+function renderList(){
+  const q=$("q").value.trim().toLowerCase();
+  const terms=q? q.split(/\s+/):[];
+  const list=rows.filter(r=>{
+    if(!terms.length) return true;
+    const hay=hayOf(r);
+    return terms.every(t=>hay.includes(t));
+  });
+  $("countLine").textContent=`${list.length} 件${q?`（検索: ${q}）`:""}`;
+  $("emptyMsg").style.display=list.length? "none":"block";
+  $("grid").innerHTML=list.map(r=>{
+    /* サムネイル優先。旧データ（thumb_path無し）は従来表示にフォールバック */
+    let inner;
+    if(r.thumb_path){
+      inner=`<img class="thumb" src="${pubUrl(r.thumb_path)}" loading="lazy">`;
+    }else if(r.media_type==="video"){
+      inner=`<video class="thumb" src="${pubUrl(r.media_path)}#t=0.1" preload="metadata" muted playsinline></video>`;
+    }else{
+      inner=`<img class="thumb" src="${pubUrl(r.media_path)}" loading="lazy">`;
+    }
+    const thumb = r.media_type==="video"
+      ? `<div class="thumb-wrap"><span class="vbadge">&#9654; 動画</span>${inner}</div>`
+      : inner;
+    return `<div class="card" onclick="openDetail('${r.id}')">
+      ${thumb}
+      <div class="meta">
+        <div class="dt">${fmtDT(r.created_at)}</div>
+        <div class="addr">${r.address? escapeHtml(r.address) : "（住所 取得待ち）"}</div>
+        <div class="memo1">${escapeHtml((r.memo||"").split("\n")[0]) || "&nbsp;"}</div>
+        <div class="tags">${catTags(r)}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+/* ---------- 地図（All Display Map） ---------- */
+let map=null, markerLayer=null, didFit=false, legendCache=[];
+
+function initMap(){
+  if(map){ setTimeout(()=>map.invalidateSize(), 60); return; }
+  buildLegend();
+  map = L.map("map", {zoomControl:true});
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  markerLayer = L.layerGroup().addTo(map);
+  map.on("zoomend", ()=>renderMarkers(true));   // ズームで 旗⇔サムネイル を切替
+  // 初期表示：現在地があればそこ、なければ東京駅付近
+  if(curPos) map.setView([curPos.lat, curPos.lon], 14);
+  else map.setView([35.681, 139.767], 12);
+  setTimeout(()=>map.invalidateSize(), 60);
+  renderMarkers();
+}
+
+/* 地図の絞り込みボタン：候補者＋固定分類。複数選ぶと「いずれかに当てはまる」（OR）で表示 */
+const mapSel = new Set();          // 空 = 全部
+function legendItems(){
+  const items=[];
+  const known=new Set();
+  cands.filter(c=>c.active).forEach(c=>{ items.push({key:"cand:"+c.name, label:c.name, color:c.color}); known.add(c.name); });
+  // マスタから外した・非表示にした候補者でも、記録があれば出す
+  rows.forEach(r=>(r.candidates||[]).forEach(n=>{ if(!known.has(n)){ known.add(n); items.push({key:"cand:"+n, label:n, color:candColor(n)}); } }));
+  if(rows.some(isLegacyOther)) items.push({key:"legacy_other", label:"他候補（未指定）", color:LEGACY_COLOR});
+  CATS.forEach(c=>items.push({key:c.key, label:c.label, color:c.color}));
+  return items;
+}
+function matchKey(r,key){
+  if(key.startsWith("cand:")) return (r.candidates||[]).includes(key.slice(5));
+  if(key==="legacy_other") return isLegacyOther(r);
+  return !!r[key];
+}
+function buildLegend(){
+  const lg=$("legend");
+  const geo=rows.filter(r=>r.latitude!=null && r.longitude!=null);
+  const items=legendItems();
+  const allChip=`<div class="lg${mapSel.size?"":" active"}" onclick="setMapFilter('all')">
+       <span class="sw" style="background:${ALL_COLOR}"></span>全部</div>`;
+  lg.innerHTML = allChip + items.map(c=>{
+    const n=geo.filter(r=>matchKey(r,c.key)).length;
+    return `<div class="lg${mapSel.has(c.key)?" active":""}" data-key="${escapeHtml(c.key)}" onclick="setMapFilter(this.dataset.key)">
+       <span class="sw" style="background:${c.color}"></span>${escapeHtml(c.label)}<span class="n">${n}</span></div>`;
+  }).join("");
+}
+
+function setMapFilter(key){
+  if(key==="all") mapSel.clear();
+  else if(mapSel.has(key)) mapSel.delete(key);
+  else mapSel.add(key);
+  buildLegend();
+  didFit=false;           // 絞り込み変更時は旗の範囲にズームし直す
+  renderMarkers();
+}
+
+function pinIcon(color, dx=0, dy=0){
+  return L.divIcon({
+    className:"pin-ico",
+    html:`<svg width="26" height="36" viewBox="0 0 26 36" xmlns="http://www.w3.org/2000/svg">
+            <path d="M13 1C6.4 1 1 6.4 1 13c0 8.8 12 22 12 22s12-13.2 12-22C25 6.4 19.6 1 13 1z"
+                  fill="${color}" stroke="#fff" stroke-width="1.6"/>
+            <circle cx="13" cy="13" r="4.4" fill="#fff"/>
+          </svg>`,
+    iconSize:[26,36], iconAnchor:[13-dx,35-dy]
+  });
+}
+
+function primaryColor(r){
+  const rc=r.candidates||[];
+  const c1=cands.find(c=>rc.includes(c.name));
+  if(c1) return c1.color;
+  if(rc.length) return candColor(rc[0]);
+  if(isLegacyOther(r)) return LEGACY_COLOR;
+  const c=CATS.find(c=>r[c.key]);
+  return c? c.color : ALL_COLOR;
+}
+
+const THUMB_ZOOM = 17;   // このズーム以上で旗→サムネイル表示に切替（map.html と同じ）
+
+function thumbIcon(r, color, dx=0, dy=0){
+  const src = r.thumb_path ? pubUrl(r.thumb_path) : (r.media_type==="image" ? pubUrl(r.media_path) : "");
+  const inner = src ? `<img src="${src}" loading="lazy">` : `<div class="vph">&#127909;</div>`;
+  return L.divIcon({
+    className:"",
+    html:`<div class="pm" style="border-color:${color}">${inner}</div>`,
+    iconSize:[56,56], iconAnchor:[28-dx,28-dy]
+  });
+}
+
+/* ---------- 同じ場所の複数ポスターを全部見せる ---------- */
+/* 1件の記録から描くピン：候補者が複数なら候補者ごとに1本ずつ */
+function pinsFor(r){
+  const rc=r.candidates||[];
+  const names = mapSel.size ? rc.filter(n=>mapSel.has("cand:"+n)) : rc;
+  if(names.length) return names.map(n=>({r, color:candColor(n)}));
+  let color=primaryColor(r);
+  if(mapSel.size){ const hit=legendCache.find(it=>mapSel.has(it.key)&&matchKey(r,it.key)); if(hit) color=hit.color; }
+  return [{r, color}];
+}
+/* 近くのピンをまとめる：
+   ・少数（8本以下）なら、重なる分だけ元の位置を中心に輪の形に並べる
+   ・多数なら「件数の丸」1つにまとめる（丸の色の割合＝候補者の内訳）。タップでその範囲を拡大
+   ズームのたびに計算し直す */
+const RING_MAX = 8;
+function groupBy(entries, th){
+  const groups=[];
+  entries.forEach(e=>{
+    const p=e.p || (e.p=map.latLngToLayerPoint([e.r.latitude, e.r.longitude]));
+    const g=groups.find(g=>Math.abs(g.p.x-p.x)<th && Math.abs(g.p.y-p.y)<th);
+    if(g) g.items.push(e); else groups.push({p, items:[e]});
+  });
+  return groups;
+}
+function layoutPins(entries, useThumb){
+  const out=[];
+  const canCluster = map.getZoom() < 18;            // 最大近くまで拡大したら全部輪で見せる
+  groupBy(entries, useThumb ? 70 : 44).forEach(big=>{
+    if(canCluster && big.items.length > RING_MAX){
+      const lat=big.items.reduce((a,e)=>a+e.r.latitude,0)/big.items.length;
+      const lng=big.items.reduce((a,e)=>a+e.r.longitude,0)/big.items.length;
+      out.push({type:"cluster", ll:[lat,lng], items:big.items});
+      return;
+    }
+    groupBy(big.items, useThumb ? 44 : 18).forEach(g=>{
+      const n=g.items.length;
+      const center=map.layerPointToLatLng(g.p);
+      g.items.forEach((e,i)=>{
+        e.ll = n>1 ? center : [e.r.latitude, e.r.longitude];
+        if(n===1){ e.dx=0; e.dy=0; return; }
+        const gap = useThumb ? 64 : 22;            // 隣どうしが重ならない間隔（px）
+        const R = Math.min(useThumb ? 160 : 70, Math.max(useThumb ? 36 : 14, gap/2/Math.sin(Math.PI/n)));
+        const a = -Math.PI/2 + 2*Math.PI*i/n;
+        e.dx=Math.round(R*Math.cos(a)); e.dy=Math.round(R*Math.sin(a));
+      });
+      out.push({type:"ring", items:g.items});
+    });
+  });
+  return out;
+}
+function clusterIcon(items){
+  const cnt={};
+  items.forEach(e=>cnt[e.color]=(cnt[e.color]||0)+1);
+  let acc=0; const stops=[];
+  Object.entries(cnt).sort((a,b)=>b[1]-a[1]).forEach(([c,k])=>{
+    const a0=acc/items.length*360; acc+=k; const a1=acc/items.length*360;
+    stops.push(`${c} ${a0}deg ${a1}deg`);
+  });
+  const size = items.length>=100 ? 50 : items.length>=30 ? 44 : 38;
+  return L.divIcon({
+    className:"",
+    html:`<div style="width:${size}px;height:${size}px;border-radius:50%;background:conic-gradient(${stops.join(",")});
+      box-shadow:0 2px 6px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;border:2px solid #fff;">
+      <div style="width:${size-16}px;height:${size-16}px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;
+        font:700 12px sans-serif;color:#1A2333;">${items.length}</div></div>`,
+    iconSize:[size,size], iconAnchor:[size/2,size/2]
+  });
+}
+
+function renderMarkers(zoomOnly){
+  if(!map || !markerLayer) return;
+  markerLayer.clearLayers();
+  const q=$("mq").value.trim().toLowerCase();
+  const terms=q? q.split(/\s+/):[];
+  const list=rows.filter(r=>{
+    if(r.latitude==null || r.longitude==null) return false;
+    if(mapSel.size && ![...mapSel].some(k=>matchKey(r,k))) return false;
+    if(!terms.length) return true;
+    const hay=hayOf(r);
+    return terms.every(t=>hay.includes(t));
+  });
+  const useThumb = map.getZoom() >= THUMB_ZOOM;
+  const pts=[];
+  legendCache = legendItems();
+  const entries=[];
+  list.forEach(r=>{ pts.push([r.latitude, r.longitude]); entries.push(...pinsFor(r)); });
+  layoutPins(entries, useThumb).forEach(g=>{
+    if(g.type==="cluster"){
+      const m=L.marker(g.ll, {icon:clusterIcon(g.items)});
+      m.on("click", ()=>map.fitBounds(g.items.map(e=>[e.r.latitude,e.r.longitude]), {padding:[50,50], maxZoom:18}));
+      markerLayer.addLayer(m);
+      return;
+    }
+    if(g.items.length>1){                      // 輪の中心＝実際の場所に小さな点
+      markerLayer.addLayer(L.circleMarker(g.items[0].ll,{radius:3.5, color:"#fff", weight:1.5, fillColor:"#1A2333", fillOpacity:.85, interactive:false}));
+    }
+    g.items.forEach(e=>{
+      const icon = useThumb ? thumbIcon(e.r, e.color, e.dx, e.dy) : pinIcon(e.color, e.dx, e.dy);
+      const m=L.marker(e.ll, {icon});
+      m.on("click", ()=>openDetail(e.r.id));
+      markerLayer.addLayer(m);
+    });
+  });
+  const flabel = mapSel.size ? legendCache.filter(it=>mapSel.has(it.key)).map(it=>it.label).join("・") : "全部";
+  $("mapCount").textContent = `${flabel}: ${list.length} 件${q?`（検索: ${q}）`:""}／` +
+    (useThumb ? "写真をタップで詳細" : "拡大すると写真表示・旗をタップで詳細");
+  if(pts.length && !didFit && !zoomOnly){
+    map.fitBounds(pts, {padding:[36,36], maxZoom:16});
+    didFit=true;
+  }
+}
+
+/* 地図表示中は60秒ごとに自動で最新化（更新操作不要） */
+setInterval(()=>{
+  if($("viewMap").classList.contains("show")) loadList(true);
+}, 60000);
+
+/* ---------- 詳細・修正 ---------- */
+let editId=null;
+function openDetail(id){
+  const r=rows.find(x=>x.id===id); if(!r) return;
+  editId=id;
+  $("detailMedia").innerHTML=mediaTag(r,"media");
+  $("detailMeta").innerHTML=
+    `${fmtDT(r.created_at)}<br>` +
+    `${r.postal_code? "〒"+escapeHtml(r.postal_code)+"　":""}${r.address? escapeHtml(r.address):"住所 取得待ち"}` +
+    (r.latitude!=null? ` ／ <a href="https://www.google.com/maps?q=${r.latitude},${r.longitude}" target="_blank" rel="noopener">地図で開く</a>`:"") +
+    (r.person_name? `<br>人名（AI）: ${escapeHtml(r.person_name)}`:"");
+  $("editMemo").value=r.memo||"";
+  /* AI読み取り（画像のみ） */
+  if(r.media_type==="image"){
+    $("detailOcr").innerHTML =
+      (r.ocr_text
+        ? `<details class="ocr-box"><summary>AI読み取りテキストを表示</summary><div class="ocr-text">${escapeHtml(r.ocr_text)}</div></details>`
+        : "") +
+      `<button class="btn sub ocr-run" onclick="runOcr('${r.id}')">&#129302; AI読み取り${r.ocr_text?"を再実行":"を実行"}${r.cat_card?"（名刺→名簿登録）":""}</button>`;
+  }else{
+    $("detailOcr").innerHTML="";
+  }
+  CATS.forEach(c=>setCat(c.eid, r[c.key]));
+  renderCandButtons("candEdit", r);
+  $("mDetail").classList.add("show");
+}
+function setCat(id,on){ const cb=$(id); cb.checked=!!on; cb.closest(".cat").classList.toggle("on",!!on); }
+
+async function updateRecord(){
+  if(!editId) return;
+  const body={ memo:$("editMemo").value.trim() };
+  CATS.forEach(c=>body[c.key]=$(c.eid).checked);
+  const legacy=$("candEdit").querySelector("input[data-legacy]");
+  Object.assign(body, candFields(selCands("candEdit"), !!(legacy && legacy.checked)));
+  const res=await sb(`/rest/v1/${TABLE}?id=eq.${editId}`,{
+    method:"PATCH",
+    headers:{"Content-Type":"application/json","Prefer":"return=representation"},
+    body:JSON.stringify(body)
+  });
+  if(res.ok){
+    const upd=(await res.json())[0];
+    rows=rows.map(r=>r.id===editId? upd:r);
+    renderList(); if(map){ buildLegend(); renderMarkers(); }
+    closeModal("mDetail"); toast("修正を保存しました");
+  }else{
+    toast("修正に失敗しました", true);
+  }
+}
+async function deleteRecord(){
+  if(!editId) return;
+  if(!confirm("この記録を削除します。よろしいですか？")) return;
+  const r=rows.find(x=>x.id===editId);
+  const res=await sb(`/rest/v1/${TABLE}?id=eq.${editId}`,{method:"DELETE"});
+  if(res.ok){
+    if(r){
+      sb(`/storage/v1/object/${BUCKET}/${r.media_path}`,{method:"DELETE"}).catch(()=>{});
+      if(r.thumb_path) sb(`/storage/v1/object/${BUCKET}/${r.thumb_path}`,{method:"DELETE"}).catch(()=>{});
+    }
+    rows=rows.filter(x=>x.id!==editId);
+    renderList(); if(map) renderMarkers();
+    closeModal("mDetail"); toast("削除しました");
+  }else{
+    toast("削除に失敗しました", true);
+  }
+}
+
+/* ---------- AI読み取り（手動実行） ---------- */
+async function runOcr(id){
+  toast("AI読み取りを開始しました（十数秒かかります）");
+  try{
+    const res=await sb(`/functions/v1/ocr`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({id})
+    });
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok || j.error) throw new Error(j.error||("HTTP "+res.status));
+    await loadList(true);
+    if($("mDetail").classList.contains("show")) openDetail(id);
+    toast(j.cards ? `読み取り完了（名簿に ${j.cards} 件登録）` : "読み取り完了");
+  }catch(e){
+    console.error(e);
+    toast("AI読み取りに失敗しました（Edge Functionのログを確認）", true);
+  }
+}
+
+/* ---------- ユーティリティ ---------- */
+function fmtDT(iso){
+  const d=new Date(iso);
+  const z=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}/${z(d.getMonth()+1)}/${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`;
+}
+function catText(r){
+  const a=[...(r.candidates||[]), ...(isLegacyOther(r)?["他候補（未指定）"]:[]), ...CATS.filter(c=>r[c.key]).map(c=>c.label)];
+  return a.join("・")||"（分類なし）";
+}
+function catTags(r){
+  return (r.candidates||[]).map(n=>`<span class="tag" style="background:${candColor(n)}">${escapeHtml(n)}</span>`).join("")
+    + (isLegacyOther(r)? `<span class="tag" style="background:${LEGACY_COLOR}">他候補（未指定）</span>`:"")
+    + CATS.filter(c=>r[c.key]).map(c=>`<span class="tag">${c.label}</span>`).join("");
+}
+function mediaTag(r, cls){
+  return r.media_type==="video"
+    ? `<video class="${cls}" src="${pubUrl(r.media_path)}" controls playsinline></video>`
+    : `<img class="${cls}" src="${pubUrl(r.media_path)}" onclick="openZoom('${pubUrl(r.media_path)}')" style="cursor:zoom-in;" title="タップで拡大">`;
+}
+
+/* ---------- 画像拡大ビューア（ピンチ・パン・ダブルタップ） ---------- */
+const zoomEl=$("zoom"), zoomImg=$("zoomImg");
+let zs=1, zx=0, zy=0;                 // scale / translate
+const ptrs=new Map();
+let gStart=null, lastTap=0;
+
+function applyZoom(){ zoomImg.style.transform=`translate(${zx}px,${zy}px) scale(${zs})`; }
+function openZoom(url){
+  zs=1; zx=0; zy=0; applyZoom();
+  zoomImg.src=url;
+  zoomEl.classList.add("show");
+}
+function closeZoom(){ zoomEl.classList.remove("show"); zoomImg.src=""; }
+
+zoomEl.addEventListener("pointerdown", e=>{
+  if(e.target.id==="zoomClose") return;
+  zoomEl.setPointerCapture(e.pointerId);
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(ptrs.size===1){
+    const now=Date.now();
+    if(now-lastTap<300){                       // ダブルタップで等倍⇔2.5倍
+      if(zs>1){ zs=1; zx=0; zy=0; }
+      else{
+        zs=2.5;
+        zx=e.clientX-(e.clientX-zx)*2.5;
+        zy=e.clientY-(e.clientY-zy)*2.5;
+      }
+      applyZoom();
+    }
+    lastTap=now;
+  }
+  snapGesture();
+});
+zoomEl.addEventListener("pointermove", e=>{
+  if(!ptrs.has(e.pointerId)) return;
+  ptrs.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(!gStart) return;
+  const pts=[...ptrs.values()];
+  if(pts.length>=2){
+    const d=Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y);
+    const mx=(pts[0].x+pts[1].x)/2, my=(pts[0].y+pts[1].y)/2;
+    const ns=Math.min(6, Math.max(1, gStart.s * d/gStart.d));
+    const k=ns/gStart.s;
+    zs=ns;
+    zx=mx - k*(gStart.mx - gStart.x);   // 2本指の中点を基準に拡大＋移動
+    zy=my - k*(gStart.my - gStart.y);
+    applyZoom();
+  }else if(pts.length===1 && zs>1){
+    zx=gStart.x + (pts[0].x-gStart.mx);
+    zy=gStart.y + (pts[0].y-gStart.my);
+    applyZoom();
+  }
+});
+function endPtr(e){
+  ptrs.delete(e.pointerId);
+  if(zs<=1.02){ zs=1; zx=0; zy=0; applyZoom(); }
+  snapGesture();
+}
+zoomEl.addEventListener("pointerup", endPtr);
+zoomEl.addEventListener("pointercancel", endPtr);
+function snapGesture(){
+  const pts=[...ptrs.values()];
+  if(pts.length>=2){
+    gStart={
+      d:Math.hypot(pts[0].x-pts[1].x, pts[0].y-pts[1].y),
+      mx:(pts[0].x+pts[1].x)/2, my:(pts[0].y+pts[1].y)/2,
+      s:zs, x:zx, y:zy
+    };
+  }else if(pts.length===1){
+    gStart={mx:pts[0].x, my:pts[0].y, s:zs, x:zx, y:zy};
+  }else{
+    gStart=null;
+  }
+}
+/* PCでも確認できるようホイールで拡大縮小 */
+zoomEl.addEventListener("wheel", e=>{
+  e.preventDefault();
+  const ns=Math.min(6, Math.max(1, zs*(e.deltaY<0?1.15:0.87)));
+  const k=ns/zs;
+  zx=e.clientX - k*(e.clientX-zx);
+  zy=e.clientY - k*(e.clientY-zy);
+  zs=ns;
+  if(zs<=1.02){ zs=1; zx=0; zy=0; }
+  applyZoom();
+},{passive:false});
+
+/* ================================================================
+   候補者ボタン（poster_candidates）
+================================================================ */
+const T_CAND = "poster_candidates";
+const LEGACY_COLOR = "#757575";
+const DEFAULT_CANDS = [
+  {name:"佐野", color:"#D93025", is_self:true,  active:true},
+  {name:"関",   color:"#1E6FD9", is_self:false, active:true},
+  {name:"二井", color:"#2E9E4F", is_self:false, active:true},
+  {name:"武田", color:"#8E24AA", is_self:false, active:true},
+  {name:"新井", color:"#E67E00", is_self:false, active:true}
+];
+const PALETTE = ["#D93025","#1E6FD9","#2E9E4F","#8E24AA","#E67E00","#00838F","#6D4C41","#C2185B","#7CB342","#3949AB","#F4B400","#424242"];
+let cands = [];
+
+async function loadCands(){
+  try{
+    const res=await sb(`/rest/v1/${T_CAND}?select=*&order=sort.asc,id.asc`);
+    if(!res.ok) throw new Error(await res.text());
+    cands=await res.json();
+    localStorage.setItem("poster_cands", JSON.stringify(cands));
+  }catch(e){
+    try{ cands=JSON.parse(localStorage.getItem("poster_cands")||"null")||DEFAULT_CANDS; }catch(_){ cands=DEFAULT_CANDS; }
+  }
+  renderCandButtons("candShoot", null);
+  if(map){ buildLegend(); renderMarkers(true); }
+  if(listLoaded) renderList();
+}
+function candColor(name){
+  const c=cands.find(x=>x.name===name);
+  return c ? c.color : LEGACY_COLOR;
+}
+function isSelfName(name){ const c=cands.find(x=>x.name===name); return !!(c && c.is_self); }
+/* 旧データ：「他候補」にチェックしたが候補者名が無い記録 */
+function isLegacyOther(r){ return !!r.cat_other && !(r.candidates||[]).some(n=>!isSelfName(n)); }
+
+/* 候補者ボタンを描画（記録 r があればその状態を反映） */
+function renderCandButtons(boxId, r){
+  const box=$(boxId);
+  const keep=[...box.querySelectorAll(":scope > label:not(.cand)")];   // 地域情報（固定）
+  const sel=new Set(r ? (r.candidates||[]) : selCands(boxId));
+  const list=cands.filter(c=>c.active).map(c=>({name:c.name, color:c.color}));
+  sel.forEach(n=>{ if(!list.some(x=>x.name===n)) list.push({name:n, color:candColor(n)}); });  // 非表示にした候補者の既存記録
+  box.querySelectorAll(":scope > label.cand").forEach(el=>el.remove());
+  const frag=document.createDocumentFragment();
+  list.forEach(c=>{
+    const lb=document.createElement("label");
+    lb.className="cat cand"+(sel.has(c.name)?" on":"");
+    lb.style.setProperty("--cc", c.color);
+    lb.innerHTML=`<input type="checkbox"${sel.has(c.name)?" checked":""}><span class="dot"></span>`;
+    lb.querySelector("input").dataset.cand=c.name;
+    lb.appendChild(document.createTextNode(c.name));
+    frag.appendChild(lb);
+  });
+  if(r && isLegacyOther(r)){
+    const lb=document.createElement("label");
+    lb.className="cat cand legacy on";
+    lb.style.setProperty("--cc", LEGACY_COLOR);
+    lb.innerHTML=`<input type="checkbox" data-legacy="1" checked><span class="dot"></span>他候補（未指定・旧データ）`;
+    frag.appendChild(lb);
+  }
+  box.insertBefore(frag, keep[0]||null);
+}
+function selCands(boxId){
+  return [...$(boxId).querySelectorAll("input[data-cand]:checked")].map(i=>i.dataset.cand);
+}
+/* 保存用：候補者名＋旧来の cat_sano / cat_other を連動（posters.html・PC地図との互換用） */
+function candFields(names, legacyOther){
+  return {
+    candidates: names,
+    cat_sano:  names.some(isSelfName),
+    cat_other: names.some(n=>!isSelfName(n)) || !!legacyOther
+  };
+}
+
+/* ---------- 設定画面 ---------- */
+let setRows=[];
+function openSettings(){
+  setRows=cands.map(c=>({...c, orig:c.name}));
+  renderSettings();
+  $("mSettings").classList.add("show");
+}
+function renderSettings(){
+  $("setList").innerHTML = setRows.map((c,i)=>`
+    <div class="set-row${c.active?"":" off"}">
+      <div class="r1">
+        <input type="color" value="${escapeHtml(c.color)}" onchange="setColor(${i},this.value)" aria-label="色（タップで自由に選択）">
+        <input type="text" value="${escapeHtml(c.name)}" placeholder="候補者名" oninput="setRows[${i}].name=this.value" aria-label="候補者名">
+      </div>
+      <div class="swatches" role="group" aria-label="色を選ぶ">
+        ${PALETTE.map(col=>`<button type="button" class="swc${col.toLowerCase()===String(c.color).toLowerCase()?" on":""}" style="background:${col}" onclick="setColor(${i},'${col}')" aria-label="色 ${col}"></button>`).join("")}
+      </div>
+      <div class="r2">
+        <button class="sbtn" onclick="moveCand(${i},-1)" ${i===0?"disabled":""} aria-label="上へ">&#9650;</button>
+        <button class="sbtn" onclick="moveCand(${i},1)" ${i===setRows.length-1?"disabled":""} aria-label="下へ">&#9660;</button>
+        <label><input type="checkbox" ${c.active?"checked":""} onchange="setRows[${i}].active=this.checked; renderSettings()">表示</label>
+        <label><input type="checkbox" ${c.is_self?"checked":""} onchange="setRows[${i}].is_self=this.checked">自陣営</label>
+        <button class="sbtn del" onclick="removeCand(${i})">削除</button>
+      </div>
+    </div>`).join("") || `<div class="empty">候補者がいません。下のボタンから追加してください。</div>`;
+}
+function setColor(i,col){ setRows[i].color=col; renderSettings(); }
+function moveCand(i,d){ const j=i+d; if(j<0||j>=setRows.length) return; [setRows[i],setRows[j]]=[setRows[j],setRows[i]]; renderSettings(); }
+function removeCand(i){
+  const c=setRows[i];
+  if(c.id && !confirm(`「${c.orig||c.name}」のボタンを削除しますか？\n（これまでの記録に付いた名前は残り、地図でも絞り込めます。一時的に隠すだけなら「表示」を外してください）`)) return;
+  setRows.splice(i,1); renderSettings();
+}
+function addCandRow(){
+  const used=new Set(setRows.map(c=>c.color));
+  const color=PALETTE.find(p=>!used.has(p)) || PALETTE[setRows.length % PALETTE.length];
+  setRows.push({name:"", color, is_self:false, active:true});
+  renderSettings();
+  const inputs=$("setList").querySelectorAll('input[type=text]');
+  inputs[inputs.length-1].focus();
+}
+async function saveSettings(){
+  const rowsIn=setRows.map(c=>({...c, name:(c.name||"").trim()}));
+  if(rowsIn.some(c=>!c.name)){ toast("名前が空の候補者があります", true); return; }
+  const names=rowsIn.map(c=>c.name);
+  if(new Set(names).size!==names.length){ toast("同じ名前の候補者が重複しています", true); return; }
+  const btn=$("btnSetSave"); btn.disabled=true; btn.textContent="保存しています…";
+  try{
+    const H={"Content-Type":"application/json","Prefer":"return=minimal"};
+    const must=async res=>{ if(!res.ok) throw new Error(await res.text()); return res; };
+    /* 1) 名前を変えた候補者は、これまでの記録の名前も書き換え */
+    for(const c of rowsIn.filter(c=>c.id && c.orig && c.orig!==c.name)){
+      const f=encodeURIComponent(`{"${c.orig.replace(/"/g,'\\"')}"}`);
+      const hit=await (await must(await sb(`/rest/v1/${TABLE}?select=id,candidates&candidates=cs.${f}&limit=5000`))).json();
+      for(const r of hit){
+        const nc=[...new Set(r.candidates.map(n=>n===c.orig? c.name : n))];
+        await must(await sb(`/rest/v1/${TABLE}?id=eq.${r.id}`,{method:"PATCH",headers:H,body:JSON.stringify({candidates:nc})}));
+      }
+    }
+    /* 2) 削除・更新・追加 */
+    const keepIds=new Set(rowsIn.filter(c=>c.id).map(c=>c.id));
+    for(const c of cands.filter(c=>!keepIds.has(c.id))){
+      await must(await sb(`/rest/v1/${T_CAND}?id=eq.${c.id}`,{method:"DELETE"}));
+    }
+    for(const [i,c] of rowsIn.entries()){
+      const body={name:c.name, color:c.color, sort:i+1, is_self:!!c.is_self, active:!!c.active};
+      if(c.id) await must(await sb(`/rest/v1/${T_CAND}?id=eq.${c.id}`,{method:"PATCH",headers:H,body:JSON.stringify(body)}));
+      else     await must(await sb(`/rest/v1/${T_CAND}`,{method:"POST",headers:H,body:JSON.stringify(body)}));
+    }
+    await loadCands();
+    if(listLoaded) await loadList(true);
+    closeModal("mSettings");
+    toast("設定を保存しました");
+  }catch(e){
+    console.error(e);
+    toast("設定の保存に失敗しました（初期設定のSQLが実行済みか確認してください）", true);
+  }finally{
+    btn.disabled=false; btn.textContent="設定を保存";
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+/* 名刺管理：地図の絞り込みボタンは People の分類だけ */
+const PEOPLE_KEYS=["cat_card","cat_talk","cat_misc"];
+const _legendAll=legendItems;
+legendItems=function(){ return _legendAll().filter(it=>PEOPLE_KEYS.includes(it.key)); };
+
+loadCands();   // 候補者ボタンを読み込み（全定義の後で実行）
+</script>
+</body>
+</html>

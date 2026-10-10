@@ -281,6 +281,18 @@
     border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; vertical-align:-3px; margin-right:6px;
   }
   @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ===== 現在地ボタン（押したときだけ表示） ===== */
+  .loc-btn{width:34px; height:34px; background:#fff; border:2px solid rgba(0,0,0,.2); border-radius:4px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; color:#5F6368; padding:0;}
+  .loc-btn:hover{background:#F4F4F4;}
+  .loc-btn:focus-visible{outline:3px solid #1A73E8; outline-offset:1px;}
+  .loc-btn.on{color:#1A73E8;}
+  .loc-btn.wait svg{animation:locspin 1s linear infinite;}
+  @keyframes locspin{to{transform:rotate(360deg);}}
+  .loc-dot{width:18px; height:18px; border-radius:50%; background:#1A73E8; border:3px solid #fff;
+    box-shadow:0 0 0 1px rgba(0,0,0,.15), 0 1px 4px rgba(0,0,0,.4);}
+  @media (prefers-reduced-motion:reduce){ .loc-btn.wait svg{animation:none;} }
 </style>
 </head>
 <body>
@@ -765,6 +777,44 @@ function renderList(){
 /* ---------- 地図（All Display Map） ---------- */
 let map=null, markerLayer=null, didFit=false, legendCache=[];
 
+/* ---------- 現在地ボタン（Googleマップと同じ青い点。押したときだけ表示し、もう一度押すと消す） ---------- */
+function addLocateControl(m){
+  let btn=null, wid=null, dot=null, ring=null, centered=false, lastAt=0;
+  const Ctl=L.Control.extend({ options:{position:"topleft"}, onAdd(){
+    btn=L.DomUtil.create("button","loc-btn");
+    btn.type="button"; btn.title="現在地を表示"; btn.setAttribute("aria-label","現在地を表示"); btn.setAttribute("aria-pressed","false");
+    btn.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.6" fill="currentColor"/><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 1.5v3.5M12 19v3.5M1.5 12H5M19 12h3.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+    L.DomEvent.disableClickPropagation(btn);
+    L.DomEvent.on(btn,"click",e=>{ L.DomEvent.preventDefault(e); toggle(); });
+    return btn;
+  }});
+  new Ctl().addTo(m);
+  function stop(){
+    if(wid!=null) navigator.geolocation.clearWatch(wid);
+    wid=null;
+    if(dot){ m.removeLayer(dot); m.removeLayer(ring); dot=ring=null; }
+    btn.classList.remove("on","wait"); btn.setAttribute("aria-pressed","false"); btn.title="現在地を表示";
+  }
+  function toggle(){
+    if(wid!=null){ stop(); return; }                       // 表示中にもう一度押すと消す
+    if(!navigator.geolocation){ toast("この端末は位置情報に対応していません", true); return; }
+    centered=false; btn.classList.add("wait");
+    wid=navigator.geolocation.watchPosition(p=>{
+      const ll=[p.coords.latitude, p.coords.longitude], acc=Math.min(p.coords.accuracy||30, 2000);
+      if(!dot){
+        ring=L.circle(ll,{radius:acc, color:"#1A73E8", weight:1, opacity:.5, fillColor:"#1A73E8", fillOpacity:.12, interactive:false}).addTo(m);
+        dot=L.marker(ll,{icon:L.divIcon({className:"", html:'<div class="loc-dot"></div>', iconSize:[24,24], iconAnchor:[12,12]}), interactive:false, keyboard:false, zIndexOffset:2000}).addTo(m);
+      }else{ dot.setLatLng(ll); ring.setLatLng(ll); ring.setRadius(acc); }
+      btn.classList.remove("wait"); btn.classList.add("on"); btn.setAttribute("aria-pressed","true"); btn.title="現在地を消す";
+      if(!centered){ m.setView(ll, Math.max(m.getZoom(), 16)); centered=true; }
+      lastAt=Date.now();
+    }, err=>{
+      stop();
+      toast(err.code===1 ? "位置情報が許可されていません（端末・ブラウザの設定で許可してください）" : "現在地を取得できませんでした", true);
+    }, {enableHighAccuracy:true, maximumAge:5000, timeout:20000});
+  }
+}
+
 function initMap(){
   if(map){ setTimeout(()=>map.invalidateSize(), 60); return; }
   buildLegend();
@@ -774,6 +824,7 @@ function initMap(){
     attribution: '&copy; OpenStreetMap contributors'
   }).addTo(map);
   markerLayer = L.layerGroup().addTo(map);
+  addLocateControl(map);
   map.on("zoomend", ()=>renderMarkers(true));   // ズームで 旗⇔サムネイル を切替
   // 初期表示：現在地があればそこ、なければ東京駅付近
   if(curPos) map.setView([curPos.lat, curPos.lon], 14);

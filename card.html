@@ -324,6 +324,7 @@
     <div class="cat-group wrap" style="display:none;">
       <span class="glabel">Poster:</span>
       <div class="cat-wrap" id="candShoot">
+        <label class="cat"><input type="checkbox" id="catPostable">貼付可能</label>
         <label class="cat"><input type="checkbox" id="catRegion">地域情報</label>
       </div>
     </div>
@@ -396,6 +397,7 @@
     <div class="cat-group wrap" style="display:none;">
       <span class="glabel">Poster:</span>
       <div class="cat-wrap" id="candEdit">
+        <label class="cat"><input type="checkbox" id="ePostable">貼付可能</label>
         <label class="cat"><input type="checkbox" id="eRegion">地域情報</label>
       </div>
     </div>
@@ -436,6 +438,7 @@ const MAX_IMG_PX        = 1600;
 
 /* 固定の分類（候補者は poster_candidates で設定。cat_sano / cat_other は自動で連動） */
 const CATS = [
+  {key:"cat_postable",id:"catPostable",eid:"ePostable",label:"貼付可能", color:"#00897B"},   // ポスターを貼れそうな場所
   {key:"cat_region",id:"catRegion",eid:"eRegion",label:"地域情報", color:"#9C27B0"},
   {key:"cat_card",  id:"catCard",  eid:"eCard",  label:"名刺",     color:"#7CB342"},
   {key:"cat_talk",  id:"catTalk",  eid:"eTalk",  label:"後援者会話",color:"#F4C513"},

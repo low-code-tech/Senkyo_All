@@ -91,6 +91,7 @@ const PASSCODE = "sano2026";
 
 /* Posterグループの固定インデックス（候補者は poster.html の「設定」で登録した poster_candidates） */
 const IDX=[
+  {key:"cat_postable",label:"貼付可能", color:"#00897B"},
   {key:"cat_region",label:"地域情報", color:"#9C27B0"}
 ];
 const LEGACY_COLOR="#757575";
@@ -176,7 +177,7 @@ async function load(){
   $("count").textContent="読み込み中…";
   try{
     /* Posterグループのいずれかにチェックがある記録のみ */
-    const res=await sb(`/rest/v1/posters?select=*&or=(cat_sano.eq.true,cat_other.eq.true,cat_region.eq.true)&order=created_at.desc&limit=1000`);
+    const res=await sb(`/rest/v1/posters?select=*&or=(cat_sano.eq.true,cat_other.eq.true,cat_postable.eq.true,cat_region.eq.true)&order=created_at.desc&limit=1000`);
     if(!res.ok) throw new Error(await res.text());
     rows=await res.json();
     await loadCands();

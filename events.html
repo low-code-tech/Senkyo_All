@@ -175,13 +175,15 @@ label.btn{display:inline-block}
     <h2>ページを追加</h2>
     <div class="row">
       <select id="sWard" aria-label="区"><option value="isogo">磯子区</option><option value="midori">緑区</option></select>
-      <input type="url" id="sUrl" placeholder="https:// 行事が載っているページのURLを貼り付け" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input type="url" id="sUrl" placeholder="https:// 行事が載っているページ（またはPDF）のURLを貼り付け" autocomplete="off" autocapitalize="off" spellcheck="false">
     </div>
     <div class="row" style="margin-top:8px">
-      <input id="sName" placeholder="名前（空欄ならページのタイトルを使います）">
+      <input id="sName" placeholder="名前（空欄ならページのタイトル・PDFのファイル名を使います）">
       <button class="btn" id="btnAddSrc">追加してすぐ取得</button>
     </div>
-    <p class="note">自治会・町内会、連合町内会、商店街、神社、消防団、地区センターなどの「お知らせ」「イベント」ページが向いています。PDFファイルやSNS（Instagram・Facebook・X）は読み取れません。</p>
+    <p class="note">自治会・町内会、連合町内会、商店街、神社、消防団、地区センターなどの「お知らせ」「イベント」ページが向いています。<br>
+      PDFも読み取れます。ページに載っている「センターだより」などの広報紙PDFやチラシPDFは自動で開いて読むので、通常はページのURLを登録すれば十分です。毎月同じURLで差し替わるPDFは、そのURLを直接登録することもできます（15MBまで）。<br>
+      SNS（Instagram・Facebook・X）は読み取れません。</p>
 
     <h2>登録中の巡回先</h2>
     <div class="row" style="margin-bottom:8px">
@@ -357,8 +359,9 @@ function evHtml(e, isAdmin) {
   const dl = [["理由", e.reason], ["会場", e.venue], ["住所", e.address], ["主催", e.organizer], ["対象", e.target], ["費用", e.fee], ["定員", e.capacity], ["申込", e.apply], ["締切", e.deadline], ["状況", e.status]]
     .filter(x => x[1]).map(x => `<dt>${x[0]}</dt><dd>${esc(x[1])}</dd>`).join("");
   const poster = !e.source_id;
+  const isPdfSrc = /\.pdf($|[?#])/i.test(e.source_url || "");
   const srcLink = isUrl(e.source_url)
-    ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener">${poster ? "ポスターの写真を開く" : "出典ページを開く"}</a>`
+    ? `<a href="${esc(e.source_url)}" target="_blank" rel="noopener">${poster ? "ポスターの写真を開く" : isPdfSrc ? "出典のPDFを開く" : "出典ページを開く"}</a>`
     : (e.source_url ? `<span>${esc(e.source_url)}</span>` : "");
   return `<article class="ev ${e.ward}${cancel ? " cancel" : ""}" data-id="${e.id}">
     <div class="top"><span class="time">${time}</span><button class="title" aria-expanded="false">${esc(e.title)}</button></div>
@@ -371,7 +374,7 @@ function evHtml(e, isAdmin) {
         ${e.gcal_error ? `<span style="color:var(--warn)">カレンダー未登録</span>` : ""}
         ${isAdmin ? `<button class="btn sub sm" data-hide="${e.id}">非表示</button>` : ""}
       </div>
-      <p class="note">${poster ? "ポスターの写真からAIが読み取りました。" : "AIによる自動抽出です。"}参加前に${poster ? "ポスター" : "出典ページ"}で確認してください。</p>
+      <p class="note">${poster ? "ポスターの写真からAIが読み取りました。" : isPdfSrc ? "PDFからAIが読み取りました。" : "AIによる自動抽出です。"}参加前に${poster ? "ポスター" : isPdfSrc ? "出典のPDF" : "出典ページ"}で確認してください。</p>
     </div>
   </article>`;
 }
@@ -593,7 +596,7 @@ async function crawlAll(progEl) {
 }
 $("btnCrawlAll").addEventListener("click", async () => {
   const n = SOURCES.filter(s => s.active).length;
-  if (!confirm(`${n}件の巡回先を順番に取得します（1件あたり数十秒かかります）。`)) return;
+  if (!confirm(`${n}件の巡回先を順番に取得します（1件あたり数十秒、PDFを読む場合は1分ほどかかります）。`)) return;
   const btn = $("btnCrawlAll"); btn.disabled = true;
   try { await crawlAll($("crawlProg")); } finally { btn.disabled = false; }
 });

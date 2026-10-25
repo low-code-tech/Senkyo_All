@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>目的別Map作成 | Senkyo-All</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root{--navy:#1F3864;--blue:#2563eb;--bg:#f4f6fa;--line:#dfe3ea;--txt:#1f2937;--muted:#6b7280;--ok:#16a34a;--warn:#d97706;--ng:#dc2626}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif;background:var(--bg);color:var(--txt);font-size:15px}
+  header{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:1000}
+  header a{color:#cfd8ea;text-decoration:none;font-size:14px}
+  header h1{font-size:17px;margin:0;font-weight:700;flex:1}
+  main{max-width:1100px;margin:0 auto;padding:14px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  input[type=text],select{font-size:16px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  input[type=text]{flex:1;min-width:220px}
+  button{font-size:15px;padding:10px 14px;border:none;border-radius:8px;background:var(--blue);color:#fff;cursor:pointer;font-weight:600}
+  button.sub{background:#fff;color:var(--navy);border:1px solid var(--line)}
+  button.danger{background:#fff;color:var(--ng);border:1px solid #f3c7c7}
+  button:disabled{opacity:.5;cursor:default}
+  .hint{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.5}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-size:13px;padding:6px 10px;border-radius:999px;background:#eef2ff;color:var(--navy);cursor:pointer;border:1px solid #dbe3ff}
+  #status{font-size:14px;color:var(--navy);min-height:20px;margin-top:8px}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid #c7d2fe;border-top-color:var(--blue);border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  #map{height:420px;border-radius:10px;border:1px solid var(--line)}
+  .stats{display:flex;gap:14px;flex-wrap:wrap;font-size:14px;color:var(--muted);margin:8px 0}
+  .stats b{color:var(--txt)}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+  th{background:#f8fafc;position:sticky;top:0;font-weight:700;color:var(--navy);white-space:nowrap}
+  tr.done td{background:#f0fdf4;color:#6b7280}
+  tr.nogeo td{background:#fffbeb}
+  .tblwrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .kind{display:inline-block;padding:2px 7px;border-radius:6px;font-size:12px;color:#fff;white-space:nowrap}
+  .k-分譲{background:#1d4ed8}.k-賃貸マンション{background:#0891b2}.k-賃貸アパート{background:#65a30d}.k-その他{background:#6b7280}
+  td a{color:var(--blue);text-decoration:none;white-space:nowrap}
+  .small{font-size:12px;color:var(--muted)}
+  .legend{position:absolute;bottom:14px;left:14px;background:#fff;padding:6px 10px;border-radius:8px;font-size:12px;box-shadow:0 1px 4px rgba(0,0,0,.2);z-index:800}
+  .legend span{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:4px}
+  .mapwrap{position:relative}
+  #savedList{list-style:none;padding:0;margin:0}
+  #savedList li{display:flex;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  #savedList li .t{flex:1;cursor:pointer}
+  #savedList li .t b{color:var(--navy)}
+  .hidden{display:none}
+  .leaflet-popup-content{font-size:13px;line-height:1.5}
+  .leaflet-popup-content a{color:var(--blue)}
+  @media (max-width:600px){#map{height:320px}th,td{padding:6px 4px}}
+</style>
+</head>
+<body>
+<header>
+  <a href="index.html">◀ メニュー</a>
+  <h1>目的別Map作成</h1>
+</header>
+<main>
+
+  <div class="card">
+    <div class="row">
+      <input type="text" id="keyword" placeholder="例：磯子区のペット可マンション" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button id="btnSearch">検索してMap化</button>
+      <button class="sub" id="btnSaved">保存済みMap</button>
+    </div>
+    <div class="chips">
+      <span class="chip">磯子区のペット可マンション</span>
+      <span class="chip">磯子区の分譲マンション 200戸以上</span>
+      <span class="chip">磯子区の高齢者向け住宅・サ高住</span>
+      <span class="chip">磯子区の保育園・幼稚園</span>
+      <span class="chip">磯子区の学生向けアパート</span>
+    </div>
+    <div class="hint">AIが不動産ポータル等の公開情報をWeb検索して建物リストを作り、住所から地図上にプロットします（1〜2分かかります）。個人の氏名・部屋番号は収集しません。建物単位の情報のみです。</div>
+    <div id="status"></div>
+  </div>
+
+  <div class="card hidden" id="savedCard">
+    <div class="row" style="justify-content:space-between"><b>保存済みMap</b><button class="sub" id="btnCloseSaved">閉じる</button></div>
+    <ul id="savedList"></ul>
+  </div>
+
+  <div class="card hidden" id="resultCard">
+    <div class="row" style="justify-content:space-between">
+      <div><b id="resTitle" style="font-size:17px"></b><div class="small" id="resMeta"></div></div>
+      <div class="row">
+        <button id="btnRoute">🚶 配布ルートに取り込む</button>
+        <button class="sub" id="btnCsv">マイマップ用CSV</button>
+        <button class="sub" id="btnGmap">Googleマップで表示</button>
+        <button class="sub" id="btnAdd">＋ 手入力で追加</button>
+        <button class="danger" id="btnDelete">このMapを削除</button>
+      </div>
+    </div>
+    <div class="stats">
+      <span>件数 <b id="stCount">0</b></span>
+      <span>地図表示 <b id="stGeo">0</b></span>
+      <span>配布済 <b id="stDone">0</b></span>
+      <span>総戸数(判明分) <b id="stUnits">0</b></span>
+    </div>
+    <div class="mapwrap">
+      <div id="map"></div>
+      <div class="legend">
+        <span style="background:#1d4ed8"></span>分譲　<span style="background:#0891b2"></span>賃貸M　<span style="background:#65a30d"></span>賃貸A　<span style="background:#6b7280"></span>その他　<span style="background:#16a34a"></span>配布済
+      </div>
+    </div>
+    <div class="hint">行をタップすると地図がその建物へ移動します。黄色の行は住所から位置を特定できなかった建物です（住所を修正して「再測位」）。</div>
+    <div class="tblwrap" style="margin-top:8px">
+      <table id="tbl">
+        <thead><tr>
+          <th>済</th><th>#</th><th>区分</th><th>建物名</th><th>住所</th><th>最寄駅</th><th>築年</th><th>戸数</th><th>出典</th><th></th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+/* ============================================================
+   設定：既存ページ（index.html 等）と同じ値を入れてください
+   ============================================================ */
+const SUPABASE_URL = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const FUNCTION_NAME = "purpose-map";
+/* ============================================================ */
+
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $ = (id) => document.getElementById(id);
+
+let current = null;        // {id,title,keyword,items,created_at}
+let map = null, layer = null, markers = [];
+
+const KIND_COLOR = { "分譲": "#1d4ed8", "賃貸マンション": "#0891b2", "賃貸アパート": "#65a30d" };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const kindClass = (k) => KIND_COLOR[k] ? "k-" + k : "k-その他";
+
+function setStatus(msg, busy) {
+  $("status").innerHTML = (busy ? '<span class="spinner"></span>' : "") + esc(msg);
+}
+
+/* ---------- 検索 ---------- */
+async function search() {
+  const kw = $("keyword").value.trim();
+  if (!kw) { alert("キーワードを入力してください"); return; }
+  $("btnSearch").disabled = true;
+  setStatus("AIが公開情報を検索中…（1〜2分）", true);
+  try {
+    const { data, error } = await sb.functions.invoke(FUNCTION_NAME, { body: { keyword: kw, max: 80 } });
+    if (error) throw new Error(error.message || String(error));
+    if (data?.error) throw new Error(data.error);
+    const items = (data.items || []).map((it, i) => ({ ...it, no: i + 1, done: false }));
+    if (items.length === 0) { setStatus("該当する建物が見つかりませんでした。キーワードを変えてお試しください。"); return; }
+    setStatus("保存中…", true);
+    const { data: row, error: e2 } = await sb.from("purpose_maps")
+      .insert({ title: data.title || kw, keyword: kw, items })
+      .select().single();
+    if (e2) throw e2;
+    current = row;
+    render();
+    setStatus(`${items.length}件を取得しました（位置特定 ${items.filter(x => x.geocoded).length}件）`);
+  } catch (e) {
+    console.error(e);
+    setStatus("エラー：" + (e.message || e));
+  } finally {
+    $("btnSearch").disabled = false;
+  }
+}
+
+/* ---------- 保存済み ---------- */
+async function loadSaved() {
+  const { data, error } = await sb.from("purpose_maps").select("id,title,keyword,created_at,items").order("created_at", { ascending: false }).limit(50);
+  if (error) { alert("読込エラー：" + error.message); return; }
+  const ul = $("savedList"); ul.innerHTML = "";
+  if (!data.length) ul.innerHTML = '<li class="small">保存済みのMapはありません</li>';
+  for (const r of data) {
+    const li = document.createElement("li");
+    const n = (r.items || []).length, d = (r.items || []).filter(x => x.done).length;
+    li.innerHTML = `<div class="t"><b>${esc(r.title)}</b><div class="small">${esc(r.keyword)}｜${n}件（配布済${d}）｜${new Date(r.created_at).toLocaleString("ja-JP")}</div></div><button class="sub">開く</button>`;
+    li.querySelector(".t").onclick = li.querySelector("button").onclick = () => { current = r; render(); $("savedCard").classList.add("hidden"); window.scrollTo({ top: 0, behavior: "smooth" }); };
+    ul.appendChild(li);
+  }
+  $("savedCard").classList.remove("hidden");
+}
+
+async function persist() {
+  if (!current?.id) return;
+  const { error } = await sb.from("purpose_maps").update({ items: current.items, updated_at: new Date().toISOString() }).eq("id", current.id);
+  if (error) console.error(error);
+}
+
+/* ---------- 描画 ---------- */
+function ensureMap() {
+  if (map) return;
+  map = L.map("map", { scrollWheelZoom: false }).setView([35.40, 139.62], 13);
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(map);
+  layer = L.layerGroup().addTo(map);
+}
+
+function render() {
+  $("resultCard").classList.remove("hidden");
+  ensureMap();
+  const items = current.items || [];
+  $("resTitle").textContent = current.title;
+  $("resMeta").textContent = `キーワード：${current.keyword}｜作成 ${new Date(current.created_at).toLocaleString("ja-JP")}`;
+  $("stCount").textContent = items.length;
+  $("stGeo").textContent = items.filter(x => x.lat && x.lng).length;
+  $("stDone").textContent = items.filter(x => x.done).length;
+  $("stUnits").textContent = items.reduce((s, x) => s + (parseInt(String(x.units || "").replace(/[^\d]/g, ""), 10) || 0), 0).toLocaleString();
+
+  // 表
+  const tb = $("tbody"); tb.innerHTML = "";
+  items.forEach((it, i) => {
+    const tr = document.createElement("tr");
+    tr.className = (it.done ? "done " : "") + (it.lat ? "" : "nogeo");
+    tr.innerHTML = `
+      <td><input type="checkbox" ${it.done ? "checked" : ""} data-i="${i}" class="chk"></td>
+      <td>${i + 1}</td>
+      <td><span class="kind ${kindClass(it.kind)}">${esc(it.kind || "その他")}</span></td>
+      <td><b>${esc(it.name)}</b>${it.note ? `<div class="small">${esc(it.note)}</div>` : ""}${it.done && it.done_at ? `<div class="small">配布 ${new Date(it.done_at).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>` : ""}</td>
+      <td><span class="addr" contenteditable="true" data-i="${i}">${esc(it.address)}</span></td>
+      <td>${esc(it.station || "")}</td>
+      <td>${esc(it.built || "")}</td>
+      <td>${esc(it.units || "")}</td>
+      <td>${it.source_url ? `<a href="${esc(it.source_url)}" target="_blank" rel="noopener">出典</a>` : ""}</td>
+      <td style="white-space:nowrap">
+        <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((it.address || "") + " " + (it.name || ""))}" target="_blank" rel="noopener">GMap</a>
+        ・<a href="#" class="regeo" data-i="${i}">再測位</a>
+        ・<a href="#" class="del" data-i="${i}" style="color:#dc2626">削除</a>
+      </td>`;
+    tr.onclick = (ev) => {
+      if (ev.target.closest("input,a,.addr")) return;
+      if (it.lat && it.lng) { map.setView([it.lat, it.lng], 17); markers[i]?.openPopup(); }
+    };
+    tb.appendChild(tr);
+  });
+  tb.querySelectorAll(".chk").forEach(c => c.onchange = async (e) => { items[+e.target.dataset.i].done = e.target.checked; await persist(); render(); });
+  tb.querySelectorAll(".addr").forEach(a => a.onblur = async (e) => { const v = e.target.textContent.trim(); const it = items[+e.target.dataset.i]; if (v !== it.address) { it.address = v; await persist(); } });
+  tb.querySelectorAll(".regeo").forEach(a => a.onclick = async (e) => { e.preventDefault(); await regeocode(+e.target.dataset.i); });
+  tb.querySelectorAll(".del").forEach(a => a.onclick = async (e) => { e.preventDefault(); const i = +e.target.dataset.i; if (!confirm(`「${items[i].name}」を削除しますか？`)) return; items.splice(i, 1); await persist(); render(); });
+
+  // 地図
+  layer.clearLayers(); markers = [];
+  const pts = [];
+  items.forEach((it, i) => {
+    if (!(it.lat && it.lng)) { markers[i] = null; return; }
+    const color = it.done ? "#16a34a" : (KIND_COLOR[it.kind] || "#6b7280");
+    const m = L.circleMarker([it.lat, it.lng], { radius: 9, color: "#fff", weight: 2, fillColor: color, fillOpacity: .95 });
+    m.bindTooltip(String(i + 1), { permanent: true, direction: "center", className: "numlbl" });
+    m.bindPopup(`<b>${esc(it.name)}</b><br>${esc(it.address)}<br>${esc(it.kind || "")} ${esc(it.station || "")}${it.units ? "／" + esc(it.units) + "戸" : ""}<br>
+      <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((it.address || "") + " " + (it.name || ""))}" target="_blank" rel="noopener">Googleマップで開く</a>`);
+    m.addTo(layer); markers[i] = m; pts.push([it.lat, it.lng]);
+  });
+  if (pts.length) map.fitBounds(pts, { padding: [30, 30], maxZoom: 16 });
+  setTimeout(() => map.invalidateSize(), 50);
+}
+
+/* ---------- 再測位（国土地理院API、ブラウザから直接） ---------- */
+async function geocodeBrowser(address) {
+  const q = address.replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xfee0)).replace(/　/g, " ").trim();
+  const cands = [...new Set([q, q.replace(/\s.*$/, ""), (q.match(/^(.*?\d+丁目)/) || [])[1]].filter(Boolean))];
+  for (const c of cands) {
+    try {
+      const r = await fetch("https://msearch.gsi.go.jp/address-search/AddressSearch?q=" + encodeURIComponent(c));
+      const arr = await r.json();
+      if (arr?.[0]?.geometry?.coordinates) { const [lng, lat] = arr[0].geometry.coordinates; return { lat, lng }; }
+    } catch (_) {}
+  }
+  return null;
+}
+async function regeocode(i) {
+  const it = current.items[i];
+  setStatus(`「${it.name}」を再測位中…`, true);
+  const hit = await geocodeBrowser(it.address || "");
+  if (hit) { it.lat = hit.lat; it.lng = hit.lng; it.geocoded = true; setStatus("位置を更新しました"); }
+  else setStatus("位置を特定できませんでした。住所を町名・丁目まで入力してください。");
+  await persist(); render();
+}
+
+/* ---------- 手入力追加 ---------- */
+async function addManual() {
+  const name = prompt("建物名"); if (!name) return;
+  const address = prompt("住所（例：神奈川県横浜市磯子区森1丁目）", "神奈川県横浜市磯子区"); if (!address) return;
+  const kind = prompt("区分（分譲／賃貸マンション／賃貸アパート／その他）", "分譲") || "その他";
+  const it = { name, address, kind, station: "", built: "", units: "", note: "手入力", source_url: "", done: false, lat: null, lng: null, geocoded: false };
+  current.items.push(it);
+  await regeocode(current.items.length - 1);
+}
+
+/* ---------- CSV / Googleマップ ---------- */
+function downloadCsv() {
+  const rows = [["名前", "住所", "区分", "最寄駅", "築年", "総戸数", "配布済", "説明", "緯度", "経度"]];
+  for (const it of current.items) rows.push([it.name, it.address, it.kind || "", it.station || "", it.built || "", it.units || "", it.done ? "済" : "", it.note || "", it.lat ?? "", it.lng ?? ""]);
+  const csv = rows.map(r => r.map(v => `"${String(v ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `${current.title}_マイマップ用.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function openGoogleMaps() {
+  const pts = current.items.filter(x => x.lat && x.lng);
+  if (!pts.length) { alert("位置が特定できた建物がありません"); return; }
+  // Googleマップは複数ピンの直接指定ができないため、中心へ移動＋CSV案内
+  const lat = pts.reduce((s, x) => s + x.lat, 0) / pts.length, lng = pts.reduce((s, x) => s + x.lng, 0) / pts.length;
+  window.open(`https://www.google.com/maps/@${lat},${lng},15z`, "_blank");
+  alert("全件をGoogleマップに重ねるには、「マイマップ用CSV」をダウンロードし、Googleマイマップ（mymaps.google.com）→新しい地図→インポートで取り込んでください。位置の列＝住所（または緯度・経度）、タイトル＝名前を指定します。");
+}
+
+async function deleteCurrent() {
+  if (!current?.id) return;
+  if (!confirm(`「${current.title}」を削除しますか？`)) return;
+  const { error } = await sb.from("purpose_maps").delete().eq("id", current.id);
+  if (error) { alert("削除エラー：" + error.message); return; }
+  current = null; $("resultCard").classList.add("hidden"); setStatus("削除しました");
+}
+
+/* ---------- イベント ---------- */
+$("btnSearch").onclick = search;
+$("keyword").addEventListener("keydown", e => { if (e.key === "Enter") search(); });
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => { $("keyword").value = c.textContent; });
+$("btnSaved").onclick = loadSaved;
+$("btnCloseSaved").onclick = () => $("savedCard").classList.add("hidden");
+$("btnCsv").onclick = downloadCsv;
+$("btnGmap").onclick = openGoogleMaps;
+$("btnAdd").onclick = addManual;
+$("btnDelete").onclick = deleteCurrent;
+$("btnRoute").onclick = () => {
+  if (!current?.id) return;
+  const left = (current.items || []).filter(x => x.lat && x.lng && !x.done).length;
+  if (!left) { alert("位置が特定できた未配布の建物がありません。配布済チェックを外すか、住所を修正して再測位してください。"); return; }
+  if (!confirm(`「${current.title}」の未配布 ${left}件を配布ルートとしてビラ配布記録を開きます。\n（ビラ配布記録の画面で「配布を開始」を押すと案内が始まります）`)) return;
+  location.href = `flyer.html?route=${encodeURIComponent(current.id)}`;
+};
+
+// 番号ラベルのスタイル
+const st = document.createElement("style");
+st.textContent = ".numlbl{background:transparent;border:none;box-shadow:none;color:#fff;font-weight:700;font-size:10px;padding:0}.numlbl::before{display:none}";
+document.head.appendChild(st);
+</script>
+</body>
+</html>

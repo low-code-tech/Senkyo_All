@@ -56,6 +56,12 @@
 </style>
 </head>
 <body>
+<div id="gate" style="position:fixed;inset:0;z-index:1400;background:#1F3864;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px;">
+  <h1 style="color:#fff;font-size:18px;letter-spacing:.1em;margin:0;">目的別Map作成</h1>
+  <input id="gateInput" type="password" placeholder="パスコード" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" style="font-size:20px;padding:12px;border-radius:8px;border:none;text-align:center;width:220px;letter-spacing:.2em;">
+  <button onclick="checkGate()" style="background:#fff;color:#1F3864;">開く</button>
+  <div id="gateMsg" style="color:#FFC7C2;font-size:13px;min-height:1.2em;"></div>
+</div>
 <header>
   <a href="index.html">◀ メニュー</a>
   <h1>目的別Map作成</h1>
@@ -126,11 +132,45 @@
    ============================================================ */
 const SUPABASE_URL = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const PASSCODE = "sano2026";          // 他の画面と共通（Secrets の EVENTS_STAFF_KEY と同じ）
 const FUNCTION_NAME = "purpose-map";
 /* ============================================================ */
 
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 const $ = (id) => document.getElementById(id);
+
+/* ---------- パスコード（他画面と共通の localStorage キー） ---------- */
+function checkGate() {
+  if ($("gateInput").value === PASSCODE) { localStorage.setItem("poster_gate", "ok"); $("gate").style.display = "none"; }
+  else $("gateMsg").textContent = "パスコードが違います";
+}
+$("gateInput").addEventListener("keydown", e => { if (e.key === "Enter") checkGate(); });
+if (!PASSCODE || localStorage.getItem("poster_gate") === "ok") $("gate").style.display = "none";
+
+/* Edge Function 呼び出し：エラー本文が見えるよう fetch で直接呼ぶ */
+async function callFunction(body) {
+  const ctl = new AbortController(); const tm = setTimeout(() => ctl.abort(), 170000);
+  let r;
+  try {
+    r = await fetch(`${SUPABASE_URL}/functions/v1/${FUNCTION_NAME}`, {
+      method: "POST", signal: ctl.signal,
+      headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY, "x-staff-key": PASSCODE },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw new Error(e.name === "AbortError" ? "タイムアウト（170秒）。キーワードを狭めて再試行してください" : "通信エラー：" + e.message);
+  } finally { clearTimeout(tm); }
+  const text = await r.text();
+  let data = null; try { data = JSON.parse(text); } catch (_) {}
+  if (!r.ok) {
+    const msg = (data && (data.error || data.message || data.msg)) || text.slice(0, 300) || "(本文なし)";
+    const hint = r.status === 401 ? "　→ Edge Functionの設定で「Verify JWT」をOFFにしてください" :
+                 r.status === 404 ? "　→ 関数名 purpose-map でデプロイされているか確認してください" :
+                 r.status === 546 ? "　→ 関数の実行時間超過です。キーワードを狭めてください" : "";
+    throw new Error(`HTTP ${r.status}: ${msg}${hint}`);
+  }
+  return data;
+}
 
 let current = null;        // {id,title,keyword,items,created_at}
 let map = null, layer = null, markers = [];
@@ -150,8 +190,7 @@ async function search() {
   $("btnSearch").disabled = true;
   setStatus("AIが公開情報を検索中…（1〜2分）", true);
   try {
-    const { data, error } = await sb.functions.invoke(FUNCTION_NAME, { body: { keyword: kw, max: 80 } });
-    if (error) throw new Error(error.message || String(error));
+    const data = await callFunction({ keyword: kw, max: 80 });
     if (data?.error) throw new Error(data.error);
     const items = (data.items || []).map((it, i) => ({ ...it, no: i + 1, done: false }));
     if (items.length === 0) { setStatus("該当する建物が見つかりませんでした。キーワードを変えてお試しください。"); return; }
@@ -162,7 +201,8 @@ async function search() {
     if (e2) throw e2;
     current = row;
     render();
-    setStatus(`${items.length}件を取得しました（位置特定 ${items.filter(x => x.geocoded).length}件）`);
+    setStatus(`${items.length}件を取得しました（位置特定 ${items.filter(x => x.geocoded).length}件）`
+      + (data.truncated ? "　※AIの出力上限に達したため、途中までの件数です。キーワードを絞って（例：賃貸／分譲を分ける）再検索すると残りが取れます" : ""));
   } catch (e) {
     console.error(e);
     setStatus("エラー：" + (e.message || e));

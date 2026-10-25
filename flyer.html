@@ -106,6 +106,27 @@
   .warn{font-size:12px; color:var(--red); margin:0 2px 6px; display:none;}
   .warn.show{display:block;}
 
+  /* ===== 配布ルート（目的別Map） ===== */
+  .route{background:#FFF8E6; border:1px solid #F0D9A0; border-radius:12px; padding:9px 12px; margin-bottom:8px;}
+  .rt-head{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--sub);}
+  .rt-title{font-weight:700; color:#8A5A00; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .rt-prog{font-weight:700; font-variant-numeric:tabular-nums;}
+  .rt-next{font-size:15px; font-weight:700; color:var(--navy); margin:4px 0 6px; line-height:1.4;}
+  .rt-next small{display:block; font-size:12px; font-weight:400; color:var(--sub);}
+  .rt-actions{display:flex; gap:6px;}
+  .rt-actions .btn{flex:1; padding:8px 4px; font-size:12.5px; white-space:nowrap;}
+  .tgt{width:24px; height:24px; border-radius:50%; background:#8A5A00; color:#fff; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.4);}
+  .tgt.done{background:var(--green);}
+  .tgt.next{background:#D93025; transform:scale(1.25);}
+  .rl{display:flex; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); font-size:13px;}
+  .rl .no{width:24px; height:24px; border-radius:50%; background:#8A5A00; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex:none;}
+  .rl.done .no{background:var(--green);}
+  .rl.done .nm{color:var(--sub); text-decoration:line-through;}
+  .rl .nm{flex:1; min-width:0;}
+  .rl .nm small{display:block; color:var(--sub); font-size:11.5px;}
+  .rl .btn{padding:6px 10px; font-size:12px; flex:none;}
+
   /* ===== 履歴 ===== */
   .chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;}
   .chip{
@@ -215,6 +236,9 @@
       <select id="selPam"><option value="">読み込み中…</option></select>
       <label class="lbl" for="staff">担当者</label>
       <input type="text" id="staff" placeholder="例：佐藤（次回から自動で入ります）">
+      <label class="lbl" for="selRoute">配布ルート（目的別Map）<span style="font-weight:400;color:var(--sub)">　任意</span></label>
+      <select id="selRoute"><option value="">使わない（自由に歩く）</option></select>
+      <div class="note" id="routeNote" style="margin-top:4px;"></div>
       <div class="gps-line"><span class="gps-dot" id="gpsDot"></span><span id="gpsText">位置情報を確認中…</span></div>
       <button class="btn go" id="btnStart" onclick="startRec()">配布を開始</button>
       <p class="note">
@@ -238,6 +262,16 @@
       <div class="addr" id="hereAddr"></div>
     </div>
     <div class="warn" id="recWarn"></div>
+    <div class="route" id="routePanel" style="display:none;">
+      <div class="rt-head"><span class="rt-title" id="rtTitle"></span><span class="rt-prog" id="rtProg"></span></div>
+      <div class="rt-next" id="rtNext"></div>
+      <div class="rt-actions">
+        <button class="btn sub" onclick="markNext(true)">配布済にする</button>
+        <button class="btn sub" onclick="skipNext()">後回し</button>
+        <button class="btn sub" id="rtUndo" onclick="undoLast()" style="display:none;">戻す</button>
+        <button class="btn sub" onclick="openRouteList()">一覧</button>
+      </div>
+    </div>
     <div id="recMap"></div>
     <div class="rec-actions">
       <button class="btn sub" onclick="recordPoint(true)">今の地点を記録</button>
@@ -318,6 +352,16 @@
   </div>
 </div>
 
+<!-- ===== 配布ルート一覧モーダル ===== -->
+<div class="modal" id="mRoute">
+  <div class="box">
+    <h2>配布ルートの建物 <button class="x" onclick="closeModal('mRoute')" aria-label="閉じる">&#10005;</button></h2>
+    <div class="sum" id="routeSum"></div>
+    <div id="routeList"></div>
+    <div class="m-actions"><button class="btn sub" onclick="closeModal('mRoute')">閉じる</button></div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -336,6 +380,7 @@ const MAX_ACC_M         = 100;    // これより精度が悪い位置は自動�
 const OLD_DAYS          = 30;     // 町別集計で赤字にする経過日数
 const AUTO_DARK_SEC     = 90;     // 記録中に何も触らないと自動で省電力（黒画面）にする秒数（0で自動にしない）
 const ECO_GPS           = true;   // 省電力中はGPSを常時監視せず約1分に1回だけ取得する（falseで常時監視のまま）
+const ARRIVE_M          = 30;     // 目的別Mapの建物にこの距離まで近づいたら自動で「配布済」にする（0で自動判定しない）
 /* ================================================================ */
 
 const $ = id => document.getElementById(id);
@@ -427,6 +472,145 @@ function pamColor(id){
 }
 
 /* ================================================================
+   配布ルート（目的別Map：purpose_maps を利用）
+   - 開始前：ルートを選ぶ（purpose_map.html の「配布ルートに取り込む」から ?route=ID で開くと自動選択）
+   - 記録中：未配布の建物のうち現在地に近いものを「次」に表示。ARRIVE_M 以内に入ると自動で配布済
+   - 配布済は purpose_maps.items[].done に書き戻すので、目的別Map側の表示と同期する
+================================================================ */
+let routes=[];                 // 一覧（id,title,keyword,items）
+let route=null;                // 記録中のルート {id,title,items:[{i,name,address,kind,lat,lng,done,...}]}
+let routeLayer=null, routeNextIdx=null, routeLastDone=null, routeSkipped=new Set();
+async function loadRoutes(){
+  try{
+    routes = await api(`/rest/v1/purpose_maps?select=id,title,keyword,items,created_at&order=created_at.desc&limit=100`) || [];
+  }catch(e){ routes=[]; }
+  const q = new URLSearchParams(location.search).get("route");
+  const sel=$("selRoute");
+  sel.innerHTML = `<option value="">使わない（自由に歩く）</option>` + routes.map(r=>{
+    const items=(r.items||[]).filter(x=>x.lat&&x.lng), left=items.filter(x=>!x.done).length;
+    return `<option value="${esc(r.id)}"${q===r.id?" selected":""}>${esc(r.title)}（未配布 ${left}／${items.length}件）</option>`;
+  }).join("");
+  if(q && !routes.some(r=>r.id===q)) toast("指定されたMapが見つかりませんでした", true);
+  routeNoteUpdate();
+}
+function routeNoteUpdate(){
+  const r=routes.find(x=>x.id===$("selRoute").value);
+  if(!r){ $("routeNote").textContent=""; return; }
+  const items=(r.items||[]).filter(x=>x.lat&&x.lng), left=items.filter(x=>!x.done);
+  const kinds={}; left.forEach(x=>{ kinds[x.kind||"その他"]=(kinds[x.kind||"その他"]||0)+1; });
+  $("routeNote").innerHTML = `「${esc(r.keyword)}」で作成したMapの建物を目標として地図に表示し、現在地に近い順に案内します。`
+    + (left.length ? `<br>未配布：${Object.entries(kinds).map(([k,n])=>`${esc(k)} ${n}件`).join("・")}` : `<br><b>すべて配布済です</b>（目的別Mapでチェックを外すと再び対象になります）`);
+}
+function routeFromRow(r){
+  return { id:r.id, title:r.title,
+    items:(r.items||[]).map((x,i)=>({...x, i})).filter(x=>x.lat&&x.lng) };
+}
+function routePending(){ return route ? route.items.filter(x=>!x.done) : []; }
+function routeIcon(no, cls){ return L.divIcon({className:"", html:`<div class="tgt ${cls}">${no}</div>`, iconSize:[24,24], iconAnchor:[12,12]}); }
+
+/* 次の目標：現在地に最も近い未配布（後回しにしたものは残りがそれだけになるまで除外） */
+function pickNext(){
+  if(!route) { routeNextIdx=null; return; }
+  let cands=routePending().filter(x=>!routeSkipped.has(x.i));
+  if(!cands.length){ routeSkipped.clear(); cands=routePending(); }
+  if(!cands.length){ routeNextIdx=null; return; }
+  if(lastFix){
+    cands.sort((a,b)=>dist(lastFix.lat,lastFix.lng,a.lat,a.lng)-dist(lastFix.lat,lastFix.lng,b.lat,b.lng));
+  }
+  routeNextIdx=cands[0].i;
+}
+function renderRoute(){
+  const panel=$("routePanel");
+  if(!route){ panel.style.display="none"; return; }
+  panel.style.display="block";
+  const all=route.items, left=routePending();
+  $("rtTitle").textContent=route.title;
+  $("rtProg").textContent=`${all.length-left.length}／${all.length} 済`;
+  const nx=all.find(x=>x.i===routeNextIdx);
+  if(!nx){ $("rtNext").innerHTML=`この配布ルートの建物はすべて配布済です 🎉`; }
+  else{
+    const d = lastFix ? Math.round(dist(lastFix.lat,lastFix.lng,nx.lat,nx.lng)) : null;
+    $("rtNext").innerHTML = `次：<span style="color:#D93025">${nx.i+1}</span> ${esc(nx.name)}<small>${esc(nx.address||"")}${nx.units?`／${esc(nx.units)}戸`:""}${d!=null?`／あと約${fmtKm(d)}`:""}</small>`;
+  }
+  $("rtUndo").style.display = routeLastDone!=null ? "" : "none";
+  drawRoute();
+}
+function drawRoute(){
+  if(!recMap || dark) return;
+  if(!routeLayer) routeLayer=L.layerGroup().addTo(recMap);
+  routeLayer.clearLayers();
+  if(!route) return;
+  route.items.forEach(x=>{
+    const cls = x.done ? "done" : (x.i===routeNextIdx ? "next" : "");
+    L.marker([x.lat,x.lng],{icon:routeIcon(x.i+1,cls), zIndexOffset: x.i===routeNextIdx?1000:0})
+      .bindPopup(`<b>${x.i+1}. ${esc(x.name)}</b><br>${esc(x.address||"")}<br>${x.done?"配布済":`<a href="#" onclick="markItem(${x.i},true);return false;">配布済にする</a>`}`)
+      .addTo(routeLayer);
+  });
+}
+/* ARRIVE_M 以内に入ったら自動で配布済（省電力中も動く） */
+function checkArrive(){
+  if(!route || !lastFix || !ARRIVE_M || lastFix.acc > MAX_ACC_M) return;
+  const hit = routePending().find(x=>dist(lastFix.lat,lastFix.lng,x.lat,x.lng) <= ARRIVE_M);
+  if(hit) markItem(hit.i, false);
+}
+async function markItem(i, manual){
+  if(!route) return;
+  const x=route.items.find(y=>y.i===i); if(!x || x.done) return;
+  x.done=true; x.done_at=new Date().toISOString(); x.done_log_id=active?active.logId:null;
+  routeLastDone=i; routeSkipped.delete(i);
+  pickNext(); renderRoute(); updateClock();
+  toast(`${manual?"配布済：":"到着：" }${x.name}`);
+  await saveRouteItem(x);
+}
+function markNext(manual){ if(routeNextIdx!=null) markItem(routeNextIdx, manual); }
+function skipNext(){ if(routeNextIdx==null) return; routeSkipped.add(routeNextIdx); pickNext(); renderRoute(); }
+async function undoLast(){
+  if(!route || routeLastDone==null) return;
+  const x=route.items.find(y=>y.i===routeLastDone); if(!x) return;
+  x.done=false; delete x.done_at; delete x.done_log_id;
+  routeLastDone=null; routeSkipped.add(x.i);         // 取り消した直後にまた自動で済にならないよう後回し扱い
+  pickNext(); renderRoute(); updateClock();
+  toast(`「${x.name}」を未配布に戻しました`);
+  await saveRouteItem(x);
+}
+/* purpose_maps.items の該当1件だけ更新（最新を読み直してから書く） */
+async function saveRouteItem(x){
+  if(!route) return;
+  try{
+    const rows=await api(`/rest/v1/purpose_maps?select=items&id=eq.${route.id}`);
+    const items=(rows&&rows[0]&&rows[0].items)||[];
+    if(items[x.i]){
+      items[x.i].done=!!x.done;
+      if(x.done){ items[x.i].done_at=x.done_at; items[x.i].done_log_id=x.done_log_id; }
+      else { delete items[x.i].done_at; delete items[x.i].done_log_id; }
+      await api(`/rest/v1/purpose_maps?id=eq.${route.id}`, {method:"PATCH", headers:JSONH, body:JSON.stringify({items, updated_at:new Date().toISOString()})});
+    }
+    if(active){ active.routeDone=route.items.filter(y=>y.done&&y.done_log_id===active.logId).length; saveActive(); }
+  }catch(e){ toast("配布済の保存に失敗しました（通信状況をご確認ください）", true); }
+}
+function openRouteList(){
+  if(!route) return;
+  const left=routePending().length;
+  $("routeSum").innerHTML=`<b>${esc(route.title)}</b><br>${route.items.length}件中 ${route.items.length-left}件 配布済／残り ${left}件`;
+  const sorted=[...route.items].sort((a,b)=>(a.done?1:0)-(b.done?1:0) || (lastFix? dist(lastFix.lat,lastFix.lng,a.lat,a.lng)-dist(lastFix.lat,lastFix.lng,b.lat,b.lng) : a.i-b.i));
+  $("routeList").innerHTML=sorted.map(x=>`<div class="rl${x.done?" done":""}">
+      <span class="no">${x.i+1}</span>
+      <span class="nm">${esc(x.name)}<small>${esc(x.kind||"")}　${esc(x.address||"")}${lastFix?`　約${fmtKm(dist(lastFix.lat,lastFix.lng,x.lat,x.lng))}`:""}</small></span>
+      ${x.done?`<button class="btn sub" onclick="routeLastDone=${x.i};undoLast();openRouteList();">戻す</button>`
+              :`<button class="btn sub" onclick="markItem(${x.i},true);openRouteList();">済</button>`}
+    </div>`).join("");
+  $("mRoute").classList.add("show");
+}
+/* 再開時にルートをサーバーから読み直す */
+async function restoreRoute(){
+  if(!active || !active.routeId) return;
+  try{
+    const rows=await api(`/rest/v1/purpose_maps?select=id,title,keyword,items&id=eq.${active.routeId}`);
+    if(rows&&rows[0]){ route=routeFromRow(rows[0]); pickNext(); renderRoute(); }
+  }catch(e){ /* 取れなければルートなしで続行 */ }
+}
+
+/* ================================================================
    位置情報
 ================================================================ */
 let lastFix=null, watchId=null;
@@ -438,7 +622,7 @@ function startWatch(){
       lastFix={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy, t:Date.now()};
       $("gpsDot").classList.add("ok");
       $("gpsText").textContent=`位置情報 取得済（精度 約${Math.round(p.coords.accuracy)}m）`;
-      if(active) updateMe();
+      if(active){ updateMe(); checkArrive(); }
     },
     e=>{
       $("gpsDot").classList.remove("ok");
@@ -475,6 +659,7 @@ function ecoFix(retry){
       ecoFails=0;
       /* 久しぶりのGPSは最初の測位が粗いことがあるので、精度が悪ければ数秒おいてもう一度だけ試す */
       if(p.coords.accuracy > MAX_ACC_M && retry < 1){ setTimeout(()=>ecoFix(retry+1), 6000); return; }
+      checkArrive();
       recordPoint(false);
     },
     e=>{
@@ -522,7 +707,8 @@ function updateDark(){
   if(!dark || !active) return;
   $("darkTime").textContent=$("recTime").textContent;
   $("darkTown").textContent=$("hereTown").textContent;
-  $("darkStat").textContent=$("recStat").textContent;
+  const nx = route ? route.items.find(x=>x.i===routeNextIdx) : null;
+  $("darkStat").textContent=$("recStat").textContent + (nx ? `　｜　次：${nx.i+1} ${nx.name}` : "");
   $("darkWarn").textContent=$("recWarn").textContent;
 }
 /* しばらく触らなければ自動で省電力にする */
@@ -566,17 +752,23 @@ async function startRec(){
   if(!pid){ toast("配るビラを選んでください", true); return; }
   const staff = $("staff").value.trim();
   const p = pams.find(x=>x.id===pid);
+  const rr = routes.find(x=>x.id===$("selRoute").value) || null;
   const btn=$("btnStart"); btn.disabled=true; btn.textContent="開始しています…";
   try{
     const rows = await api(`/rest/v1/flyer_logs`, {method:"POST", headers:JSONR, body:JSON.stringify({
-      started_at:new Date().toISOString(), staff:staff||null, pamphlet_id:pid, pamphlet_name:p?p.name:null, status:"recording"
+      started_at:new Date().toISOString(), staff:staff||null, pamphlet_id:pid, pamphlet_name:p?p.name:null, status:"recording",
+      purpose_map_id: rr ? rr.id : null
     })});
     const log = rows[0];
     localStorage.setItem("flyer_staff", staff);
     localStorage.setItem("flyer_last_pam", String(pid));
     active = { logId:log.id, startedAt:log.started_at, pid, pname:p?p.name:"", staff,
-               lastPt:null, lastPtAt:0, lastGeo:null, geoCalls:0, distance:0 };
+               lastPt:null, lastPtAt:0, lastGeo:null, geoCalls:0, distance:0,
+               routeId: rr ? rr.id : null, routeTitle: rr ? rr.title : "", routeDone:0 };
     points = [];
+    route = rr ? routeFromRow(rr) : null;
+    routeNextIdx=null; routeLastDone=null; routeSkipped=new Set();
+    pickNext(); renderRoute();
     saveActive();
     beginTracking();
     showView("rec");
@@ -609,7 +801,8 @@ function beginTracking(){
 function updateClock(){
   if(!active) return;
   $("recTime").textContent = fmtDur(Date.now() - new Date(active.startedAt).getTime());
-  $("recStat").textContent = `${active.pname||"ビラ"}／記録 ${points.length}地点／約${fmtKm(active.distance)}`;
+  $("recStat").textContent = `${active.pname||"ビラ"}／記録 ${points.length}地点／約${fmtKm(active.distance)}`
+    + (route ? `／建物 ${route.items.length-routePending().length}／${route.items.length}` : "");
   updateDark();
 }
 function showWarn(msg){ const w=$("recWarn"); w.textContent=msg||""; w.classList.toggle("show", !!msg); }
@@ -653,6 +846,7 @@ async function recordPoint(manual){
     $("hereTown").textContent = town || "（町名を取得できませんでした）";
     $("hereAddr").textContent = address && address!==town ? address : "";
     drawRec();
+    if(route){ pickNext(); renderRoute(); }
     updateClock();
   }finally{ recording=false; }
 }
@@ -699,6 +893,7 @@ async function openStop(){
   $("stopSum").innerHTML = `
     <b>${esc(active.pname||"ビラ")}</b>　${fmtT(active.startedAt)}〜（${fmtDur(Date.now()-new Date(active.startedAt).getTime())}）<br>
     記録 ${points.length}地点／約${fmtKm(active.distance)}<br>
+    ${route? `配布ルート「${esc(route.title)}」：今回 ${route.items.filter(x=>x.done&&x.done_log_id===active.logId).length}件配布／残り ${routePending().length}件<br>`:""}
     ${towns.length? `<div class="towns">${towns.map(t=>`<span>${esc(t)}</span>`).join("")}</div>`:""}`;
   $("mStop").classList.add("show");
 }
@@ -724,7 +919,8 @@ async function finishRec(){
     const body={
       ended_at:ended.toISOString(), minutes, distance_m:Math.round(active.distance),
       items:[{pamphlet_id:active.pid, name:active.pname, count}], total_count:count,
-      towns, memo:$("memo").value.trim()||null, status:"done"
+      towns, memo:$("memo").value.trim()||null, status:"done",
+      route_done: route ? route.items.filter(x=>x.done&&x.done_log_id===active.logId).length : 0
     };
     await api(`/rest/v1/flyer_logs?id=eq.${active.logId}`, {method:"PATCH", headers:JSONH, body:JSON.stringify(body)});
     endTracking();
@@ -760,7 +956,11 @@ function endTracking(){
   startWatch();                       // 開始前画面の位置情報表示のため常時監視に戻す
   releaseAwake();
   active=null; points=[]; saveActive();
+  route=null; routeNextIdx=null; routeLastDone=null; routeSkipped=new Set();
+  if(routeLayer) routeLayer.clearLayers();
+  $("routePanel").style.display="none";
   if(recLine){ recLine.setLatLngs([]); recDots.clearLayers(); }
+  loadRoutes();                       // 未配布件数を最新にする
 }
 
 /* 記録中の地点をサーバー＋端末の未送信分から読み直す（通信できなければ後で再試行） */
@@ -788,6 +988,7 @@ async function resumeIfActive(){
   if(!a) return;
   active=a;
   await reloadActivePoints();
+  await restoreRoute();
   const last=points[points.length-1];
   if(last){ $("hereTown").textContent=last.town||"—"; $("hereAddr").textContent=last.address&&last.address!==last.town?last.address:""; }
   beginTracking();
@@ -823,6 +1024,7 @@ function drawRec(){
       .bindPopup(`${fmtT(p.ts)}<br>${esc(p.address||p.town||"")}`).addTo(recDots);
   });
   updateMe();
+  drawRoute();
 }
 function updateMe(){
   if(!recMap || !lastFix || dark) return;
@@ -926,6 +1128,7 @@ function addLocateControl(m){
 }
 
 function ptsOf(id){ return histPts.filter(p=>p.log_id===id); }
+function routeTitle(id){ const r=routes.find(x=>x.id===id); return r ? r.title : "目的別Map"; }
 
 function renderHist(){
   const n=histLogs.length, total=histLogs.reduce((a,l)=>a+(l.total_count||0),0);
@@ -941,7 +1144,7 @@ function renderHist(){
         ${live?'<span class="badge">記録中</span>':`<span class="n">${(l.total_count||0).toLocaleString()}枚</span>`}
       </div>
       <div class="t3">
-        <div class="t2">${esc(l.staff||"担当者未入力")}${l.minutes?`／${l.minutes}分`:""}${l.distance_m?`／約${fmtKm(l.distance_m)}`:""}<br>
+        <div class="t2">${esc(l.staff||"担当者未入力")}${l.minutes?`／${l.minutes}分`:""}${l.distance_m?`／約${fmtKm(l.distance_m)}`:""}${l.purpose_map_id?`／🏢 ${esc(routeTitle(l.purpose_map_id))} ${l.route_done||0}件`:""}<br>
           ${esc(towns.slice(0,6).join("、"))}${towns.length>6?` ほか${towns.length-6}町`:""}</div>
         <button class="btn sub dbtn" onclick="event.stopPropagation(); openLog(${l.id})">詳細</button>
       </div>
@@ -987,6 +1190,7 @@ function openLog(id){
       <b>${fmtD(l.started_at)} ${fmtT(l.started_at)}${l.ended_at?"〜"+fmtT(l.ended_at):""}</b><br>
       ビラ：<b>${esc(l.pamphlet_name||"")}</b>　枚数：<b>${(l.total_count||0).toLocaleString()}枚</b><br>
       担当：${esc(l.staff||"未入力")}${l.minutes?`／${l.minutes}分`:""}${l.distance_m?`／約${fmtKm(l.distance_m)}`:""}／${pts.length}地点
+      ${l.purpose_map_id?`<br>配布ルート：<b>${esc(routeTitle(l.purpose_map_id))}</b>　建物 ${l.route_done||0}件配布`:""}
       ${l.memo?`<br>メモ：${esc(l.memo)}`:""}
       ${l.status==="recording"?`<br><span style="color:var(--red);font-weight:700;">この記録は終了処理がされていません（記録中または途中で閉じられた可能性があります）</span>`:""}
     </div>
@@ -1051,11 +1255,12 @@ function downloadCsv(name, head, body){
 }
 function csvLogs(){
   if(!histLogs.length){ toast("出力する記録がありません", true); return; }
-  downloadCsv("flyer", ["日付","曜日","開始","終了","時間(分)","担当者","ビラ","枚数","距離(m)","通った町","メモ"],
+  downloadCsv("flyer", ["日付","曜日","開始","終了","時間(分)","担当者","ビラ","枚数","距離(m)","通った町","配布ルート","建物件数","メモ"],
     [...histLogs].reverse().map(l=>{ const d=new Date(l.started_at);
       return [`${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())}`, WD[d.getDay()], fmtT(l.started_at),
         l.ended_at?fmtT(l.ended_at):"", l.minutes??"", l.staff||"", l.pamphlet_name||"", l.total_count||0,
-        l.distance_m??"", ((l.towns&&l.towns.length)?l.towns:uniqTowns(ptsOf(l.id))).join("、"), l.memo||""]; }));
+        l.distance_m??"", ((l.towns&&l.towns.length)?l.towns:uniqTowns(ptsOf(l.id))).join("、"),
+        l.purpose_map_id?routeTitle(l.purpose_map_id):"", l.purpose_map_id?(l.route_done||0):"", l.memo||""]; }));
 }
 function csvTowns(){
   const rows=townStats();
@@ -1093,6 +1298,8 @@ async function boot(){
   $("staff").value = localStorage.getItem("flyer_staff")||"";
   startWatch();
   await loadPams();
+  await loadRoutes();
+  $("selRoute").addEventListener("change", routeNoteUpdate);
   await resumeIfActive();
   flushPending();
 }

@@ -203,9 +203,20 @@
   .day.sel{background:#E3EDFF;}
   .day .n{font-size:11px; color:var(--sub); line-height:1.2;} .day.su .n{color:var(--red);} .day.sa .n{color:var(--navy2);}
   .ev{font-size:9.5px; line-height:1.25; border-radius:3px; padding:1px 2px; white-space:normal; word-break:break-all; overflow:hidden; max-height:2.5em;}
-  .ev.plan{background:#fff; border:1px solid var(--navy2); color:var(--navy);}
-  .ev.done{background:#DDF1E5; color:#1E5C3A;}
+  /* 朝＝だいだい色、夕＝むらさき。予定は白地に枠線、実施済は塗りつぶし */
+  .ev.am{background:#FFF1D6; color:#7A5A0E; border:1px solid #FFF1D6;} .ev.pm{background:#E9E3FF; color:#3B2E7A; border:1px solid #E9E3FF;}
+  .ev.plan{background:#fff;} .ev.plan.am{border:1px dashed #D9A21B;} .ev.plan.pm{border:1px dashed #6E55C8;}
   .ev.skip{background:#EDEDED; color:#777;}
+  .ev.evt{background:#E3EDFF; color:var(--navy);}
+  .pl.am{border-left:5px solid #D9A21B;} .pl.pm{border-left:5px solid #6E55C8;}
+  .pl.evt{background:#F4F8FF; border-color:#9DB8E8;} .pl.evt .pn{font-size:15px;}
+  .ptype{display:grid; grid-template-columns:1fr 1fr 1fr; gap:5px; margin-bottom:8px;}
+  .ptype .stn{font-size:12px; padding:9px 2px; white-space:normal; line-height:1.3;}
+  .ptype .stn.sel.sk{background:#EDEDED; border-color:#999; box-shadow:inset 0 0 0 1px #999; color:#555;}
+  .slot{display:grid; grid-template-columns:1fr 1fr; gap:5px; margin:8px 0 4px;}
+  .slot .stn.am.sel{background:#FFF1D6; border-color:#D9A21B; box-shadow:inset 0 0 0 1px #D9A21B; color:#7A5A0E;}
+  .slot .stn.pm.sel{background:#E9E3FF; border-color:#6E55C8; box-shadow:inset 0 0 0 1px #6E55C8; color:#3B2E7A;}
+  #pdfStage{position:absolute; left:-20000px; top:0; width:1123px; background:#fff;}
   .legend{display:flex; gap:10px; font-size:11px; color:var(--sub); margin:6px 2px 0; flex-wrap:wrap;}
   .legend i{display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:3px;}
   .dayttl{font-weight:700; color:var(--navy); font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
@@ -323,26 +334,32 @@
       <button class="btn sub" onclick="calMove(1)" aria-label="次の月">›</button>
     </div>
     <div class="calg" id="calGrid"></div>
-    <div class="legend"><span><i style="background:#fff;border:1px solid var(--navy2)"></i>予定</span>
-      <span><i style="background:#DDF1E5"></i>実施済</span><span><i style="background:#EDEDED"></i>実施なし</span></div>
+    <div class="legend"><span><i style="background:#fff;border:1px dashed #D9A21B"></i>朝 予定</span><span><i style="background:#FFF1D6"></i>朝 実施済</span>
+      <span><i style="background:#fff;border:1px dashed #6E55C8"></i>夕 予定</span><span><i style="background:#E9E3FF"></i>夕 実施済</span>
+      <span><i style="background:#EDEDED"></i>実施なし</span><span><i style="background:#E3EDFF"></i>🎪 地域行事</span></div>
     <div class="calbtns">
       <button class="btn" onclick="newPlan()">＋ 予定を追加</button>
-      <button class="btn sub" onclick="openPrint()">印刷・PDF</button>
+      <button class="btn sub" id="btnPdf" onclick="exportPdf()">PDF出力</button>
       <button class="btn sub" onclick="copyShare()">共有リンク</button>
     </div>
   </div>
   <div class="card planform" id="planForm" hidden>
     <div class="ttl" id="planTtl">予定を追加</div>
-    <div class="tline">
-      <input type="date" id="plDate" aria-label="日付">
-      <input type="time" id="plStart" aria-label="開始" value="06:30">
-      <span class="sep">〜</span>
-      <input type="time" id="plEnd" aria-label="終了" value="09:30">
-    </div>
-    <div class="stations" id="plStations" style="margin-top:8px;"></div>
-    <div class="inrow">
-      <input id="plPlace" placeholder="場所（駅ボタンか入力）" oninput="onPlPlace()">
-      <button class="mic" data-target="plPlace" data-replace="1" title="音声で場所を入力" aria-label="音声で場所を入力">🎤</button>
+    <div class="ptype" id="plType"></div>
+    <input type="date" id="plDate" aria-label="日付">
+    <div id="plDoBox">
+      <div class="slot" id="plSlot"></div>
+      <div class="tline" style="grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);">
+        <span class="sep" style="font-size:12px;">時間</span>
+        <input type="time" id="plStart" aria-label="開始" value="06:30">
+        <span class="sep">〜</span>
+        <input type="time" id="plEnd" aria-label="終了" value="09:30">
+      </div>
+      <div class="stations" id="plStations" style="margin-top:8px;"></div>
+      <div class="inrow">
+        <input id="plPlace" placeholder="場所（駅ボタンか入力）" oninput="onPlPlace()">
+        <button class="mic" data-target="plPlace" data-replace="1" title="音声で場所を入力" aria-label="音声で場所を入力">🎤</button>
+      </div>
     </div>
     <input id="plNote" placeholder="補足（任意・支援者にも表示）" style="margin-top:6px;">
     <div class="row2" style="margin-top:10px;">
@@ -404,6 +421,7 @@
 </main>
 
 <div id="toast"></div>
+<div id="pdfStage" aria-hidden="true"></div>
 
 <script>
 /* ================================================================
@@ -419,6 +437,11 @@ const T_PL = "speech_plans";
 const T_VO = "speech_volunteers";
 const SHARE_URL = location.origin + "/schedule.html";    // 支援者向け共有ページ
 const SKIP_REASONS = ["個人の用事","勉強会","地域行事","その他"];
+const T_EV = "events";                                   // イベント情報（events.html が集めた地域行事）
+const PLAN_TYPES = [["planned","実施する",""],["skip:他予定","他予定で実施なし","sk"],["skip:地域行事","地域行事で実施なし","sk"]];
+const SLOT_DEF = {am:{label:"朝",start:"06:30",end:"09:30"}, pm:{label:"夕",start:"17:00",end:"19:30"}};
+function slotOf(x){ if(x.slot==="am"||x.slot==="pm") return x.slot; const t=x.start_time||(x.started_at?fmtTime(x.started_at):""); const h=parseInt(String(t).slice(0,2),10); return isNaN(h)||h<12 ? "am" : "pm"; }
+function slotName(x){ return SLOT_DEF[slotOf(x)].label; }
 /* 天気取得に使う座標（駅名が入っていれば駅の座標、なければGPS、どちらもなければ磯子区役所） */
 const STATION_XY = {"磯子駅":[35.4005,139.6176],"根岸駅":[35.4126,139.6316],"新杉田駅":[35.3868,139.6155],
   "洋光台駅":[35.3773,139.5875],"京急杉田駅":[35.3855,139.6189],"京急屏風浦駅":[35.3946,139.6103],"屏風浦駅":[35.3946,139.6103]};
@@ -987,7 +1010,7 @@ async function fillWeather(){
 /* ================================================================
    予定・カレンダー
 ================================================================ */
-let calY, calM, calSel=null, calDirty=true, calPlans=[], calRecs=[], calVols={}, plEditId=null;
+let calY, calM, calSel=null, calDirty=true, calPlans=[], calRecs=[], calVols={}, calEvents=[], plEditId=null, plType="planned", plSlot="am";
 (function(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); })();
 function calMove(d){ calM+=d; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} calDirty=true; calSel=null; loadCal(); }
 function wxLabel(r){ return r.weather ? `${r.weather}${r.temp_c!=null?`${Math.round(r.temp_c)}℃`:""}` : ""; }
@@ -997,11 +1020,12 @@ async function loadCal(){
   const f=new Date(calY,calM,1); f.setDate(f.getDate()-7);
   const t=new Date(calY,calM+1,1); t.setDate(t.getDate()+7);
   try{
-    const [pl,rc]=await Promise.all([
+    const [pl,rc,ev]=await Promise.all([
       api(`/rest/v1/${T_PL}?select=*&plan_date=gte.${ymd(f)}&plan_date=lt.${ymd(t)}&order=plan_date.asc,start_time.asc`),
-      api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,total_count,memo,status,skip_reason,weather,temp_c,plan_id,lat,lng,items&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`)
+      api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,total_count,memo,status,skip_reason,weather,temp_c,plan_id,lat,lng,items&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`),
+      api(`/rest/v1/${T_EV}?select=id,title,event_date,start_time,end_time,venue,category,score,status,source_url&event_date=gte.${ymd(f)}&event_date=lt.${ymd(t)}&hidden=is.false&order=event_date.asc,start_time.asc`).catch(()=>[])
     ]);
-    calPlans=pl||[]; calRecs=rc||[]; calVols={};
+    calPlans=pl||[]; calRecs=rc||[]; calVols={}; calEvents=dedupeEvents(ev||[]);
     if(calPlans.length){
       const vs=await api(`/rest/v1/${T_VO}?select=id,plan_id,name,contact,message,created_at&plan_id=in.(${calPlans.map(p=>p.id).join(",")})&order=created_at.asc`).catch(()=>[]);
       (vs||[]).forEach(v=>{ (calVols[v.plan_id]=calVols[v.plan_id]||[]).push(v); });
@@ -1019,12 +1043,15 @@ function renderCal(){
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
     if(i>=35 && d.getMonth()!==calM) break;
-    const ps=calPlans.filter(p=>p.plan_date===k && p.status==="planned");
     const rs=calRecs.filter(r=>recDate(r)===k);
+    const ps=calPlans.filter(p=>p.plan_date===k && p.status!=="done" && !(p.status==="skip" && rs.some(r=>r.plan_id===p.id)));
+    const es=calEvents.filter(e=>e.event_date===k);
     const evs=[
       ...rs.map(r=> r.status==="skip" ? `<span class="ev skip">休:${esc(r.skip_reason||"")}</span>`
-                 : `<span class="ev done">${esc(shortPlace(r.place))} ${r.total_count||0}枚${r.weather?r.weather:""}</span>`),
-      ...ps.map(p=>`<span class="ev plan">${esc(shortPlace(p.place))} ${esc(hm(p.start_time).replace(/^0/,""))}${(calVols[p.id]||[]).length?`👥${calVols[p.id].length}`:""}</span>`)
+                 : `<span class="ev done ${slotOf(r)}">${esc(shortPlace(r.place))} ${r.total_count||0}枚${r.weather?r.weather:""}</span>`),
+      ...ps.map(p=> p.status==="skip" ? `<span class="ev skip">休:${esc(p.skip_reason||"")}</span>`
+                 : `<span class="ev plan ${slotOf(p)}">${esc(slotName(p))} ${esc(shortPlace(p.place))}${(calVols[p.id]||[]).length?`👥${calVols[p.id].length}`:""}</span>`),
+      ...es.map(e=>`<span class="ev evt">🎪${esc(e.title)}</span>`)
     ];
     h+=`<button type="button" class="day${d.getMonth()!==calM?" out":""}${k===today?" today":""}${k===calSel?" sel":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}" onclick="selDay('${k}')">
       <span class="n">${d.getDate()}</span>${evs.slice(0,3).join("")}${evs.length>3?`<span class="ev">+${evs.length-3}</span>`:""}</button>`;
@@ -1037,17 +1064,18 @@ function renderDay(){
   const box=$("dayCard");
   if(!calSel){ box.innerHTML='<p class="empty">日付をタップすると、その日の予定と記録が出ます。</p>'; return; }
   const d=dayStart(calSel);
-  const ps=calPlans.filter(p=>p.plan_date===calSel), rs=calRecs.filter(r=>recDate(r)===calSel);
+  const ps=calPlans.filter(p=>p.plan_date===calSel), rs=calRecs.filter(r=>recDate(r)===calSel), es=calEvents.filter(e=>e.event_date===calSel);
   let h=`<div class="dayttl">${esc(fmtDate(d))}<button class="btn sm sub" onclick="newPlan('${calSel}')">＋予定</button></div>`;
-  if(!ps.length && !rs.length) h+='<p class="note">この日の予定・記録はありません。</p>';
+  if(!ps.length && !rs.length && !es.length) h+='<p class="note">この日の予定・記録・地域行事はありません。</p>';
   ps.forEach(p=>{
     const vols=calVols[p.id]||[];
-    const stLabel = p.status==="done" ? '<span class="tag">実施済</span>' : p.status==="skip" ? `<span class="tag off">実施なし${p.skip_reason?"・"+esc(p.skip_reason):""}</span>` : '<span class="tag">予定</span>';
-    h+=`<div class="pl ${p.status==="planned"?"plan":p.status==="skip"?"skip":""}">
-      <div class="t">${esc(hm(p.start_time))}〜${esc(hm(p.end_time))} ${stLabel}</div>
-      <div class="pn">${esc(p.place)}</div>
+    const isSkip=p.status==="skip";
+    const stLabel = p.status==="done" ? '<span class="tag">実施済</span>' : isSkip ? `<span class="tag off">実施なし${p.skip_reason?"・"+esc(p.skip_reason):""}</span>` : `<span class="tag">${esc(slotName(p))}の予定</span>`;
+    h+=`<div class="pl ${isSkip?"skip":"plan "+slotOf(p)}">
+      <div class="t">${isSkip?"":`${esc(hm(p.start_time))}〜${esc(hm(p.end_time))} `}${stLabel}</div>
+      ${isSkip?"":`<div class="pn">${esc(p.place)}</div>`}
       ${p.note?`<div class="t">${esc(p.note)}</div>`:""}
-      <div class="vol">${vols.length?`👥 ボランティア ${vols.length}名：${vols.map(v=>esc(v.name)+(v.contact?`（${esc(v.contact)}）`:"")+(v.message?` 「${esc(v.message)}」`:"")).join("、")}`:"ボランティア参加なし"}</div>
+      ${isSkip?"":`<div class="vol">${vols.length?`👥 ボランティア ${vols.length}名：${vols.map(v=>esc(v.name)+(v.contact?`（${esc(v.contact)}）`:"")+(v.message?` 「${esc(v.message)}」`:"")).join("、")}`:"ボランティア参加なし"}</div>`}
       <div class="acts">
         ${p.status==="planned"?`<button class="btn sm green" onclick="startFromPlan(${p.id})">この予定で記録</button>
         <button class="btn sm sub" onclick="skipFromPlan(${p.id})">実施しない</button>`:""}
@@ -1056,9 +1084,28 @@ function renderDay(){
       </div></div>`;
   });
   rs.forEach(r=>{ h+=recCard(r,true); });
+  es.forEach(e=>{ h+=eventCard(e); });
   box.innerHTML=h;
 }
-function planLabel(p){ return `${fmtDate(dayStart(p.plan_date))} ${hm(p.start_time)}〜${hm(p.end_time)} ${p.place}`; }
+/* 地域行事（イベント情報）：中止・延期を除き、同じ日の同名行事は1つにまとめる */
+function dedupeEvents(list){
+  const seen=new Set(), out=[];
+  for(const e of list){
+    if(/中止|延期/.test(e.status||"")) continue;
+    const key=e.event_date+"|"+String(e.title||"").normalize("NFKC").replace(/[\s「」『』【】（）()・]/g,"").slice(0,10);
+    if(seen.has(key)) continue; seen.add(key); out.push(e);
+  }
+  return out;
+}
+function eventCard(e){
+  return `<div class="pl evt">
+    <div class="t">🎪 地域行事${e.category?"・"+esc(e.category):""}${e.start_time?`　${esc(hm(e.start_time))}${e.end_time?"〜"+esc(hm(e.end_time)):""}`:""}</div>
+    <div class="pn">${esc(e.title)}</div>
+    ${e.venue?`<div class="t">${esc(e.venue)}</div>`:""}
+    ${e.source_url?`<div class="acts"><a class="btn sm sub" style="text-decoration:none" href="${esc(e.source_url)}" target="_blank" rel="noopener">出典</a></div>`:""}
+  </div>`;
+}
+function planLabel(p){ return p.status==="skip" ? `${fmtDate(dayStart(p.plan_date))} 実施なし（${p.skip_reason||""}）` : `${fmtDate(dayStart(p.plan_date))} ${slotName(p)} ${hm(p.start_time)}〜${hm(p.end_time)} ${p.place}`; }
 function startFromPlan(id){
   const p=calPlans.find(x=>x.id===id); if(!p) return;
   if(st.editId){ toast("編集中の記録があります。先に「編集をやめる」を押してください",true); return; }
@@ -1079,32 +1126,47 @@ function skipFromPlan(id){
   showTab("rec"); renderForm(); saveDraft();
 }
 function newPlan(dateKey){
-  plEditId=null; $("planTtl").textContent="予定を追加"; $("btnPlanSave").textContent="予定を保存";
-  $("plDate").value=dateKey||calSel||ymd(new Date()); $("plStart").value="06:30"; $("plEnd").value="09:30";
-  $("plPlace").value=""; $("plNote").value=""; renderPlStations(); $("planForm").hidden=false;
+  plEditId=null; plType="planned"; plSlot="am";
+  $("planTtl").textContent="予定を追加"; $("btnPlanSave").textContent="予定を保存";
+  $("plDate").value=dateKey||calSel||ymd(new Date()); $("plStart").value=SLOT_DEF.am.start; $("plEnd").value=SLOT_DEF.am.end;
+  $("plPlace").value=""; $("plNote").value=""; renderPlType(); renderPlStations(); $("planForm").hidden=false;
   $("planForm").scrollIntoView({behavior:"smooth",block:"start"});
 }
 function editPlan(id){
   const p=calPlans.find(x=>x.id===id); if(!p) return;
-  plEditId=id; $("planTtl").textContent="予定を編集"; $("btnPlanSave").textContent="変更を保存";
-  $("plDate").value=p.plan_date; $("plStart").value=hm(p.start_time); $("plEnd").value=hm(p.end_time);
-  $("plPlace").value=p.place||""; $("plNote").value=p.note||""; renderPlStations(); $("planForm").hidden=false;
+  plEditId=id; plType = p.status==="skip" ? "skip:"+(PLAN_TYPES.some(t=>t[0]==="skip:"+p.skip_reason)?p.skip_reason:"他予定") : "planned";
+  plSlot=slotOf(p);
+  $("planTtl").textContent="予定を編集"; $("btnPlanSave").textContent="変更を保存";
+  $("plDate").value=p.plan_date; $("plStart").value=hm(p.start_time)||SLOT_DEF[plSlot].start; $("plEnd").value=hm(p.end_time)||SLOT_DEF[plSlot].end;
+  $("plPlace").value=p.status==="skip"?"":(p.place||""); $("plNote").value=p.note||""; renderPlType(); renderPlStations(); $("planForm").hidden=false;
   $("planForm").scrollIntoView({behavior:"smooth",block:"start"});
 }
+function renderPlType(){
+  $("plType").innerHTML = PLAN_TYPES.map(([v,l,c])=>`<button type="button" class="stn ${c}${v===plType?" sel":""}" onclick="setPlType('${v}')">${esc(l)}</button>`).join("");
+  $("plSlot").innerHTML = Object.entries(SLOT_DEF).map(([k,d])=>`<button type="button" class="stn ${k}${k===plSlot?" sel":""}" onclick="setPlSlot('${k}')">${esc(d.label)}（${d.start}〜${d.end}）</button>`).join("");
+  $("plDoBox").hidden = plType!=="planned";
+}
+function setPlType(v){ plType=v; renderPlType(); }
+function setPlSlot(k){ plSlot=k; $("plStart").value=SLOT_DEF[k].start; $("plEnd").value=SLOT_DEF[k].end; renderPlType(); }
 function renderPlStations(){
   const cur=$("plPlace").value.trim();
   $("plStations").innerHTML = STATIONS.map(n=>`<button type="button" class="stn${n===cur?" sel":""}" onclick="$('plPlace').value='${n}';onPlPlace()">${esc(n)}</button>`).join("");
 }
 function onPlPlace(){ const v=$("plPlace").value.trim(); document.querySelectorAll("#plStations .stn").forEach(x=>x.classList.toggle("sel", x.textContent===v)); }
 async function savePlan(){
-  const plan_date=$("plDate").value, place=$("plPlace").value.trim();
+  const plan_date=$("plDate").value, place=$("plPlace").value.trim(), note=$("plNote").value.trim()||null;
   if(!plan_date){ toast("日付を入力してください",true); return; }
-  if(!place){ toast("場所を入力してください",true); return; }
-  const body={plan_date, start_time:$("plStart").value||null, end_time:$("plEnd").value||null, place, note:$("plNote").value.trim()||null};
+  let body;
+  if(plType==="planned"){
+    if(!place){ toast("場所を入力してください",true); return; }
+    body={plan_date, slot:plSlot, start_time:$("plStart").value||null, end_time:$("plEnd").value||null, place, note, status:"planned", skip_reason:null};
+  }else{
+    body={plan_date, slot:null, start_time:null, end_time:null, place:"実施なし", note, status:"skip", skip_reason:plType.slice(5)};
+  }
   const btn=$("btnPlanSave"); btn.disabled=true;
   try{
     if(plEditId) await api(`/rest/v1/${T_PL}?id=eq.${plEditId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify(body)});
-    else         await api(`/rest/v1/${T_PL}`,{method:"POST",headers:JSONH,body:JSON.stringify({...body,status:"planned"})});
+    else         await api(`/rest/v1/${T_PL}`,{method:"POST",headers:JSONH,body:JSON.stringify(body)});
     toast(plEditId?"予定を変更しました":"予定を追加しました");
     $("planForm").hidden=true; calSel=plan_date;
     const d=dayStart(plan_date); calY=d.getFullYear(); calM=d.getMonth();
@@ -1124,59 +1186,90 @@ async function copyShare(){
   catch(e){ prompt("このリンクを支援者に送ってください", SHARE_URL); }
 }
 
-/* ---------- 印刷・PDF（月のカレンダー形式） ---------- */
-function openPrint(){
+/* ---------- PDF出力（A4横・月のカレンダー形式。スマホでもそのまま保存できる） ---------- */
+function reportHtml(){
   const first=new Date(calY,calM,1), start=new Date(first); start.setDate(1-first.getDay());
   const monthRecs=calRecs.filter(r=>{ const d=new Date(r.started_at); return d.getFullYear()===calY && d.getMonth()===calM; });
   const done=monthRecs.filter(r=>r.status!=="skip");
   const byP=new Map();
   done.forEach(r=>(r.items||[]).forEach(it=>{ const k=it.name||it.kind||"配布物"; byP.set(k,(byP.get(k)||0)+(it.count||0)); }));
   const byS=new Map(); done.forEach(r=>{ byS.set(r.place,(byS.get(r.place)||0)+1); });
-  let cells="";
+  let rows="", cells="";
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
     if(i>=35 && d.getMonth()!==calM) break;
     const out=d.getMonth()!==calM;
-    const rs=calRecs.filter(r=>recDate(r)===k), ps=calPlans.filter(p=>p.plan_date===k && p.status==="planned");
+    const rs=calRecs.filter(r=>recDate(r)===k);
+    const ps=calPlans.filter(p=>p.plan_date===k && p.status!=="done" && !(p.status==="skip" && rs.some(r=>r.plan_id===p.id)));
     const body=[
       ...rs.map(r=> r.status==="skip" ? `<div class="sk">実施なし（${esc(r.skip_reason||"")}）</div>`
-        : `<div class="dn"><b>${esc(r.place)}</b><br>${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):""}（${esc(fmtMin(r.minutes))}）<br>${(r.total_count||0).toLocaleString()}枚 ${esc(wxLabel(r))}</div>`),
-      ...ps.map(p=>`<div class="pn">予定 ${esc(hm(p.start_time))}〜${esc(hm(p.end_time))}<br><b>${esc(p.place)}</b></div>`)
+        : `<div class="dn ${slotOf(r)}"><b>${esc(slotName(r))} ${esc(r.place)}</b><br>${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):""}（${esc(fmtMin(r.minutes))}）<br>${(r.total_count||0).toLocaleString()}枚 ${esc(wxLabel(r))}</div>`),
+      ...ps.map(p=> p.status==="skip" ? `<div class="sk">実施なし（${esc(p.skip_reason||"")}）</div>`
+        : `<div class="pn ${slotOf(p)}">予定 ${esc(slotName(p))} ${esc(hm(p.start_time))}〜${esc(hm(p.end_time))}<br><b>${esc(p.place)}</b></div>`)
     ].join("");
     cells+=`<td class="${out?"out":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}"><div class="n">${d.getDate()}</div>${body}</td>`;
-    if(i%7===6) cells+="</tr><tr>";
+    if(i%7===6){ rows+=`<tr>${cells}</tr>`; cells=""; }
   }
+  if(cells) rows+=`<tr>${cells}</tr>`;
+  const nRows=(rows.match(/<tr>/g)||[]).length, tdH=Math.floor((794-150)/Math.max(nRows,5));   // A4横（1123×794px）に収まる行の高さ
   const totMin=done.reduce((a,r)=>a+(r.minutes||0),0), totCnt=done.reduce((a,r)=>a+(r.total_count||0),0);
-  const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>街頭演説 ${calY}年${calM+1}月</title>
-<style>
-  @page{size:A4 landscape; margin:10mm;}
-  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; color:#1A2333; margin:0; padding:10px;}
-  h1{font-size:18px; margin:0 0 6px;} h1 small{font-size:12px; color:#5A6B8C; margin-left:10px; font-weight:400;}
-  .sum{display:flex; gap:18px; font-size:12px; margin-bottom:8px; flex-wrap:wrap;} .sum b{font-size:15px;}
-  table{width:100%; border-collapse:collapse; table-layout:fixed;}
-  th{font-size:11px; background:#EEF2F8; border:1px solid #C8D2E4; padding:3px;}
-  th.su{color:#B5403B;} th.sa{color:#2E5496;}
-  td{border:1px solid #C8D2E4; vertical-align:top; height:68px; padding:2px 3px; font-size:9.5px; line-height:1.3;}
-  td.out{background:#F6F6F6; color:#aaa;} td .n{font-size:11px; font-weight:700; color:#5A6B8C;} td.su .n{color:#B5403B;} td.sa .n{color:#2E5496;}
-  .dn{background:#DDF1E5; border-radius:3px; padding:2px 3px; margin-top:2px;} .sk{background:#EDEDED; color:#666; border-radius:3px; padding:2px 3px; margin-top:2px;}
-  .pn{border:1px solid #2E5496; border-radius:3px; padding:2px 3px; margin-top:2px; color:#1F3864;}
-  .foot{font-size:10px; color:#5A6B8C; margin-top:6px;}
-  .nop{position:fixed; right:12px; top:10px;} .nop button{font-size:13px; padding:8px 14px;}
-  @media print{ .nop{display:none;} body{padding:0;} }
-</style></head><body>
-<div class="nop"><button onclick="window.print()">印刷／PDFに保存</button></div>
+  const css=`
+  .rp{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; color:#1A2333; padding:28px 30px; width:1123px; box-sizing:border-box; background:#fff;}
+  .rp h1{font-size:20px; margin:0 0 8px;} .rp h1 small{font-size:12px; color:#5A6B8C; margin-left:10px; font-weight:400;}
+  .rp .sum{display:flex; gap:18px; font-size:12px; margin-bottom:8px; flex-wrap:wrap;} .rp .sum span{white-space:nowrap;} .rp .sum b{font-size:15px;}
+  .rp table{width:100%; border-collapse:collapse; table-layout:fixed;}
+  .rp th{font-size:11px; background:#EEF2F8; border:1px solid #C8D2E4; padding:3px;}
+  .rp th.su{color:#B5403B;} .rp th.sa{color:#2E5496;}
+  .rp td{border:1px solid #C8D2E4; vertical-align:top; height:${tdH}px; padding:2px 3px; font-size:10px; line-height:1.3;}
+  .rp td.out{background:#F6F6F6; color:#aaa;} .rp td .n{font-size:11px; font-weight:700; color:#5A6B8C;} .rp td.su .n{color:#B5403B;} .rp td.sa .n{color:#2E5496;}
+  .rp .dn{border-radius:3px; padding:2px 3px; margin-top:2px;} .rp .dn.am{background:#FFF1D6;} .rp .dn.pm{background:#E9E3FF;}
+  .rp .sk{background:#EDEDED; color:#666; border-radius:3px; padding:2px 3px; margin-top:2px;}
+  .rp .pn{border-radius:3px; padding:2px 3px; margin-top:2px; color:#1F3864;} .rp .pn.am{border:1px dashed #D9A21B;} .rp .pn.pm{border:1px dashed #6E55C8;}
+  .rp .foot{font-size:10px; color:#5A6B8C; margin-top:6px;}`;
+  const html=`<style>${css}</style><div class="rp">
 <h1>街頭演説・ビラ配布 実績 ${calY}年${calM+1}月<small>さの英志</small></h1>
 <div class="sum"><span>実施 <b>${done.length}</b>回</span><span>合計 <b>${esc(fmtMin(totMin))}</b></span><span>ビラ配布 <b>${totCnt.toLocaleString()}</b>枚</span>
   <span>実施なし <b>${monthRecs.length-done.length}</b>日</span>
   ${[...byS.entries()].map(([k,v])=>`<span>${esc(k)} ${v}回</span>`).join("")}</div>
-<table><tr>${WD.split("").map((w,i)=>`<th class="${i===0?"su":i===6?"sa":""}">${w}</th>`).join("")}</tr><tr>${cells}</tr></table>
+<table><tr>${WD.split("").map((w,i)=>`<th class="${i===0?"su":i===6?"sa":""}">${w}</th>`).join("")}</tr>${rows}</table>
 <div class="foot">${byP.size?"配布物別："+[...byP.entries()].map(([k,v])=>`${esc(k)} ${v.toLocaleString()}枚`).join("　")+"　／　":""}出力 ${esc(fmtDate(new Date()))} ${esc(fmtTime(new Date()))}</div>
-<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),400));<\/script>
-</body></html>`;
+</div>`;
+  return html;
+}
+function loadScript(u){ return new Promise((ok,ng)=>{ const el=document.createElement("script"); el.src=u; el.onload=ok; el.onerror=()=>ng(new Error("読み込み失敗 "+u)); document.head.appendChild(el); }); }
+async function ensurePdfLibs(){
+  if(!window.html2canvas) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js");
+  if(!window.jspdf) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+}
+async function exportPdf(){
+  const btn=$("btnPdf"); btn.disabled=true; btn.textContent="作成中…";
+  try{
+    await ensurePdfLibs();
+    const stage=$("pdfStage"); stage.innerHTML=reportHtml();
+    await new Promise(r=>setTimeout(r,80));
+    const canvas=await html2canvas(stage.querySelector(".rp"), {scale:2, backgroundColor:"#ffffff", useCORS:true, logging:false, width:1123, windowWidth:1123});
+    const pdf=new jspdf.jsPDF({orientation:"landscape", unit:"mm", format:"a4"});
+    const W=297, H=210, ratio=canvas.height/canvas.width;
+    const h=Math.min(H, W*ratio);
+    pdf.addImage(canvas.toDataURL("image/jpeg",0.92), "JPEG", 0, 0, W, h);
+    pdf.save(`enzetsu_${calY}-${pad(calM+1)}.pdf`);
+    stage.innerHTML="";
+    toast("PDFを保存しました");
+  }catch(e){
+    toast("PDFを作れませんでした："+e.message+"（印刷画面を開きます）",true);
+    openPrint();
+  }finally{ btn.disabled=false; btn.textContent="PDF出力"; }
+}
+/* 予備：PDFライブラリが読み込めないとき用の印刷画面（PC向け） */
+function openPrint(){
+  const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>街頭演説 ${calY}年${calM+1}月</title>
+<style>@page{size:A4 landscape; margin:8mm;} body{margin:0;} .rp{width:auto !important;} @media print{.nop{display:none;}} .nop{position:fixed;right:12px;top:10px;} .nop button{font-size:13px;padding:8px 14px;}</style></head>
+<body><div class="nop"><button onclick="window.print()">印刷／PDFに保存</button></div>${reportHtml()}</body></html>`;
   const w=window.open("","_blank");
   if(!w){ toast("ポップアップがブロックされました。許可してもう一度押してください",true); return; }
   w.document.open(); w.document.write(html); w.document.close();
 }
+
 function addDefaultItem(){
   if(st.items.length) return;
   const p=pams.find(x=>x.active);

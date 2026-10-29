@@ -36,7 +36,12 @@
   .day.out{opacity:.4;} .day.today{box-shadow:inset 0 0 0 2px var(--navy2);} .day.sel{background:#E3EDFF;}
   .day .n{font-size:11px; color:var(--sub);} .day.su .n{color:var(--red);} .day.sa .n{color:var(--navy2);}
   .ev{font-size:9.5px; line-height:1.25; border-radius:3px; padding:1px 2px; white-space:normal; word-break:break-all; overflow:hidden; max-height:2.5em;}
-  .ev.plan{background:#fff; border:1px solid var(--navy2); color:var(--navy);} .ev.done{background:#DDF1E5; color:#1E5C3A;} .ev.skip{background:#EDEDED; color:#777;}
+  .ev.am{background:#FFF1D6; color:#7A5A0E; border:1px solid #FFF1D6;} .ev.pm{background:#E9E3FF; color:#3B2E7A; border:1px solid #E9E3FF;}
+  .ev.plan{background:#fff;} .ev.plan.am{border:1px dashed #D9A21B;} .ev.plan.pm{border:1px dashed #6E55C8;}
+  .ev.skip{background:#EDEDED; color:#777;} .ev.evt{background:#E3EDFF; color:var(--navy);}
+  .pl.am{border-left:5px solid #D9A21B;} .pl.pm{border-left:5px solid #6E55C8;}
+  .pl.evt{background:#F4F8FF; border-color:#9DB8E8;} .pl.evt .pn{font-size:15px;}
+  .tag.am{background:#FFF1D6; color:#7A5A0E;} .tag.pm{background:#E9E3FF; color:#3B2E7A;}
   .legend{display:flex; gap:10px; font-size:11px; color:var(--sub); margin:6px 2px 0; flex-wrap:wrap;}
   .legend i{display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:3px;}
   /* 予定カード */
@@ -78,8 +83,9 @@
       <button class="btn sub" onclick="calMove(1)" aria-label="次の月">›</button>
     </div>
     <div class="calg" id="calGrid"></div>
-    <div class="legend"><span><i style="background:#fff;border:1px solid var(--navy2)"></i>予定</span>
-      <span><i style="background:#DDF1E5"></i>実施済</span><span><i style="background:#EDEDED"></i>実施なし</span></div>
+    <div class="legend"><span><i style="background:#fff;border:1px dashed #D9A21B"></i>朝 予定</span><span><i style="background:#FFF1D6"></i>朝 実施済</span>
+      <span><i style="background:#fff;border:1px dashed #6E55C8"></i>夕 予定</span><span><i style="background:#E9E3FF"></i>夕 実施済</span>
+      <span><i style="background:#EDEDED"></i>実施なし</span><span><i style="background:#E3EDFF"></i>🎪 地域行事</span></div>
   </div>
   <div class="card" id="dayCard"><p class="note">日付をタップすると、その日の予定・実績が出ます。</p></div>
   <p class="note" style="margin:0 4px;">参加登録でいただいたお名前・連絡先は、活動の連絡のためにのみ使用します。このページは、このページのリンクを知っている方だけが見られます。</p>
@@ -104,7 +110,18 @@
 <script>
 const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
-const T_SP="speeches", T_PL="speech_plans", T_VO="speech_volunteers";
+const T_SP="speeches", T_PL="speech_plans", T_VO="speech_volunteers", T_EV="events";
+const SLOT_LABEL={am:"朝",pm:"夕"};
+function slotOf(x){ if(x.slot==="am"||x.slot==="pm") return x.slot; const t=x.start_time||(x.started_at?fmtTime(x.started_at):""); const h=parseInt(String(t).slice(0,2),10); return isNaN(h)||h<12 ? "am" : "pm"; }
+function dedupeEvents(list){
+  const seen=new Set(), out=[];
+  for(const e of list){
+    if(/中止|延期/.test(e.status||"")) continue;
+    const key=e.event_date+"|"+String(e.title||"").normalize("NFKC").replace(/[\s「」『』【】（）()・]/g,"").slice(0,10);
+    if(seen.has(key)) continue; seen.add(key); out.push(e);
+  }
+  return out;
+}
 const MY_KEY="enzetsu_vol_mine";    // 自分の参加登録ID（この端末のみ）
 
 const $ = id => document.getElementById(id);
@@ -130,7 +147,7 @@ function mine(){ try{ return JSON.parse(localStorage.getItem(MY_KEY)||"{}"); }ca
 function setMine(m){ try{ localStorage.setItem(MY_KEY, JSON.stringify(m)); }catch(e){} }
 
 /* ---------- データ ---------- */
-let calY, calM, calSel=null, plans=[], recs=[], volCnt={}, upcomingPlans=[];
+let calY, calM, calSel=null, plans=[], recs=[], events=[], volCnt={}, upcomingPlans=[];
 (function(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); })();
 function calMove(d){ calM+=d; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} calSel=null; loadCal(); }
 function recDate(r){ return ymd(new Date(r.started_at)); }
@@ -138,7 +155,7 @@ function recDate(r){ return ymd(new Date(r.started_at)); }
 async function loadUpcoming(){
   try{
     const today=ymd(new Date());
-    upcomingPlans = await api(`/rest/v1/${T_PL}?select=id,plan_date,start_time,end_time,place,note,status,skip_reason&plan_date=gte.${today}&status=neq.done&order=plan_date.asc,start_time.asc&limit=30`) || [];
+    upcomingPlans = await api(`/rest/v1/${T_PL}?select=id,plan_date,slot,start_time,end_time,place,note,status,skip_reason&plan_date=gte.${today}&status=neq.done&order=plan_date.asc,start_time.asc&limit=30`) || [];
     await loadVolCounts(upcomingPlans.map(p=>p.id));
     renderUpcoming();
   }catch(e){ $("upcoming").innerHTML=`<p class="empty">読み込みに失敗しました。時間をおいて再度お試しください。</p>`; }
@@ -154,11 +171,12 @@ async function loadCal(){
   const f=new Date(calY,calM,1); f.setDate(f.getDate()-7);
   const t=new Date(calY,calM+1,1); t.setDate(t.getDate()+7);
   try{
-    const [pl,rc]=await Promise.all([
-      api(`/rest/v1/${T_PL}?select=id,plan_date,start_time,end_time,place,note,status,skip_reason&plan_date=gte.${ymd(f)}&plan_date=lt.${ymd(t)}&order=plan_date.asc,start_time.asc`),
-      api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,status,skip_reason,weather,temp_c,plan_id&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`)
+    const [pl,rc,ev]=await Promise.all([
+      api(`/rest/v1/${T_PL}?select=id,plan_date,slot,start_time,end_time,place,note,status,skip_reason&plan_date=gte.${ymd(f)}&plan_date=lt.${ymd(t)}&order=plan_date.asc,start_time.asc`),
+      api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,status,skip_reason,weather,temp_c,plan_id&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`),
+      api(`/rest/v1/${T_EV}?select=id,title,event_date,start_time,end_time,venue,category,status,source_url&event_date=gte.${ymd(f)}&event_date=lt.${ymd(t)}&hidden=is.false&order=event_date.asc,start_time.asc`).catch(()=>[])
     ]);
-    plans=pl||[]; recs=rc||[];
+    plans=pl||[]; recs=rc||[]; events=dedupeEvents(ev||[]);
     await loadVolCounts(plans.map(p=>p.id));
     renderCal(); renderDay();
   }catch(e){ $("calGrid").innerHTML=`<p class="note" style="grid-column:1/-1">読み込みに失敗しました。</p>`; }
@@ -168,10 +186,11 @@ function shortPlace(p){ return String(p||"").replace(/^(JR|京急|市営地下�
 /* ---------- 表示 ---------- */
 function planCard(p, withDate){
   const m=mine(), joined=!!m[p.id], n=volCnt[p.id]||0;
-  const stLabel = p.status==="skip" ? `<span class="tag off">実施なし${p.skip_reason?"・"+esc(p.skip_reason):""}</span>` : p.status==="done" ? '<span class="tag ok">実施済</span>' : "";
-  return `<div class="pl ${p.status==="planned"?"plan":p.status}">
-    <div class="t">${withDate?esc(fmtDate(dayStart(p.plan_date)))+" ":""}${esc(hm(p.start_time))}〜${esc(hm(p.end_time))}${stLabel}</div>
-    <div class="pn">${esc(p.place)}</div>
+  const isSkip=p.status==="skip", sl=slotOf(p);
+  const stLabel = isSkip ? `<span class="tag off">実施なし${p.skip_reason?"・"+esc(p.skip_reason):""}</span>` : p.status==="done" ? '<span class="tag ok">実施済</span>' : `<span class="tag ${sl}">${SLOT_LABEL[sl]}</span>`;
+  return `<div class="pl ${p.status==="planned"?"plan "+sl:p.status}">
+    <div class="t">${withDate?esc(fmtDate(dayStart(p.plan_date)))+" ":""}${isSkip?"":`${esc(hm(p.start_time))}〜${esc(hm(p.end_time))}`}${stLabel}</div>
+    ${isSkip?"":`<div class="pn">${esc(p.place)}</div>`}
     ${p.note?`<div class="t">${esc(p.note)}</div>`:""}
     ${p.status==="planned"?`<div class="acts">
       <span class="vol">👥 参加予定 ${n}名${joined?'<span class="tag ok">登録済み</span>':""}</span>
@@ -182,8 +201,17 @@ function planCard(p, withDate){
 }
 function recCard(r){
   if(r.status==="skip") return `<div class="pl skip"><div class="pn">実施なし（${esc(r.skip_reason||"")}）</div></div>`;
-  return `<div class="pl done"><div class="t">${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):""}　${esc(fmtMin(r.minutes))}　${esc(wxLabel(r))}</div>
-    <div class="pn">${esc(r.place)}<span class="tag ok">実施済</span></div></div>`;
+  const sl=slotOf(r);
+  return `<div class="pl done ${sl}"><div class="t">${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):""}　${esc(fmtMin(r.minutes))}　${esc(wxLabel(r))}</div>
+    <div class="pn">${esc(r.place)}<span class="tag ${sl}">${SLOT_LABEL[sl]}</span><span class="tag ok">実施済</span></div></div>`;
+}
+function eventCard(e){
+  return `<div class="pl evt">
+    <div class="t">🎪 地域行事${e.category?"・"+esc(e.category):""}${e.start_time?`　${esc(hm(e.start_time))}${e.end_time?"〜"+esc(hm(e.end_time)):""}`:""}</div>
+    <div class="pn">${esc(e.title)}</div>
+    ${e.venue?`<div class="t">${esc(e.venue)}</div>`:""}
+    ${e.source_url?`<div class="acts"><a class="btn sm sub" style="text-decoration:none" href="${esc(e.source_url)}" target="_blank" rel="noopener">詳細</a></div>`:""}
+  </div>`;
 }
 function renderUpcoming(){
   const ps=upcomingPlans.filter(p=>p.status==="planned");
@@ -198,10 +226,11 @@ function renderCal(){
   for(let i=0;i<42;i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
     if(i>=35 && d.getMonth()!==calM) break;
-    const ps=plans.filter(p=>p.plan_date===k && p.status!=="done"), rs=recs.filter(r=>recDate(r)===k);
+    const ps=plans.filter(p=>p.plan_date===k && p.status!=="done"), rs=recs.filter(r=>recDate(r)===k), es=events.filter(e=>e.event_date===k);
     const evs=[
-      ...rs.map(r=> r.status==="skip" ? `<span class="ev skip">休:${esc(r.skip_reason||"")}</span>` : `<span class="ev done">${esc(shortPlace(r.place))}${r.weather?r.weather:""}</span>`),
-      ...ps.map(p=> p.status==="skip" ? (rs.some(r=>r.plan_id===p.id)?"":`<span class="ev skip">休:${esc(p.skip_reason||"")}</span>`) : `<span class="ev plan">${esc(shortPlace(p.place))} ${esc(hm(p.start_time).replace(/^0/,""))}${volCnt[p.id]?`👥${volCnt[p.id]}`:""}</span>`)
+      ...rs.map(r=> r.status==="skip" ? `<span class="ev skip">休:${esc(r.skip_reason||"")}</span>` : `<span class="ev done ${slotOf(r)}">${esc(shortPlace(r.place))}${r.weather?r.weather:""}</span>`),
+      ...ps.map(p=> p.status==="skip" ? (rs.some(r=>r.plan_id===p.id)?"":`<span class="ev skip">休:${esc(p.skip_reason||"")}</span>`) : `<span class="ev plan ${slotOf(p)}">${SLOT_LABEL[slotOf(p)]} ${esc(shortPlace(p.place))}${volCnt[p.id]?`👥${volCnt[p.id]}`:""}</span>`),
+      ...es.map(e=>`<span class="ev evt">🎪${esc(e.title)}</span>`)
     ].filter(Boolean);
     h+=`<button type="button" class="day${d.getMonth()!==calM?" out":""}${k===today?" today":""}${k===calSel?" sel":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}" onclick="selDay('${k}')">
       <span class="n">${d.getDate()}</span>${evs.slice(0,3).join("")}${evs.length>3?`<span class="ev">+${evs.length-3}</span>`:""}</button>`;
@@ -212,10 +241,10 @@ function selDay(k){ calSel=k; renderCal(); renderDay(); }
 function renderDay(){
   const box=$("dayCard");
   if(!calSel){ box.innerHTML='<p class="note">日付をタップすると、その日の予定・実績が出ます。</p>'; return; }
-  const ps=plans.filter(p=>p.plan_date===calSel && p.status!=="done"), rs=recs.filter(r=>recDate(r)===calSel);
+  const ps=plans.filter(p=>p.plan_date===calSel && p.status!=="done"), rs=recs.filter(r=>recDate(r)===calSel), es=events.filter(e=>e.event_date===calSel);
   let h=`<div class="ttl">${esc(fmtDate(dayStart(calSel)))}</div>`;
-  if(!ps.length && !rs.length) h+='<p class="note">この日の予定・実績はありません。</p>';
-  h+=rs.map(recCard).join("") + ps.filter(p=>!(p.status==="skip" && rs.some(r=>r.plan_id===p.id))).map(p=>planCard(p,false)).join("");
+  if(!ps.length && !rs.length && !es.length) h+='<p class="note">この日の予定・実績・地域行事はありません。</p>';
+  h+=rs.map(recCard).join("") + ps.filter(p=>!(p.status==="skip" && rs.some(r=>r.plan_id===p.id))).map(p=>planCard(p,false)).join("") + es.map(eventCard).join("");
   box.innerHTML=h;
 }
 

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#1F3864">
+<meta name="robots" content="noindex">
+<title>さの英志 街頭活動カレンダー</title>
+<style>
+  :root{--navy:#1F3864; --navy2:#2E5496; --bg:#EEF2F8; --line:#C8D2E4; --text:#1A2333; --sub:#5A6B8C; --red:#B5403B; --green:#2E7D52;}
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; background:var(--bg); color:var(--text); font-size:15px;
+       padding-bottom:calc(env(safe-area-inset-bottom,0px) + 30px);}
+  header{background:var(--navy); color:#fff; padding:calc(env(safe-area-inset-top,0px) + 14px) 14px 14px;}
+  header .in{max-width:680px; margin:0 auto;}
+  h1{font-size:18px; letter-spacing:.06em;}
+  header p{font-size:12px; color:#C9D6EE; margin-top:4px; line-height:1.6;}
+  main{max-width:680px; margin:0 auto; padding:12px 10px;}
+  .card{background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px; margin-bottom:12px;}
+  .ttl{font-weight:700; color:var(--navy); font-size:15px; margin-bottom:8px; border-left:4px solid var(--navy2); padding-left:8px;}
+  .btn{border:none; border-radius:9px; font-weight:700; font-size:14px; padding:11px 14px; cursor:pointer; background:var(--navy2); color:#fff; font-family:inherit;}
+  .btn:disabled{opacity:.5;} .btn.sub{background:#E3EAF6; color:var(--navy);} .btn.green{background:var(--green);} .btn.sm{font-size:12px; padding:7px 10px;}
+  .btn.full{width:100%; display:block;}
+  input,textarea{width:100%; border:1.5px solid var(--line); border-radius:8px; padding:10px 11px; font-size:16px; font-family:inherit; margin-top:4px; background:#fff; color:var(--text);}
+  input:focus,textarea:focus{outline:none; border-color:var(--navy2);}
+  label.f{display:block; font-size:12px; color:var(--sub); margin-top:8px;}
+  .note{font-size:12px; color:var(--sub); line-height:1.6;}
+  .empty{text-align:center; color:var(--sub); padding:24px 10px; font-size:14px; line-height:1.8;}
+  /* カレンダー */
+  .calh{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .calh b{font-size:17px; color:var(--navy);} .calh .btn{padding:7px 12px;}
+  .calg{display:grid; grid-template-columns:repeat(7,1fr); gap:2px;}
+  .calg .wd{text-align:center; font-size:11px; color:var(--sub); padding:2px 0;} .calg .wd.su{color:var(--red);} .calg .wd.sa{color:var(--navy2);}
+  .day{min-height:56px; background:#fff; border:1px solid var(--line); border-radius:6px; padding:2px; cursor:pointer; font-family:inherit;
+       text-align:left; color:var(--text); display:flex; flex-direction:column; gap:1px; overflow:hidden;}
+  .day.out{opacity:.4;} .day.today{box-shadow:inset 0 0 0 2px var(--navy2);} .day.sel{background:#E3EDFF;}
+  .day .n{font-size:11px; color:var(--sub);} .day.su .n{color:var(--red);} .day.sa .n{color:var(--navy2);}
+  .ev{font-size:9.5px; line-height:1.25; border-radius:3px; padding:1px 2px; white-space:normal; word-break:break-all; overflow:hidden; max-height:2.5em;}
+  .ev.plan{background:#fff; border:1px solid var(--navy2); color:var(--navy);} .ev.done{background:#DDF1E5; color:#1E5C3A;} .ev.skip{background:#EDEDED; color:#777;}
+  .legend{display:flex; gap:10px; font-size:11px; color:var(--sub); margin:6px 2px 0; flex-wrap:wrap;}
+  .legend i{display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:3px;}
+  /* 予定カード */
+  .pl{border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:#fff;}
+  .pl.plan{border-color:var(--navy2); border-width:1.5px;} .pl.skip{background:#F5F5F5; color:#666;} .pl.done{background:#F3FAF5;}
+  .pl .t{font-size:12px; color:var(--sub);} .pl .pn{font-size:17px; font-weight:700; color:var(--navy); margin:2px 0;}
+  .pl.skip .pn{color:#666; font-size:15px;}
+  .pl .vol{font-size:12px; color:#1E5C3A; margin-top:4px;}
+  .pl .acts{display:flex; gap:6px; margin-top:8px; justify-content:flex-end; align-items:center;}
+  .tag{display:inline-block; font-size:11px; border-radius:6px; padding:1px 7px; background:#E3EAF6; color:var(--navy); font-weight:700; margin-left:4px;}
+  .tag.off{background:#E5E5E5; color:#777;} .tag.ok{background:#DDF1E5; color:#1E5C3A;}
+  /* 参加フォーム */
+  .sheet{display:none; position:fixed; inset:0; z-index:50; background:rgba(20,30,55,.55); align-items:flex-end; justify-content:center;}
+  .sheet.show{display:flex;}
+  .sheet .box{background:#fff; width:100%; max-width:560px; border-radius:16px 16px 0 0; padding:16px 14px calc(18px + env(safe-area-inset-bottom,0px));}
+  .sheet h2{font-size:15px; color:var(--navy); margin-bottom:4px;}
+  .row2{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;}
+  #toast{position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom,0px) + 22px); transform:translateX(-50%); background:var(--navy); color:#fff;
+    font-size:13px; font-weight:700; padding:10px 18px; border-radius:99px; display:none; z-index:100; max-width:92vw; text-align:center;}
+  #toast.err{background:var(--red);} #toast.show{display:block;}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <h1>さの英志 街頭活動カレンダー</h1>
+  <p>駅での朝立ち・街頭演説の予定と実績です。ご都合の合う日に「参加する」からボランティア参加のご登録をお願いします。</p>
+</div></header>
+
+<main>
+  <div class="card">
+    <div class="ttl">今後の予定</div>
+    <div id="upcoming"><p class="empty">読み込み中…</p></div>
+  </div>
+
+  <div class="card">
+    <div class="calh">
+      <button class="btn sub" onclick="calMove(-1)" aria-label="前の月">‹</button>
+      <b id="calTitle"></b>
+      <button class="btn sub" onclick="calMove(1)" aria-label="次の月">›</button>
+    </div>
+    <div class="calg" id="calGrid"></div>
+    <div class="legend"><span><i style="background:#fff;border:1px solid var(--navy2)"></i>予定</span>
+      <span><i style="background:#DDF1E5"></i>実施済</span><span><i style="background:#EDEDED"></i>実施なし</span></div>
+  </div>
+  <div class="card" id="dayCard"><p class="note">日付をタップすると、その日の予定・実績が出ます。</p></div>
+  <p class="note" style="margin:0 4px;">参加登録でいただいたお名前・連絡先は、活動の連絡のためにのみ使用します。このページは、このページのリンクを知っている方だけが見られます。</p>
+</main>
+
+<!-- 参加フォーム -->
+<div class="sheet" id="joinSheet">
+  <div class="box">
+    <h2>ボランティア参加</h2>
+    <div class="note" id="joinPlan"></div>
+    <label class="f">お名前（必須）<input id="jName" placeholder="例：磯子 太郎" autocomplete="name"></label>
+    <label class="f">連絡先（任意・電話かメール）<input id="jContact" placeholder="例：090-xxxx-xxxx" autocomplete="tel"></label>
+    <label class="f">ひとこと（任意）<input id="jMsg" placeholder="例：7時から参加します"></label>
+    <div class="row2">
+      <button class="btn sub" onclick="closeJoin()">やめる</button>
+      <button class="btn green" id="btnJoin" onclick="submitJoin()">参加する</button>
+    </div>
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const SUPABASE_URL      = "https://oxekrlgsfkhjaqssrzvk.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_jXTK6ilznGBS-BEx8Ibcfw_kqOQhrv7";
+const T_SP="speeches", T_PL="speech_plans", T_VO="speech_volunteers";
+const MY_KEY="enzetsu_vol_mine";    // 自分の参加登録ID（この端末のみ）
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad = n => String(n).padStart(2,"0");
+const WD="日月火水木金土";
+function ymd(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function dayStart(s){ const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(s||""); return m? new Date(+m[1],+m[2]-1,+m[3]) : null; }
+function fmtDate(v){ const d=v instanceof Date? v : new Date(v); return `${d.getMonth()+1}/${d.getDate()}(${WD[d.getDay()]})`; }
+function fmtTime(v){ const d=new Date(v); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function hm(t){ return t? String(t).slice(0,5) : ""; }
+function fmtMin(n){ if(n==null||isNaN(n)) return ""; if(n<60) return `${n}分`; return `${Math.floor(n/60)}時間${n%60? (n%60)+"分" : ""}`; }
+function wxLabel(r){ return r.weather ? `${r.weather}${r.temp_c!=null?`${Math.round(r.temp_c)}℃`:""}` : ""; }
+let toastTimer;
+function toast(m,err){ const t=$("toast"); t.textContent=m; t.className=err?"err show":"show"; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove("show"), err?4000:2400); }
+async function api(path,opt={}){
+  const r=await fetch(SUPABASE_URL+path,{...opt,headers:{"apikey":SUPABASE_ANON_KEY,"Authorization":"Bearer "+SUPABASE_ANON_KEY,...(opt.headers||{})}});
+  const tx=await r.text().catch(()=>""); if(!r.ok) throw new Error(`${r.status} ${tx.slice(0,120)}`);
+  if(!tx) return null; try{ return JSON.parse(tx); }catch(e){ return null; }
+}
+const JSONH={"Content-Type":"application/json","Prefer":"return=representation"};
+function mine(){ try{ return JSON.parse(localStorage.getItem(MY_KEY)||"{}"); }catch(e){ return {}; } }
+function setMine(m){ try{ localStorage.setItem(MY_KEY, JSON.stringify(m)); }catch(e){} }
+
+/* ---------- データ ---------- */
+let calY, calM, calSel=null, plans=[], recs=[], volCnt={}, upcomingPlans=[];
+(function(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); })();
+function calMove(d){ calM+=d; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} calSel=null; loadCal(); }
+function recDate(r){ return ymd(new Date(r.started_at)); }
+
+async function loadUpcoming(){
+  try{
+    const today=ymd(new Date());
+    upcomingPlans = await api(`/rest/v1/${T_PL}?select=id,plan_date,start_time,end_time,place,note,status,skip_reason&plan_date=gte.${today}&status=neq.done&order=plan_date.asc,start_time.asc&limit=30`) || [];
+    await loadVolCounts(upcomingPlans.map(p=>p.id));
+    renderUpcoming();
+  }catch(e){ $("upcoming").innerHTML=`<p class="empty">読み込みに失敗しました。時間をおいて再度お試しください。</p>`; }
+}
+async function loadVolCounts(ids){
+  ids=[...new Set(ids)].filter(Boolean); if(!ids.length) return;
+  const vs=await api(`/rest/v1/${T_VO}?select=id,plan_id&plan_id=in.(${ids.join(",")})`).catch(()=>[]);
+  ids.forEach(i=>volCnt[i]=0);
+  (vs||[]).forEach(v=>{ volCnt[v.plan_id]=(volCnt[v.plan_id]||0)+1; });
+}
+async function loadCal(){
+  $("calTitle").textContent=`${calY}年${calM+1}月`;
+  const f=new Date(calY,calM,1); f.setDate(f.getDate()-7);
+  const t=new Date(calY,calM+1,1); t.setDate(t.getDate()+7);
+  try{
+    const [pl,rc]=await Promise.all([
+      api(`/rest/v1/${T_PL}?select=id,plan_date,start_time,end_time,place,note,status,skip_reason&plan_date=gte.${ymd(f)}&plan_date=lt.${ymd(t)}&order=plan_date.asc,start_time.asc`),
+      api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,status,skip_reason,weather,temp_c,plan_id&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`)
+    ]);
+    plans=pl||[]; recs=rc||[];
+    await loadVolCounts(plans.map(p=>p.id));
+    renderCal(); renderDay();
+  }catch(e){ $("calGrid").innerHTML=`<p class="note" style="grid-column:1/-1">読み込みに失敗しました。</p>`; }
+}
+function shortPlace(p){ return String(p||"").replace(/^(JR|京急|市営地下鉄)/,"").replace(/駅前?$/,""); }
+
+/* ---------- 表示 ---------- */
+function planCard(p, withDate){
+  const m=mine(), joined=!!m[p.id], n=volCnt[p.id]||0;
+  const stLabel = p.status==="skip" ? `<span class="tag off">実施なし${p.skip_reason?"・"+esc(p.skip_reason):""}</span>` : p.status==="done" ? '<span class="tag ok">実施済</span>' : "";
+  return `<div class="pl ${p.status==="planned"?"plan":p.status}">
+    <div class="t">${withDate?esc(fmtDate(dayStart(p.plan_date)))+" ":""}${esc(hm(p.start_time))}〜${esc(hm(p.end_time))}${stLabel}</div>
+    <div class="pn">${esc(p.place)}</div>
+    ${p.note?`<div class="t">${esc(p.note)}</div>`:""}
+    ${p.status==="planned"?`<div class="acts">
+      <span class="vol">👥 参加予定 ${n}名${joined?'<span class="tag ok">登録済み</span>':""}</span>
+      <span style="flex:1"></span>
+      ${joined?`<button class="btn sm sub" onclick="cancelJoin(${p.id})">参加を取り消す</button>`:`<button class="btn sm green" onclick="openJoin(${p.id})">参加する</button>`}
+    </div>`:""}
+  </div>`;
+}
+function recCard(r){
+  if(r.status==="skip") return `<div class="pl skip"><div class="pn">実施なし（${esc(r.skip_reason||"")}）</div></div>`;
+  return `<div class="pl done"><div class="t">${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):""}　${esc(fmtMin(r.minutes))}　${esc(wxLabel(r))}</div>
+    <div class="pn">${esc(r.place)}<span class="tag ok">実施済</span></div></div>`;
+}
+function renderUpcoming(){
+  const ps=upcomingPlans.filter(p=>p.status==="planned");
+  const sk=upcomingPlans.filter(p=>p.status==="skip");
+  if(!ps.length && !sk.length){ $("upcoming").innerHTML='<p class="empty">現在、登録されている予定はありません。</p>'; return; }
+  $("upcoming").innerHTML = ps.map(p=>planCard(p,true)).join("") + sk.map(p=>planCard(p,true)).join("");
+}
+function renderCal(){
+  const first=new Date(calY,calM,1), start=new Date(first); start.setDate(1-first.getDay());
+  const today=ymd(new Date());
+  let h=WD.split("").map((w,i)=>`<div class="wd${i===0?" su":i===6?" sa":""}">${w}</div>`).join("");
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
+    if(i>=35 && d.getMonth()!==calM) break;
+    const ps=plans.filter(p=>p.plan_date===k && p.status!=="done"), rs=recs.filter(r=>recDate(r)===k);
+    const evs=[
+      ...rs.map(r=> r.status==="skip" ? `<span class="ev skip">休:${esc(r.skip_reason||"")}</span>` : `<span class="ev done">${esc(shortPlace(r.place))}${r.weather?r.weather:""}</span>`),
+      ...ps.map(p=> p.status==="skip" ? (rs.some(r=>r.plan_id===p.id)?"":`<span class="ev skip">休:${esc(p.skip_reason||"")}</span>`) : `<span class="ev plan">${esc(shortPlace(p.place))} ${esc(hm(p.start_time).replace(/^0/,""))}${volCnt[p.id]?`👥${volCnt[p.id]}`:""}</span>`)
+    ].filter(Boolean);
+    h+=`<button type="button" class="day${d.getMonth()!==calM?" out":""}${k===today?" today":""}${k===calSel?" sel":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}" onclick="selDay('${k}')">
+      <span class="n">${d.getDate()}</span>${evs.slice(0,3).join("")}${evs.length>3?`<span class="ev">+${evs.length-3}</span>`:""}</button>`;
+  }
+  $("calGrid").innerHTML=h;
+}
+function selDay(k){ calSel=k; renderCal(); renderDay(); }
+function renderDay(){
+  const box=$("dayCard");
+  if(!calSel){ box.innerHTML='<p class="note">日付をタップすると、その日の予定・実績が出ます。</p>'; return; }
+  const ps=plans.filter(p=>p.plan_date===calSel && p.status!=="done"), rs=recs.filter(r=>recDate(r)===calSel);
+  let h=`<div class="ttl">${esc(fmtDate(dayStart(calSel)))}</div>`;
+  if(!ps.length && !rs.length) h+='<p class="note">この日の予定・実績はありません。</p>';
+  h+=rs.map(recCard).join("") + ps.filter(p=>!(p.status==="skip" && rs.some(r=>r.plan_id===p.id))).map(p=>planCard(p,false)).join("");
+  box.innerHTML=h;
+}
+
+/* ---------- 参加登録 ---------- */
+let joinId=null;
+function findPlan(id){ return upcomingPlans.find(p=>p.id===id) || plans.find(p=>p.id===id); }
+function openJoin(id){
+  const p=findPlan(id); if(!p) return; joinId=id;
+  $("joinPlan").textContent=`${fmtDate(dayStart(p.plan_date))} ${hm(p.start_time)}〜${hm(p.end_time)} ${p.place}`;
+  try{ $("jName").value=localStorage.getItem("enzetsu_vol_name")||""; $("jContact").value=localStorage.getItem("enzetsu_vol_contact")||""; }catch(e){}
+  $("jMsg").value=""; $("joinSheet").classList.add("show"); setTimeout(()=>$("jName").focus(),100);
+}
+function closeJoin(){ $("joinSheet").classList.remove("show"); joinId=null; }
+async function submitJoin(){
+  const name=$("jName").value.trim(); if(!name){ toast("お名前を入力してください",true); return; }
+  const contact=$("jContact").value.trim()||null, message=$("jMsg").value.trim()||null;
+  const btn=$("btnJoin"); btn.disabled=true;
+  try{
+    const rows=await api(`/rest/v1/${T_VO}`,{method:"POST",headers:JSONH,body:JSON.stringify({plan_id:joinId,name,contact,message})});
+    const id=rows&&rows[0]&&rows[0].id;
+    const m=mine(); m[joinId]=id||true; setMine(m);
+    try{ localStorage.setItem("enzetsu_vol_name",name); localStorage.setItem("enzetsu_vol_contact",contact||""); }catch(e){}
+    volCnt[joinId]=(volCnt[joinId]||0)+1;
+    toast("参加を登録しました。ありがとうございます！");
+    closeJoin(); renderUpcoming(); renderCal(); renderDay();
+  }catch(e){ toast("登録に失敗しました："+e.message,true); }
+  finally{ btn.disabled=false; }
+}
+async function cancelJoin(planId){
+  const m=mine(), id=m[planId]; if(!id) return;
+  if(!confirm("参加登録を取り消しますか？")) return;
+  try{
+    if(id!==true) await api(`/rest/v1/${T_VO}?id=eq.${id}`,{method:"DELETE",headers:{"Prefer":"return=minimal"}});
+    delete m[planId]; setMine(m); volCnt[planId]=Math.max(0,(volCnt[planId]||1)-1);
+    toast("取り消しました"); renderUpcoming(); renderCal(); renderDay();
+  }catch(e){ toast("取り消しに失敗しました："+e.message,true); }
+}
+$("joinSheet").addEventListener("click",e=>{ if(e.target===$("joinSheet")) closeJoin(); });
+
+loadUpcoming(); loadCal();
+</script>
+</body>
+</html>

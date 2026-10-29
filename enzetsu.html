@@ -174,6 +174,54 @@
     border-top:1px solid var(--line);}
   .savebar .btn.big{flex:1;}
   .savebar .btn.ghost{flex:none; padding:10px 6px; font-size:13px;}
+
+  /* ===== v2：時刻の1行入力・実施しない・天気 ===== */
+  .tline{display:grid; grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) auto minmax(0,1fr); gap:4px; align-items:center; margin-top:6px;}
+  .tline input{margin-top:0; min-width:0; width:100%; font-size:14px; padding:8px 2px; text-align:center;}
+  .tline input::-webkit-calendar-picker-indicator{margin:0; padding:0; width:14px;}
+  .tline .sep{font-size:13px; color:var(--sub); text-align:center;}
+  .trow .btn.skipb{flex:none; background:#F1F3F8; color:var(--sub); font-size:12px; padding:7px 9px; border:1px solid var(--line);}
+  .wx{font-size:13px; color:var(--sub); margin-left:8px; white-space:nowrap;}
+  .skipbox{background:#F7F7F7; border:1px dashed #BBB; border-radius:10px; padding:10px; margin-top:8px;}
+  .skipbox .lbl{color:#555;}
+  .reasons{display:grid; grid-template-columns:repeat(2,1fr); gap:6px; margin:6px 0;}
+  .reasons .stn{padding:9px 2px;}
+  .planbar{background:#E3EDFF; border:1px solid #9DB8E8; color:var(--navy); border-radius:10px; padding:7px 10px; margin-bottom:8px;
+    font-size:13px; display:flex; justify-content:space-between; align-items:center; gap:8px;}
+  .planbar button{border:none; background:none; color:var(--navy2); text-decoration:underline; font-size:12px; cursor:pointer; font-family:inherit;}
+
+  /* ===== v2：カレンダー ===== */
+  .calh{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+  .calh b{font-size:17px; color:var(--navy);}
+  .calh .btn{padding:7px 12px;}
+  .calg{display:grid; grid-template-columns:repeat(7,1fr); gap:2px;}
+  .calg .wd{text-align:center; font-size:11px; color:var(--sub); padding:2px 0;}
+  .calg .wd.su{color:var(--red);} .calg .wd.sa{color:var(--navy2);}
+  .day{min-height:58px; background:#fff; border:1px solid var(--line); border-radius:6px; padding:2px 2px 3px; cursor:pointer;
+       font-family:inherit; text-align:left; color:var(--text); display:flex; flex-direction:column; gap:1px; overflow:hidden;}
+  .day.out{opacity:.4;} .day.today{border-color:var(--navy2); box-shadow:inset 0 0 0 1px var(--navy2);}
+  .day.sel{background:#E3EDFF;}
+  .day .n{font-size:11px; color:var(--sub); line-height:1.2;} .day.su .n{color:var(--red);} .day.sa .n{color:var(--navy2);}
+  .ev{font-size:9.5px; line-height:1.25; border-radius:3px; padding:1px 2px; white-space:normal; word-break:break-all; overflow:hidden; max-height:2.5em;}
+  .ev.plan{background:#fff; border:1px solid var(--navy2); color:var(--navy);}
+  .ev.done{background:#DDF1E5; color:#1E5C3A;}
+  .ev.skip{background:#EDEDED; color:#777;}
+  .legend{display:flex; gap:10px; font-size:11px; color:var(--sub); margin:6px 2px 0; flex-wrap:wrap;}
+  .legend i{display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:3px;}
+  .dayttl{font-weight:700; color:var(--navy); font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
+  .dayttl .btn{margin-left:auto;}
+  .pl{border:1px solid var(--line); border-radius:10px; padding:9px 10px; margin-bottom:8px; background:#fff;}
+  .pl.plan{border-color:var(--navy2);} .pl.skip{background:#F5F5F5; color:#666;}
+  .pl .t{font-size:12px; color:var(--sub);} .pl .pn{font-size:16px; font-weight:700; color:var(--navy);}
+  .pl.skip .pn{color:#666;}
+  .pl .vol{font-size:12px; margin-top:4px; color:#1E5C3A;}
+  .pl .acts{margin-top:8px;}
+  .planform .row2{margin-top:6px;}
+  .planform input{font-size:15px; padding:9px 8px;}
+  .calbtns{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;}
+  .calbtns .btn{flex:1; white-space:nowrap;}
+  .rec.skip{background:#F5F5F5;} .rec.skip .p{color:#666;}
+  .rec .wxl{font-size:12px; color:var(--sub); margin-left:6px;}
 </style>
 </head>
 <body>
@@ -181,7 +229,8 @@
   <nav>
     <a class="home" href="/" title="トップメニューへ" aria-label="トップメニューへ">&#8962;</a>
     <button class="tab on" data-t="rec">記録</button>
-    <button class="tab" data-t="hist">履歴・集計</button>
+    <button class="tab" data-t="cal">予定・暦</button>
+    <button class="tab" data-t="hist">履歴</button>
     <button class="tab" data-t="pam">配布物</button>
   </nav>
 </header>
@@ -194,23 +243,38 @@
     <button class="btn sm sub" onclick="resetForm()">編集をやめる</button>
   </div>
 
+  <div class="planbar" id="planBar" hidden>
+    <span id="planTxt"></span>
+    <button type="button" onclick="unlinkPlan()">予定との紐づけを外す</button>
+  </div>
+
   <!-- ① 時間 -->
   <div class="card">
     <div class="trow">
       <div class="timer" id="timer">--:--:--</div>
-      <div class="dur">滞在 <b id="durTxt">-</b></div>
+      <div class="dur">滞在 <b id="durTxt">-</b><span class="wx" id="wxTxt"></span></div>
+      <button type="button" class="btn skipb" onclick="toggleSkip()">実施しない</button>
     </div>
-    <div class="row2">
+    <div class="row2" id="startEnd">
       <button class="btn big green" onclick="startNow()">▶ 演説開始</button>
       <button class="btn big red" onclick="endNow()">■ 演説終了</button>
     </div>
-    <details class="tedit">
-      <summary>時刻を手で入力・修正する</summary>
-      <div class="row2">
-        <label class="f">開始<input type="datetime-local" id="fStart" onchange="onTimeEdit()"></label>
-        <label class="f">終了<input type="datetime-local" id="fEnd" onchange="onTimeEdit()"></label>
+    <div class="tline" id="tline">
+      <input type="date" id="fDate" onchange="onTimeEdit()" aria-label="日付">
+      <input type="time" id="fStartT" onchange="onTimeEdit()" aria-label="開始時刻">
+      <span class="sep">〜</span>
+      <input type="time" id="fEndT" onchange="onTimeEdit()" aria-label="終了時刻">
+    </div>
+    <!-- 実施しない -->
+    <div class="skipbox" id="skipBox" hidden>
+      <div class="lbl">この日は実施しない（理由を選んでください）</div>
+      <div class="reasons" id="reasons"></div>
+      <input id="fSkipNote" placeholder="補足（任意・例：町内会の運動会）" oninput="saveDraft()">
+      <div class="row2" style="margin-top:8px;">
+        <button class="btn sub" onclick="toggleSkip()">やめる</button>
+        <button class="btn" id="btnSkipSave" onclick="saveSkip()">実施しないで記録</button>
       </div>
-    </details>
+    </div>
   </div>
 
   <!-- ② 場所 -->
@@ -250,6 +314,45 @@
   </div>
 </section>
 
+<!-- ============ 予定・カレンダー ============ -->
+<section id="v-cal">
+  <div class="card">
+    <div class="calh">
+      <button class="btn sub" onclick="calMove(-1)" aria-label="前の月">‹</button>
+      <b id="calTitle"></b>
+      <button class="btn sub" onclick="calMove(1)" aria-label="次の月">›</button>
+    </div>
+    <div class="calg" id="calGrid"></div>
+    <div class="legend"><span><i style="background:#fff;border:1px solid var(--navy2)"></i>予定</span>
+      <span><i style="background:#DDF1E5"></i>実施済</span><span><i style="background:#EDEDED"></i>実施なし</span></div>
+    <div class="calbtns">
+      <button class="btn" onclick="newPlan()">＋ 予定を追加</button>
+      <button class="btn sub" onclick="openPrint()">印刷・PDF</button>
+      <button class="btn sub" onclick="copyShare()">共有リンク</button>
+    </div>
+  </div>
+  <div class="card planform" id="planForm" hidden>
+    <div class="ttl" id="planTtl">予定を追加</div>
+    <div class="tline">
+      <input type="date" id="plDate" aria-label="日付">
+      <input type="time" id="plStart" aria-label="開始" value="06:30">
+      <span class="sep">〜</span>
+      <input type="time" id="plEnd" aria-label="終了" value="09:30">
+    </div>
+    <div class="stations" id="plStations" style="margin-top:8px;"></div>
+    <div class="inrow">
+      <input id="plPlace" placeholder="場所（駅ボタンか入力）" oninput="onPlPlace()">
+      <button class="mic" data-target="plPlace" data-replace="1" title="音声で場所を入力" aria-label="音声で場所を入力">🎤</button>
+    </div>
+    <input id="plNote" placeholder="補足（任意・支援者にも表示）" style="margin-top:6px;">
+    <div class="row2" style="margin-top:10px;">
+      <button class="btn sub" onclick="$('planForm').hidden=true">やめる</button>
+      <button class="btn" id="btnPlanSave" onclick="savePlan()">予定を保存</button>
+    </div>
+  </div>
+  <div class="card" id="dayCard"><p class="empty">日付をタップすると、その日の予定と記録が出ます。</p></div>
+</section>
+
 <!-- ============ 履歴・集計 ============ -->
 <section id="v-hist">
   <div class="card">
@@ -270,7 +373,10 @@
   </div>
   <div class="card" id="sumCard"></div>
   <div id="histList"></div>
-  <button class="btn full" onclick="csvHist()">CSVで出力（Excel用）</button>
+  <div class="row2">
+    <button class="btn sub" onclick="fillWeather()">天気をまとめて取得</button>
+    <button class="btn" onclick="csvHist()">CSVで出力（Excel用）</button>
+  </div>
 </section>
 
 <!-- ============ 配布物登録 ============ -->
@@ -309,6 +415,14 @@ const BUCKET   = "poster-media";   // PDFは pamphlets/ フォルダに保存
 const PASSCODE = "sano2026";       // ""で無効化
 const T_SP = "speeches";
 const T_PM = "pamphlets";
+const T_PL = "speech_plans";
+const T_VO = "speech_volunteers";
+const SHARE_URL = location.origin + "/schedule.html";    // 支援者向け共有ページ
+const SKIP_REASONS = ["個人の用事","勉強会","地域行事","その他"];
+/* 天気取得に使う座標（駅名が入っていれば駅の座標、なければGPS、どちらもなければ磯子区役所） */
+const STATION_XY = {"磯子駅":[35.4005,139.6176],"根岸駅":[35.4126,139.6316],"新杉田駅":[35.3868,139.6155],
+  "洋光台駅":[35.3773,139.5875],"京急杉田駅":[35.3855,139.6189],"京急屏風浦駅":[35.3946,139.6103],"屏風浦駅":[35.3946,139.6103]};
+const DEFAULT_XY = [35.4008,139.6176];
 const PDF_DIR = "pamphlets";
 const KINDS = ["ビラ","パンフレット","チラシ","リーフレット","はがき","ポスター","その他"];
 const DRAFT_KEY = "enzetsu_draft_v1";
@@ -368,6 +482,7 @@ function showTab(t){
   document.querySelectorAll("main section").forEach(s=>s.classList.toggle("on", s.id==="v-"+t));
   window.scrollTo(0,0);
   if(t==="hist") loadHist();
+  if(t==="cal" && calDirty) loadCal();
   if(t==="pam") refreshPamTab();
 }
 
@@ -399,32 +514,46 @@ function toggleMic(btn){
    記録フォーム
 ================================================================ */
 let st = blank();
-function blank(){ return {editId:null, editLabel:"", start:null, end:null, place:"", lat:null, lng:null, acc:null, items:[], memo:""}; }
+function blank(){ return {editId:null, editLabel:"", start:null, end:null, place:"", lat:null, lng:null, acc:null, items:[], memo:"",
+  planId:null, planLabel:"", weather:null, temp:null, skip:false, skipReason:"", skipNote:""}; }
 
 function saveDraft(){
-  st.place=$("fPlace").value; st.memo=$("fMemo").value;
+  st.place=$("fPlace").value; st.memo=$("fMemo").value; st.skipNote=$("fSkipNote").value;
   try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(st)); }catch(e){}
 }
 function loadDraft(){
   try{ const s=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"); if(s&&typeof s==="object") st={...blank(),...s}; }catch(e){}
 }
 function renderForm(){
-  $("fStart").value=toLocalInput(st.start);
-  $("fEnd").value=toLocalInput(st.end);
+  renderTimeInputs();
   $("fPlace").value=st.place||"";
   $("fMemo").value=st.memo||"";
+  $("fSkipNote").value=st.skipNote||"";
   $("editBanner").hidden=!st.editId;
   $("editTxt").textContent = st.editId ? `過去の記録を編集中：${st.editLabel}` : "";
   $("btnSave").textContent = st.editId ? "変更を保存" : "記録を保存";
   $("btnClear").hidden = !!st.editId;
-  showGps(); renderItems(); renderStations(); tick();
+  $("planBar").hidden=!st.planId;
+  $("planTxt").textContent = st.planId ? `予定：${st.planLabel}` : "";
+  renderSkip();
+  showGps(); showWx(); renderItems(); renderStations(); tick();
 }
+/* 日付＋開始時刻＋終了時刻の1行入力（終了が開始より前なら翌日扱い） */
+function renderTimeInputs(){
+  const s=st.start? new Date(st.start):null, e=st.end? new Date(st.end):null;
+  $("fDate").value = s? ymd(s) : (e? ymd(e) : ymd(new Date()));
+  $("fStartT").value = s? `${pad(s.getHours())}:${pad(s.getMinutes())}` : "";
+  $("fEndT").value   = e? `${pad(e.getHours())}:${pad(e.getMinutes())}` : "";
+}
+function showWx(){ $("wxTxt").textContent = st.weather ? `${st.weather}${st.temp!=null?` ${st.temp}℃`:""}` : ""; }
+function unlinkPlan(){ st.planId=null; st.planLabel=""; saveDraft(); renderForm(); }
 
 function startNow(){
   if(st.start && !confirm("開始時刻を今の時刻に入れ直しますか？")) return;
-  st.start=new Date().toISOString(); st.end=null;
+  st.start=new Date().toISOString(); st.end=null; st.weather=null; st.temp=null;
   renderForm(); saveDraft();
   if(st.lat==null) quickGps();      // 開始時は位置だけ記録（周辺施設の検索は別ボタン）
+  getWeatherForForm();              // 天気・気温も自動で記録
 }
 function endNow(){
   if(!st.start){ toast("先に「演説開始」を押してください",true); return; }
@@ -434,7 +563,12 @@ function endNow(){
   toast("終了しました。配布数を入力して保存してください");
 }
 function onTimeEdit(){
-  const s=fromLocalInput($("fStart").value), e=fromLocalInput($("fEnd").value);
+  const d=dayStart($("fDate").value);
+  const ts=/^(\d{2}):(\d{2})/.exec($("fStartT").value||""), te=/^(\d{2}):(\d{2})/.exec($("fEndT").value||"");
+  if(!d){ st.start=null; st.end=null; saveDraft(); tick(); return; }
+  const s = ts? new Date(d.getFullYear(),d.getMonth(),d.getDate(),+ts[1],+ts[2]) : null;
+  let   e = te? new Date(d.getFullYear(),d.getMonth(),d.getDate(),+te[1],+te[2]) : null;
+  if(s && e && e<s) e.setDate(e.getDate()+1);           // 深夜をまたぐ場合
   st.start = s? s.toISOString() : null;
   st.end   = e? e.toISOString() : null;
   saveDraft(); tick();
@@ -484,6 +618,7 @@ function renderItems(){
         </div>
         <div class="cnt">
           <input type="number" inputmode="numeric" min="0" id="cnt${i}" value="${num(it.count)}" onchange="setCnt(${i},this.value)" onfocus="this.select()" aria-label="配布数">
+          <button onclick="addCnt(${i},-10)">−10</button>
           <button onclick="addCnt(${i},-1)">−1</button>
           <button onclick="addCnt(${i},1)">＋1</button>
           <button onclick="addCnt(${i},10)">＋10</button>
@@ -526,6 +661,7 @@ function renderStations(){
 function pickStation(b){
   $("fPlace").value=b.dataset.label; saveDraft(); onPlaceInput();
   if(st.lat==null) quickGps();         // 位置だけ記録（施設検索はしない）
+  if(st.start && !st.weather) getWeatherForForm();
 }
 /* 位置だけをすばやく記録（周辺施設の検索はしない） */
 function quickGps(){
@@ -701,6 +837,7 @@ async function save(){
   }
   const s=new Date(st.start), e=new Date(st.end);
   if(e<s){ toast("終了日時が開始日時より前になっています",true); return; }
+  if(calcMin(s,e)>12*60 && !confirm(`滞在時間が${fmtMin(calcMin(s,e))}になっています。日付・時刻は合っていますか？\nこのまま保存しますか？`)) return;
   const merged=new Map();
   for(const it of st.items){
     const c=num(it.count), key=itKey(it); if(!key||c<=0) continue;
@@ -712,16 +849,19 @@ async function save(){
   const noCnt = st.items.some(it=>itKey(it) && num(it.count)===0);
   if(noCnt && !confirm("配布数が0の配布物があります。0の行は記録されませんが、保存しますか？")) return;
   const items=[...merged.values()];
+  const btn=$("btnSave"); btn.disabled=true;
+  if(!st.weather){ try{ await getWeatherForForm(place, s); }catch(e){} }    // 天気が未取得なら保存前に取得（失敗しても保存は続行）
   const body={started_at:s.toISOString(), ended_at:e.toISOString(), minutes:calcMin(s,e), place,
     lat:st.lat, lng:st.lng, items, total_count:items.reduce((a,b)=>a+b.count,0),
-    memo:$("fMemo").value.trim()||null};
-  const btn=$("btnSave"); btn.disabled=true;
+    memo:$("fMemo").value.trim()||null, status:"done", skip_reason:null,
+    weather:st.weather||null, temp_c:st.temp??null, plan_id:st.planId||null};
   try{
     if(st.editId) await api(`/rest/v1/${T_SP}?id=eq.${st.editId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify(body)});
     else          await api(`/rest/v1/${T_SP}`,{method:"POST",headers:JSONH,body:JSON.stringify(body)});
+    if(st.planId){ try{ await api(`/rest/v1/${T_PL}?id=eq.${st.planId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify({status:"done"})}); }catch(e){} }
     const wasEdit=!!st.editId;
     toast(wasEdit?"変更を保存しました":"保存しました");
-    pastCache=null; usage=null;
+    pastCache=null; usage=null; calDirty=true;
     resetForm();
     if(wasEdit) showTab("hist");
   }catch(err){
@@ -738,12 +878,304 @@ function resetForm(){
   }
   if(!restored){ st=blank(); addDefaultItem(); }
   $("cands").innerHTML=""; $("btnWiden").hidden=true;
-  saveDraft(); renderForm();
+  renderForm(); saveDraft();
 }
 function clearForm(){
   if(!confirm("入力中の内容をすべて消去しますか？")) return;
   st=blank(); addDefaultItem(); $("cands").innerHTML=""; $("btnWiden").hidden=true;
-  saveDraft(); renderForm();
+  renderForm(); saveDraft();
+}
+
+/* ================================================================
+   実施しない（理由つきで記録）
+================================================================ */
+function toggleSkip(){
+  st.skip=!st.skip; if(!st.skip){ st.skipReason=""; }
+  renderSkip(); saveDraft();
+}
+function renderSkip(){
+  $("skipBox").hidden=!st.skip;
+  $("startEnd").hidden=!!st.skip;
+  $("tline").style.display = st.skip ? "none" : "";
+  $("reasons").innerHTML = SKIP_REASONS.map(r=>`<button type="button" class="stn${r===st.skipReason?" sel":""}" onclick="pickReason(this)" data-r="${esc(r)}">${esc(r)}</button>`).join("");
+  $("btnSkipSave").textContent = st.editId ? "変更を保存" : "実施しないで記録";
+  const sk=$("skipBox");
+  if(st.skip && !sk.querySelector("#skipDate")){
+    const d=document.createElement("input"); d.type="date"; d.id="skipDate"; d.style.marginBottom="6px";
+    d.onchange=()=>{ const x=dayStart(d.value); if(x){ st.start=x.toISOString(); st.end=st.start; saveDraft(); } };
+    sk.insertBefore(d, $("reasons"));
+  }
+  if(st.skip){ const x=st.start? new Date(st.start) : new Date(); $("skipDate").value=ymd(x); }
+}
+function pickReason(b){ st.skipReason=b.dataset.r; renderSkip(); saveDraft(); }
+async function saveSkip(){
+  saveDraft();
+  if(!st.skipReason){ toast("理由を選んでください",true); return; }
+  const d=dayStart($("skipDate").value); if(!d){ toast("日付を入力してください",true); return; }
+  const note=$("fSkipNote").value.trim();
+  const body={started_at:d.toISOString(), ended_at:d.toISOString(), minutes:0, place:"実施なし", lat:null, lng:null,
+    items:[], total_count:0, memo:note||null, status:"skip", skip_reason:st.skipReason, weather:null, temp_c:null, plan_id:st.planId||null};
+  const btn=$("btnSkipSave"); btn.disabled=true;
+  try{
+    if(st.editId) await api(`/rest/v1/${T_SP}?id=eq.${st.editId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify(body)});
+    else          await api(`/rest/v1/${T_SP}`,{method:"POST",headers:JSONH,body:JSON.stringify(body)});
+    if(st.planId){ try{ await api(`/rest/v1/${T_PL}?id=eq.${st.planId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify({status:"skip",skip_reason:st.skipReason+(note?"："+note:"")})}); }catch(e){} }
+    toast(`「実施しない（${st.skipReason}）」を記録しました`);
+    const wasEdit=!!st.editId; calDirty=true;
+    resetForm();
+    if(wasEdit) showTab("hist");
+  }catch(err){ toast("保存に失敗しました："+err.message,true); }
+  finally{ btn.disabled=false; }
+}
+
+/* ================================================================
+   天気・気温（Open-Meteo：無料・キー不要）
+================================================================ */
+function wxIcon(c){
+  if(c==null) return "";
+  if(c<=1) return "☀️"; if(c===2) return "⛅"; if(c===3) return "☁️";
+  if(c===45||c===48) return "🌫️";
+  if((c>=51&&c<=67)||(c>=80&&c<=82)) return "🌧️";
+  if((c>=71&&c<=77)||c===85||c===86) return "❄️";
+  if(c>=95) return "⛈️";
+  return "☁️";
+}
+function wxCoord(place, lat, lng){
+  const p=String(place||"");
+  for(const k in STATION_XY){ if(p.includes(k)) return STATION_XY[k]; }
+  if(lat!=null && lng!=null && lat>35.3 && lat<35.6 && lng>139.5 && lng<139.75) return [lat,lng];
+  return DEFAULT_XY;
+}
+async function fetchWeather(lat,lng,when){
+  const d=ymd(when), h=when.getHours();
+  const old=(Date.now()-when.getTime())/86400000 > 85;
+  const host= old ? "https://archive-api.open-meteo.com/v1/archive" : "https://api.open-meteo.com/v1/forecast";
+  const u=`${host}?latitude=${lat}&longitude=${lng}&hourly=temperature_2m,weather_code&timezone=Asia%2FTokyo&start_date=${d}&end_date=${d}`;
+  const ctl=new AbortController(); const t=setTimeout(()=>ctl.abort(),8000);
+  try{
+    const r=await fetch(u,{signal:ctl.signal}); if(!r.ok) throw new Error("HTTP "+r.status);
+    const js=await r.json(); const H=js.hourly||{}; const times=H.time||[];
+    let i=times.findIndex(x=>x.endsWith("T"+pad(h)+":00")); if(i<0) i=Math.min(h,times.length-1); if(i<0) throw new Error("no data");
+    const code=H.weather_code?.[i], temp=H.temperature_2m?.[i];
+    if(code==null && temp==null) throw new Error("no data");
+    return {weather:wxIcon(code), temp: temp!=null? Math.round(temp) : null};
+  }finally{ clearTimeout(t); }
+}
+async function getWeatherForForm(place, when){
+  place = place ?? $("fPlace").value; when = when ?? (st.start? new Date(st.start) : new Date());
+  const [la,lo]=wxCoord(place, st.lat, st.lng);
+  try{ const w=await fetchWeather(la,lo,when); st.weather=w.weather; st.temp=w.temp; showWx(); saveDraft(); }
+  catch(e){ /* 取れなくても記録は続行 */ }
+}
+/* 履歴：天気が未取得の記録にまとめて付ける */
+async function fillWeather(){
+  const rows=histRows.filter(r=>r.status!=="skip" && !r.weather);
+  if(!rows.length){ toast("天気が未取得の記録はありません"); return; }
+  if(!confirm(`表示中の${rows.length}件に天気・気温を付けます。よろしいですか？`)) return;
+  let ok=0;
+  for(const r of rows){
+    try{
+      const [la,lo]=wxCoord(r.place,r.lat,r.lng);
+      const w=await fetchWeather(la,lo,new Date(r.started_at));
+      await api(`/rest/v1/${T_SP}?id=eq.${r.id}`,{method:"PATCH",headers:JSONH,body:JSON.stringify({weather:w.weather,temp_c:w.temp})});
+      r.weather=w.weather; r.temp_c=w.temp; ok++;
+    }catch(e){}
+  }
+  toast(`${ok}件に天気を付けました`); calDirty=true; renderHist();
+}
+
+/* ================================================================
+   予定・カレンダー
+================================================================ */
+let calY, calM, calSel=null, calDirty=true, calPlans=[], calRecs=[], calVols={}, plEditId=null;
+(function(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); })();
+function calMove(d){ calM+=d; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} calDirty=true; calSel=null; loadCal(); }
+function wxLabel(r){ return r.weather ? `${r.weather}${r.temp_c!=null?`${Math.round(r.temp_c)}℃`:""}` : ""; }
+function hm(t){ return t? String(t).slice(0,5) : ""; }
+async function loadCal(){
+  $("calTitle").textContent=`${calY}年${calM+1}月`;
+  const f=new Date(calY,calM,1); f.setDate(f.getDate()-7);
+  const t=new Date(calY,calM+1,1); t.setDate(t.getDate()+7);
+  try{
+    const [pl,rc]=await Promise.all([
+      api(`/rest/v1/${T_PL}?select=*&plan_date=gte.${ymd(f)}&plan_date=lt.${ymd(t)}&order=plan_date.asc,start_time.asc`),
+      api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,total_count,memo,status,skip_reason,weather,temp_c,plan_id,lat,lng,items&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`)
+    ]);
+    calPlans=pl||[]; calRecs=rc||[]; calVols={};
+    if(calPlans.length){
+      const vs=await api(`/rest/v1/${T_VO}?select=id,plan_id,name,contact,message,created_at&plan_id=in.(${calPlans.map(p=>p.id).join(",")})&order=created_at.asc`).catch(()=>[]);
+      (vs||[]).forEach(v=>{ (calVols[v.plan_id]=calVols[v.plan_id]||[]).push(v); });
+    }
+    calDirty=false; renderCal(); renderDay();
+  }catch(e){
+    $("calGrid").innerHTML=`<p class="note err" style="grid-column:1/-1">読み込みに失敗しました：${esc(e.message)}<br>改修用のSQL（enzetsu_v2.sql）が実行済みか確認してください。</p>`;
+  }
+}
+function recDate(r){ return ymd(new Date(r.started_at)); }
+function renderCal(){
+  const first=new Date(calY,calM,1), start=new Date(first); start.setDate(1-first.getDay());
+  const today=ymd(new Date());
+  let h=WD.split("").map((w,i)=>`<div class="wd${i===0?" su":i===6?" sa":""}">${w}</div>`).join("");
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
+    if(i>=35 && d.getMonth()!==calM) break;
+    const ps=calPlans.filter(p=>p.plan_date===k && p.status==="planned");
+    const rs=calRecs.filter(r=>recDate(r)===k);
+    const evs=[
+      ...rs.map(r=> r.status==="skip" ? `<span class="ev skip">休:${esc(r.skip_reason||"")}</span>`
+                 : `<span class="ev done">${esc(shortPlace(r.place))} ${r.total_count||0}枚${r.weather?r.weather:""}</span>`),
+      ...ps.map(p=>`<span class="ev plan">${esc(shortPlace(p.place))} ${esc(hm(p.start_time).replace(/^0/,""))}${(calVols[p.id]||[]).length?`👥${calVols[p.id].length}`:""}</span>`)
+    ];
+    h+=`<button type="button" class="day${d.getMonth()!==calM?" out":""}${k===today?" today":""}${k===calSel?" sel":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}" onclick="selDay('${k}')">
+      <span class="n">${d.getDate()}</span>${evs.slice(0,3).join("")}${evs.length>3?`<span class="ev">+${evs.length-3}</span>`:""}</button>`;
+  }
+  $("calGrid").innerHTML=h;
+}
+function shortPlace(p){ return String(p||"").replace(/^(JR|京急|市営地下鉄)/,"").replace(/駅前?$/,"").replace(/^実施なし$/,"休"); }
+function selDay(k){ calSel=k; renderCal(); renderDay(); }
+function renderDay(){
+  const box=$("dayCard");
+  if(!calSel){ box.innerHTML='<p class="empty">日付をタップすると、その日の予定と記録が出ます。</p>'; return; }
+  const d=dayStart(calSel);
+  const ps=calPlans.filter(p=>p.plan_date===calSel), rs=calRecs.filter(r=>recDate(r)===calSel);
+  let h=`<div class="dayttl">${esc(fmtDate(d))}<button class="btn sm sub" onclick="newPlan('${calSel}')">＋予定</button></div>`;
+  if(!ps.length && !rs.length) h+='<p class="note">この日の予定・記録はありません。</p>';
+  ps.forEach(p=>{
+    const vols=calVols[p.id]||[];
+    const stLabel = p.status==="done" ? '<span class="tag">実施済</span>' : p.status==="skip" ? `<span class="tag off">実施なし${p.skip_reason?"・"+esc(p.skip_reason):""}</span>` : '<span class="tag">予定</span>';
+    h+=`<div class="pl ${p.status==="planned"?"plan":p.status==="skip"?"skip":""}">
+      <div class="t">${esc(hm(p.start_time))}〜${esc(hm(p.end_time))} ${stLabel}</div>
+      <div class="pn">${esc(p.place)}</div>
+      ${p.note?`<div class="t">${esc(p.note)}</div>`:""}
+      <div class="vol">${vols.length?`👥 ボランティア ${vols.length}名：${vols.map(v=>esc(v.name)+(v.contact?`（${esc(v.contact)}）`:"")+(v.message?` 「${esc(v.message)}」`:"")).join("、")}`:"ボランティア参加なし"}</div>
+      <div class="acts">
+        ${p.status==="planned"?`<button class="btn sm green" onclick="startFromPlan(${p.id})">この予定で記録</button>
+        <button class="btn sm sub" onclick="skipFromPlan(${p.id})">実施しない</button>`:""}
+        <button class="btn sm sub" onclick="editPlan(${p.id})">編集</button>
+        <button class="btn sm red" onclick="delPlan(${p.id})">削除</button>
+      </div></div>`;
+  });
+  rs.forEach(r=>{ h+=recCard(r,true); });
+  box.innerHTML=h;
+}
+function planLabel(p){ return `${fmtDate(dayStart(p.plan_date))} ${hm(p.start_time)}〜${hm(p.end_time)} ${p.place}`; }
+function startFromPlan(id){
+  const p=calPlans.find(x=>x.id===id); if(!p) return;
+  if(st.editId){ toast("編集中の記録があります。先に「編集をやめる」を押してください",true); return; }
+  if(st.start && !confirm("記録中の内容がありますが、この予定の記録に切り替えますか？")) return;
+  st={...blank(), planId:p.id, planLabel:planLabel(p), place:p.place};
+  addDefaultItem();
+  const d=dayStart(p.plan_date);
+  if(p.start_time && ymd(new Date())!==p.plan_date){ const m=/^(\d{2}):(\d{2})/.exec(p.start_time); st.start=new Date(d.getFullYear(),d.getMonth(),d.getDate(),+m[1],+m[2]).toISOString(); }
+  if(p.end_time && ymd(new Date())!==p.plan_date){ const m=/^(\d{2}):(\d{2})/.exec(p.end_time); st.end=new Date(d.getFullYear(),d.getMonth(),d.getDate(),+m[1],+m[2]).toISOString(); }
+  showTab("rec"); renderForm(); saveDraft();
+  toast(ymd(new Date())===p.plan_date ? "「演説開始」を押すと記録が始まります" : "予定の時刻を入れました。必要なら修正してください");
+}
+function skipFromPlan(id){
+  const p=calPlans.find(x=>x.id===id); if(!p) return;
+  if(st.editId){ toast("編集中の記録があります。先に「編集をやめる」を押してください",true); return; }
+  const d=dayStart(p.plan_date);
+  st={...blank(), planId:p.id, planLabel:planLabel(p), skip:true, start:d.toISOString(), end:d.toISOString()};
+  showTab("rec"); renderForm(); saveDraft();
+}
+function newPlan(dateKey){
+  plEditId=null; $("planTtl").textContent="予定を追加"; $("btnPlanSave").textContent="予定を保存";
+  $("plDate").value=dateKey||calSel||ymd(new Date()); $("plStart").value="06:30"; $("plEnd").value="09:30";
+  $("plPlace").value=""; $("plNote").value=""; renderPlStations(); $("planForm").hidden=false;
+  $("planForm").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function editPlan(id){
+  const p=calPlans.find(x=>x.id===id); if(!p) return;
+  plEditId=id; $("planTtl").textContent="予定を編集"; $("btnPlanSave").textContent="変更を保存";
+  $("plDate").value=p.plan_date; $("plStart").value=hm(p.start_time); $("plEnd").value=hm(p.end_time);
+  $("plPlace").value=p.place||""; $("plNote").value=p.note||""; renderPlStations(); $("planForm").hidden=false;
+  $("planForm").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function renderPlStations(){
+  const cur=$("plPlace").value.trim();
+  $("plStations").innerHTML = STATIONS.map(n=>`<button type="button" class="stn${n===cur?" sel":""}" onclick="$('plPlace').value='${n}';onPlPlace()">${esc(n)}</button>`).join("");
+}
+function onPlPlace(){ const v=$("plPlace").value.trim(); document.querySelectorAll("#plStations .stn").forEach(x=>x.classList.toggle("sel", x.textContent===v)); }
+async function savePlan(){
+  const plan_date=$("plDate").value, place=$("plPlace").value.trim();
+  if(!plan_date){ toast("日付を入力してください",true); return; }
+  if(!place){ toast("場所を入力してください",true); return; }
+  const body={plan_date, start_time:$("plStart").value||null, end_time:$("plEnd").value||null, place, note:$("plNote").value.trim()||null};
+  const btn=$("btnPlanSave"); btn.disabled=true;
+  try{
+    if(plEditId) await api(`/rest/v1/${T_PL}?id=eq.${plEditId}`,{method:"PATCH",headers:JSONH,body:JSON.stringify(body)});
+    else         await api(`/rest/v1/${T_PL}`,{method:"POST",headers:JSONH,body:JSON.stringify({...body,status:"planned"})});
+    toast(plEditId?"予定を変更しました":"予定を追加しました");
+    $("planForm").hidden=true; calSel=plan_date;
+    const d=dayStart(plan_date); calY=d.getFullYear(); calM=d.getMonth();
+    await loadCal();
+  }catch(e){ toast("保存に失敗しました："+e.message,true); }
+  finally{ btn.disabled=false; }
+}
+async function delPlan(id){
+  const p=calPlans.find(x=>x.id===id); if(!p) return;
+  const n=(calVols[id]||[]).length;
+  if(!confirm(`${planLabel(p)} の予定を削除しますか？${n?`\n（ボランティア${n}名の参加登録も消えます）`:""}`)) return;
+  try{ await api(`/rest/v1/${T_PL}?id=eq.${id}`,{method:"DELETE",headers:JSONH}); toast("削除しました"); await loadCal(); }
+  catch(e){ toast("削除に失敗しました："+e.message,true); }
+}
+async function copyShare(){
+  try{ await navigator.clipboard.writeText(SHARE_URL); toast("共有リンクをコピーしました（支援者に送ってください）"); }
+  catch(e){ prompt("このリンクを支援者に送ってください", SHARE_URL); }
+}
+
+/* ---------- 印刷・PDF（月のカレンダー形式） ---------- */
+function openPrint(){
+  const first=new Date(calY,calM,1), start=new Date(first); start.setDate(1-first.getDay());
+  const monthRecs=calRecs.filter(r=>{ const d=new Date(r.started_at); return d.getFullYear()===calY && d.getMonth()===calM; });
+  const done=monthRecs.filter(r=>r.status!=="skip");
+  const byP=new Map();
+  done.forEach(r=>(r.items||[]).forEach(it=>{ const k=it.name||it.kind||"配布物"; byP.set(k,(byP.get(k)||0)+(it.count||0)); }));
+  const byS=new Map(); done.forEach(r=>{ byS.set(r.place,(byS.get(r.place)||0)+1); });
+  let cells="";
+  for(let i=0;i<42;i++){
+    const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
+    if(i>=35 && d.getMonth()!==calM) break;
+    const out=d.getMonth()!==calM;
+    const rs=calRecs.filter(r=>recDate(r)===k), ps=calPlans.filter(p=>p.plan_date===k && p.status==="planned");
+    const body=[
+      ...rs.map(r=> r.status==="skip" ? `<div class="sk">実施なし（${esc(r.skip_reason||"")}）</div>`
+        : `<div class="dn"><b>${esc(r.place)}</b><br>${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):""}（${esc(fmtMin(r.minutes))}）<br>${(r.total_count||0).toLocaleString()}枚 ${esc(wxLabel(r))}</div>`),
+      ...ps.map(p=>`<div class="pn">予定 ${esc(hm(p.start_time))}〜${esc(hm(p.end_time))}<br><b>${esc(p.place)}</b></div>`)
+    ].join("");
+    cells+=`<td class="${out?"out":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}"><div class="n">${d.getDate()}</div>${body}</td>`;
+    if(i%7===6) cells+="</tr><tr>";
+  }
+  const totMin=done.reduce((a,r)=>a+(r.minutes||0),0), totCnt=done.reduce((a,r)=>a+(r.total_count||0),0);
+  const html=`<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><title>街頭演説 ${calY}年${calM+1}月</title>
+<style>
+  @page{size:A4 landscape; margin:10mm;}
+  body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Meiryo",sans-serif; color:#1A2333; margin:0; padding:10px;}
+  h1{font-size:18px; margin:0 0 6px;} h1 small{font-size:12px; color:#5A6B8C; margin-left:10px; font-weight:400;}
+  .sum{display:flex; gap:18px; font-size:12px; margin-bottom:8px; flex-wrap:wrap;} .sum b{font-size:15px;}
+  table{width:100%; border-collapse:collapse; table-layout:fixed;}
+  th{font-size:11px; background:#EEF2F8; border:1px solid #C8D2E4; padding:3px;}
+  th.su{color:#B5403B;} th.sa{color:#2E5496;}
+  td{border:1px solid #C8D2E4; vertical-align:top; height:68px; padding:2px 3px; font-size:9.5px; line-height:1.3;}
+  td.out{background:#F6F6F6; color:#aaa;} td .n{font-size:11px; font-weight:700; color:#5A6B8C;} td.su .n{color:#B5403B;} td.sa .n{color:#2E5496;}
+  .dn{background:#DDF1E5; border-radius:3px; padding:2px 3px; margin-top:2px;} .sk{background:#EDEDED; color:#666; border-radius:3px; padding:2px 3px; margin-top:2px;}
+  .pn{border:1px solid #2E5496; border-radius:3px; padding:2px 3px; margin-top:2px; color:#1F3864;}
+  .foot{font-size:10px; color:#5A6B8C; margin-top:6px;}
+  .nop{position:fixed; right:12px; top:10px;} .nop button{font-size:13px; padding:8px 14px;}
+  @media print{ .nop{display:none;} body{padding:0;} }
+</style></head><body>
+<div class="nop"><button onclick="window.print()">印刷／PDFに保存</button></div>
+<h1>街頭演説・ビラ配布 実績 ${calY}年${calM+1}月<small>さの英志</small></h1>
+<div class="sum"><span>実施 <b>${done.length}</b>回</span><span>合計 <b>${esc(fmtMin(totMin))}</b></span><span>ビラ配布 <b>${totCnt.toLocaleString()}</b>枚</span>
+  <span>実施なし <b>${monthRecs.length-done.length}</b>日</span>
+  ${[...byS.entries()].map(([k,v])=>`<span>${esc(k)} ${v}回</span>`).join("")}</div>
+<table><tr>${WD.split("").map((w,i)=>`<th class="${i===0?"su":i===6?"sa":""}">${w}</th>`).join("")}</tr><tr>${cells}</tr></table>
+<div class="foot">${byP.size?"配布物別："+[...byP.entries()].map(([k,v])=>`${esc(k)} ${v.toLocaleString()}枚`).join("　")+"　／　":""}出力 ${esc(fmtDate(new Date()))} ${esc(fmtTime(new Date()))}</div>
+<script>window.addEventListener("load",()=>setTimeout(()=>window.print(),400));<\/script>
+</body></html>`;
+  const w=window.open("","_blank");
+  if(!w){ toast("ポップアップがブロックされました。許可してもう一度押してください",true); return; }
+  w.document.open(); w.document.write(html); w.document.close();
 }
 function addDefaultItem(){
   if(st.items.length) return;
@@ -778,45 +1210,65 @@ function filteredHist(){
 }
 function pamName(it){ const p=it.pamphlet_id!=null && pams.find(x=>x.id===it.pamphlet_id); return p?p.name:(it.name||it.kind||"不明"); }
 function hKey(it){ return it.pamphlet_id!=null ? "p"+it.pamphlet_id : "k:"+(it.kind||it.name||""); }
-function renderHist(){
-  const rows=filteredHist();
-  const totMin=rows.reduce((a,r)=>a+(r.minutes||0),0);
-  const totCnt=rows.reduce((a,r)=>a+(r.total_count||0),0);
-  const byP=new Map();
-  rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=hKey(it); const o=byP.get(k)||{name:pamName(it),n:0}; o.n+=it.count||0; byP.set(k,o); }));
-  $("sumCard").innerHTML = `<div class="ttl">集計（表示中の${rows.length}件）</div>
-    <div class="sum"><div><b>${rows.length}</b><span>演説回数</span></div>
-    <div><b>${esc(fmtMin(totMin))}</b><span>合計時間</span></div>
-    <div><b>${totCnt.toLocaleString()}</b><span>配布合計（部）</span></div></div>
-    ${byP.size?`<div class="ptot">${[...byP.values()].sort((a,b)=>b.n-a.n).map(o=>`・${esc(o.name)}：<b>${o.n.toLocaleString()}</b>部`).join("<br>")}</div>`:""}`;
-  if(!rows.length){ $("histList").innerHTML='<p class="empty">該当する記録がありません。</p>'; return; }
-  $("histList").innerHTML = rows.map(r=>`
+function recCard(r, fromCal){
+  const src=fromCal?"cal":"hist";
+  if(r.status==="skip") return `
+    <div class="rec skip">
+      <div class="d">${esc(fmtDate(r.started_at))}</div>
+      <div class="p">実施なし（${esc(r.skip_reason||"")}）</div>
+      ${r.memo?`<div class="m">${esc(r.memo)}</div>`:""}
+      <div class="acts">
+        <button class="btn sm sub" onclick="editRec(${r.id},'${src}')">編集</button>
+        <button class="btn sm red" onclick="delRec(${r.id},'${src}')">削除</button>
+      </div>
+    </div>`;
+  return `
     <div class="rec">
-      <div class="d">${esc(fmtDate(r.started_at))} ${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):"?"}　滞在 <b>${esc(fmtMin(r.minutes))}</b></div>
+      <div class="d">${esc(fmtDate(r.started_at))} ${esc(fmtTime(r.started_at))}〜${r.ended_at?esc(fmtTime(r.ended_at)):"?"}　滞在 <b>${esc(fmtMin(r.minutes))}</b><span class="wxl">${esc(wxLabel(r))}</span></div>
       <div class="p">${esc(r.place)}</div>
       <div class="chips">${(r.items||[]).length ? r.items.map(it=>`<span class="chip">${esc(pamName(it))} ×${(it.count||0).toLocaleString()}</span>`).join("")
         +`<span class="chip" style="background:var(--navy);color:#fff;">計 ${(r.total_count||0).toLocaleString()}部</span>` : '<span class="chip none">配布なし</span>'}</div>
       ${r.memo?`<div class="m">${esc(r.memo)}</div>`:""}
       <div class="acts">
         ${r.lat!=null?`<a class="btn sm sub" style="text-decoration:none" href="https://www.google.com/maps?q=${r.lat},${r.lng}" target="_blank" rel="noopener">地図</a>`:""}
-        <button class="btn sm sub" onclick="editRec(${r.id})">編集</button>
-        <button class="btn sm red" onclick="delRec(${r.id})">削除</button>
+        <button class="btn sm sub" onclick="editRec(${r.id},'${src}')">編集</button>
+        <button class="btn sm red" onclick="delRec(${r.id},'${src}')">削除</button>
       </div>
-    </div>`).join("");
+    </div>`;
 }
-function editRec(id){
-  const r=histRows.find(x=>x.id===id); if(!r) return;
+function renderHist(){
+  const all=filteredHist();
+  const rows=all.filter(r=>r.status!=="skip"), skips=all.length-rows.length;
+  const totMin=rows.reduce((a,r)=>a+(r.minutes||0),0);
+  const totCnt=rows.reduce((a,r)=>a+(r.total_count||0),0);
+  const byP=new Map();
+  rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=hKey(it); const o=byP.get(k)||{name:pamName(it),n:0}; o.n+=it.count||0; byP.set(k,o); }));
+  $("sumCard").innerHTML = `<div class="ttl">集計（表示中の${rows.length}件${skips?`・実施なし${skips}日`:""}）</div>
+    <div class="sum"><div><b>${rows.length}</b><span>演説回数</span></div>
+    <div><b>${esc(fmtMin(totMin))}</b><span>合計時間</span></div>
+    <div><b>${totCnt.toLocaleString()}</b><span>配布合計（部）</span></div></div>
+    ${byP.size?`<div class="ptot">${[...byP.values()].sort((a,b)=>b.n-a.n).map(o=>`・${esc(o.name)}：<b>${o.n.toLocaleString()}</b>部`).join("<br>")}</div>`:""}`;
+  if(!all.length){ $("histList").innerHTML='<p class="empty">該当する記録がありません。</p>'; return; }
+  $("histList").innerHTML = all.map(r=>recCard(r,false)).join("");
+}
+function editRec(id, src){
+  const r=(src==="cal"?calRecs:histRows).find(x=>x.id===id); if(!r) return;
   if(!st.editId){ saveDraft(); try{ localStorage.setItem(STASH_KEY, JSON.stringify(st)); }catch(e){} }
-  st={...blank(), editId:r.id, editLabel:`${fmtDate(r.started_at)} ${r.place}`,
-      start:r.started_at, end:r.ended_at, place:r.place||"", lat:r.lat, lng:r.lng,
-      items:(r.items||[]).map(it=>({pid:it.pamphlet_id||null, name:it.name, kind:it.kind||"", count:it.count||0})), memo:r.memo||""};
+  const pl = r.plan_id ? calPlans.find(p=>p.id===r.plan_id) : null;
+  st={...blank(), editId:r.id, editLabel:`${fmtDate(r.started_at)} ${r.status==="skip"?"実施なし":r.place}`,
+      start:r.started_at, end:r.ended_at, place:r.status==="skip"?"":(r.place||""), lat:r.lat, lng:r.lng,
+      items:(r.items||[]).map(it=>({pid:it.pamphlet_id||null, name:it.name, kind:it.kind||"", count:it.count||0})),
+      memo:r.status==="skip"?"":(r.memo||""), weather:r.weather||null, temp:r.temp_c??null,
+      planId:r.plan_id||null, planLabel:pl?planLabel(pl):(r.plan_id?"（予定あり）":""),
+      skip:r.status==="skip", skipReason:r.skip_reason||"", skipNote:r.status==="skip"?(r.memo||""):""};
   $("cands").innerHTML=""; $("btnWiden").hidden=true;
-  saveDraft(); showTab("rec"); renderForm();
+  showTab("rec"); renderForm(); saveDraft();     // 画面に反映してから下書き保存（以前は順序が逆で、場所・メモが消えていた）
 }
-async function delRec(id){
-  const r=histRows.find(x=>x.id===id); if(!r) return;
-  if(!confirm(`${fmtDate(r.started_at)}「${r.place}」の記録を削除しますか？\n（元に戻せません）`)) return;
-  try{ await api(`/rest/v1/${T_SP}?id=eq.${id}`,{method:"DELETE",headers:JSONH}); toast("削除しました"); pastCache=null; usage=null; loadHist(); }
+async function delRec(id, src){
+  const r=(src==="cal"?calRecs:histRows).find(x=>x.id===id); if(!r) return;
+  if(!confirm(`${fmtDate(r.started_at)}「${r.status==="skip"?"実施なし":r.place}」の記録を削除しますか？\n（元に戻せません）`)) return;
+  try{ await api(`/rest/v1/${T_SP}?id=eq.${id}`,{method:"DELETE",headers:JSONH}); toast("削除しました"); pastCache=null; usage=null; calDirty=true;
+       if(src==="cal") loadCal(); else loadHist(); }
   catch(e){ toast("削除に失敗しました："+e.message,true); }
 }
 function csvHist(){
@@ -825,13 +1277,15 @@ function csvHist(){
   const ids=[], names=new Map();
   rows.forEach(r=>(r.items||[]).forEach(it=>{ const k=hKey(it); if(!names.has(k)){ ids.push(k); names.set(k,pamName(it)); } }));
   const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
-  const head=["日付","曜日","開始","終了","滞在時間(分)","場所",...ids.map(i=>names.get(i)),"配布合計","メモ","緯度","経度"];
+  const head=["日付","曜日","開始","終了","滞在時間(分)","場所","天気","気温","実施なしの理由",...ids.map(i=>names.get(i)),"配布合計","メモ","緯度","経度"];
   const lines=[head.map(q).join(",")];
   [...rows].reverse().forEach(r=>{
     const d=new Date(r.started_at);
     const cnt=id=>{ const it=(r.items||[]).find(x=>hKey(x)===id); return it?it.count:""; };
-    lines.push([ymd(d).replace(/-/g,"/"), WD[d.getDay()], fmtTime(r.started_at), r.ended_at?fmtTime(r.ended_at):"",
-      r.minutes??"", r.place, ...ids.map(cnt), r.total_count??0, r.memo||"", r.lat??"", r.lng??""].map(q).join(","));
+    const sk=r.status==="skip";
+    lines.push([ymd(d).replace(/-/g,"/"), WD[d.getDay()], sk?"":fmtTime(r.started_at), (!sk&&r.ended_at)?fmtTime(r.ended_at):"",
+      sk?"":(r.minutes??""), sk?"実施なし":r.place, r.weather||"", r.temp_c??"", sk?(r.skip_reason||""):"",
+      ...ids.map(cnt), sk?"":(r.total_count??0), r.memo||"", r.lat??"", r.lng??""].map(q).join(","));
   });
   const blob=new Blob(["\uFEFF"+lines.join("\r\n")],{type:"text/csv"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob);

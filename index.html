@@ -188,6 +188,7 @@
   <div class="links">
     <a href="posters.html">&#128203; ポスター一覧（表形式）</a>
     <a href="map.html">&#128506; 選挙情報マップ（PC）</a>
+    <a href="schedule.html">&#128197; 支援者向け 街頭活動カレンダー（共有用）</a>
   </div>
 </main>
 
@@ -275,14 +276,16 @@ async function loadStats(){
   const failed=[];
   const tasks=[
     /* ① 街頭演説 */
-    sbRows(`/rest/v1/speeches?select=minutes,total_count,place&started_at=gte.${since}&limit=10000`).then(rows=>{
+    sbRows(`/rest/v1/speeches?select=minutes,total_count,place,status&started_at=gte.${since}&limit=10000`).then(all=>{
+      const rows=all.filter(r=>r.status!=="skip"), skips=all.length-rows.length;   // 「実施なし」の記録は回数・時間に含めない
       setN("sSpeech", rows.length);
       const min=rows.reduce((a,r)=>a+(Number(r.minutes)||0),0);
       document.getElementById("sHours").textContent = (Math.round(min/6)/10).toLocaleString("ja-JP",{minimumFractionDigits:1});
       setN("sSpeechFlyer", rows.reduce((a,r)=>a+(Number(r.total_count)||0),0));
       const cnt={}; STATION_GROUPS.forEach(g=>cnt[g.label]=0); cnt["他"]=0;
       rows.forEach(r=>cnt[stationOf(r.place)]++);
-      document.getElementById("sStations").innerHTML = Object.entries(cnt).map(([k,v])=>`<span>${k}<b>${v}</b>回</span>`).join("");
+      document.getElementById("sStations").innerHTML = Object.entries(cnt).map(([k,v])=>`<span>${k}<b>${v}</b>回</span>`).join("")
+        + (skips?`<span style="color:#888">実施なし<b>${skips}</b>日</span>`:"");
     }).catch(()=>{ failed.push("街頭演説"); ["sSpeech","sHours","sSpeechFlyer"].forEach(id=>setN(id,null)); }),
     /* ② ポスター（佐野のポスターとして撮影・記録した枚数） */
     sbCount(`/rest/v1/posters?select=id&cat_sano=is.true&created_at=gte.${since}`).then(n=>setN("sPoster",n))

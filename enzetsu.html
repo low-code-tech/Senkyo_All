@@ -195,6 +195,14 @@
   .calh b{font-size:17px; color:var(--navy);}
   .calh .btn{padding:7px 12px;}
   .calg{display:grid; grid-template-columns:repeat(7,1fr); gap:2px;}
+  /* 表示切替（月・週・日） */
+  .seg{display:flex; background:#E3EAF6; border-radius:9px; padding:3px; margin-bottom:8px;}
+  .seg button{flex:1; border:none; background:none; border-radius:7px; padding:7px 0; font-size:13px; font-weight:700; color:var(--sub); font-family:inherit; cursor:pointer;}
+  .seg button.on{background:#fff; color:var(--navy); box-shadow:0 1px 2px rgba(0,0,0,.12);}
+  .calg.week .day{min-height:150px;} .calg.week .ev{white-space:normal; max-height:none;}
+  .calg.week .day .n{font-size:12px; font-weight:700;}
+  .calg.dayv{grid-template-columns:1fr;}
+  .calh b{text-align:center; flex:1;}
   .calg .wd{text-align:center; font-size:11px; color:var(--sub); padding:2px 0;}
   .calg .wd.su{color:var(--red);} .calg .wd.sa{color:var(--navy2);}
   .day{min-height:58px; background:#fff; border:1px solid var(--line); border-radius:6px; padding:2px 2px 3px; cursor:pointer;
@@ -337,10 +345,16 @@
 <!-- ============ 予定・カレンダー ============ -->
 <section id="v-cal">
   <div class="card">
+    <div class="seg" role="tablist" aria-label="表示切替">
+      <button type="button" id="vwMonth" class="on" onclick="setView('month')">月</button>
+      <button type="button" id="vwWeek" onclick="setView('week')">週</button>
+      <button type="button" id="vwDay" onclick="setView('day')">日</button>
+    </div>
     <div class="calh">
-      <button class="btn sub" onclick="calMove(-1)" aria-label="前の月">‹</button>
+      <button class="btn sub" onclick="calMove(-1)" aria-label="前へ">‹</button>
       <b id="calTitle"></b>
-      <button class="btn sub" onclick="calMove(1)" aria-label="次の月">›</button>
+      <button class="btn sub" onclick="calToday()" style="font-size:12px;">今日</button>
+      <button class="btn sub" onclick="calMove(1)" aria-label="次へ">›</button>
     </div>
     <div class="calg" id="calGrid"></div>
     <div class="legend"><span><i style="background:#fff;border:1px dashed #D9A21B"></i>朝 予定</span><span><i style="background:#FFF1D6"></i>朝 実施済</span>
@@ -1035,11 +1049,37 @@ async function fillWeather(){
 ================================================================ */
 let calY, calM, calSel=null, calDirty=true, calPlans=[], calRecs=[], calVols={}, calEvents=[], plEditId=null, plType="planned", plSlot="am";
 (function(){ const t=new Date(); calY=t.getFullYear(); calM=t.getMonth(); })();
-function calMove(d){ calM+=d; if(calM<0){calM=11;calY--;} if(calM>11){calM=0;calY++;} calDirty=true; calSel=null; loadCal(); }
+/* 表示：月・週・日。calCur が基準日（週＝その週の日曜から、日＝その日） */
+let calView="month", calCur=new Date();
+function setView(v){
+  calView=v;
+  ["month","week","day"].forEach(k=>$("vw"+k[0].toUpperCase()+k.slice(1)).classList.toggle("on",k===v));
+  if(v==="day"){ calSel=ymd(calCur); }
+  syncMonth();
+}
+function calToday(){ calCur=new Date(); if(calView==="day") calSel=ymd(calCur); syncMonth(); }
+function calMove(d){
+  if(calView==="month"){ calCur=new Date(calY,calM+d,1); calSel=null; }
+  else if(calView==="week"){ calCur.setDate(calCur.getDate()+7*d); calSel=null; }
+  else { calCur.setDate(calCur.getDate()+d); calSel=ymd(calCur); }
+  syncMonth();
+}
+/* 基準日の月が読み込み済みの月と違えば読み直し、同じなら描き直すだけ */
+function syncMonth(){
+  if(calCur.getFullYear()!==calY || calCur.getMonth()!==calM || calDirty){ calY=calCur.getFullYear(); calM=calCur.getMonth(); calDirty=true; loadCal(); }
+  else { renderCal(); renderDay(); }
+}
+function weekStart(d){ const x=new Date(d.getFullYear(),d.getMonth(),d.getDate()); x.setDate(x.getDate()-x.getDay()); return x; }
+function calTitleText(){
+  if(calView==="month") return `${calY}年${calM+1}月`;
+  if(calView==="week"){ const a=weekStart(calCur), b=new Date(a); b.setDate(a.getDate()+6);
+    return `${a.getMonth()+1}/${a.getDate()}(日)〜${b.getMonth()+1}/${b.getDate()}(土)`; }
+  return fmtDate(calCur);
+}
 function wxLabel(r){ return r.weather ? `${r.weather}${r.temp_c!=null?`${Math.round(r.temp_c)}℃`:""}` : ""; }
 function hm(t){ return t? String(t).slice(0,5) : ""; }
 async function loadCal(){
-  $("calTitle").textContent=`${calY}年${calM+1}月`;
+  $("calTitle").textContent=calTitleText();
   const f=new Date(calY,calM,1); f.setDate(f.getDate()-7);
   const t=new Date(calY,calM+1,1); t.setDate(t.getDate()+7);
   try{
@@ -1059,13 +1099,35 @@ async function loadCal(){
   }
 }
 function recDate(r){ return ymd(new Date(r.started_at)); }
+function dayEvents(k){
+  const rs=calRecs.filter(r=>recDate(r)===k);
+  const ps=calPlans.filter(p=>p.plan_date===k && p.status!=="done" && !(p.status==="skip" && rs.some(r=>r.plan_id===p.id)));
+  const es=calEvents.filter(e=>e.event_date===k);
+  return [
+    ...rs.map(r=> r.status==="skip" ? `<span class="ev skip">休:${esc(r.skip_reason||"")}</span>`
+               : `<span class="ev done ${slotOf(r)}">${esc(shortPlace(r.place))} ${r.total_count||0}枚${r.weather?r.weather:""}</span>`),
+    ...ps.map(p=> p.status==="skip" ? `<span class="ev skip">休:${esc(p.skip_reason||"")}</span>`
+               : `<span class="ev plan ${slotOf(p)}">${esc(slotName(p))} ${esc(shortPlace(p.place))}${(calVols[p.id]||[]).length?`👥${calVols[p.id].length}`:""}</span>`),
+    ...es.map(e=>`<span class="ev evt">🎪${e.start_time?esc(hm(e.start_time))+" ":""}${esc(e.title)}</span>`)
+  ];
+}
 function renderCal(){
-  const first=new Date(calY,calM,1), start=new Date(first); start.setDate(1-first.getDay());
+  $("calTitle").textContent=calTitleText();
+  const g=$("calGrid"); g.className="calg"+(calView==="week"?" week":calView==="day"?" dayv":"");
   const today=ymd(new Date());
+  if(calView==="day"){ g.innerHTML=""; return; }                 // 日表示は下の詳細カードだけ
+  const wk=calView==="week";
+  const first=new Date(calY,calM,1), start= wk ? weekStart(calCur) : (()=>{ const x=new Date(first); x.setDate(1-first.getDay()); return x; })();
   let h=WD.split("").map((w,i)=>`<div class="wd${i===0?" su":i===6?" sa":""}">${w}</div>`).join("");
-  for(let i=0;i<42;i++){
+  for(let i=0;i<(wk?7:42);i++){
     const d=new Date(start); d.setDate(start.getDate()+i); const k=ymd(d);
-    if(i>=35 && d.getMonth()!==calM) break;
+    if(!wk && i>=35 && d.getMonth()!==calM) break;
+    if(wk){
+      const evs=dayEvents(k);
+      h+=`<button type="button" class="day${k===today?" today":""}${k===calSel?" sel":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}" onclick="selDay('${k}')">
+        <span class="n">${d.getMonth()+1}/${d.getDate()}</span>${evs.join("")}</button>`;
+      continue;
+    }
     const rs=calRecs.filter(r=>recDate(r)===k);
     const ps=calPlans.filter(p=>p.plan_date===k && p.status!=="done" && !(p.status==="skip" && rs.some(r=>r.plan_id===p.id)));
     const es=calEvents.filter(e=>e.event_date===k);
@@ -1079,12 +1141,13 @@ function renderCal(){
     h+=`<button type="button" class="day${d.getMonth()!==calM?" out":""}${k===today?" today":""}${k===calSel?" sel":""}${d.getDay()===0?" su":d.getDay()===6?" sa":""}" onclick="selDay('${k}')">
       <span class="n">${d.getDate()}</span>${evs.slice(0,3).join("")}${evs.length>3?`<span class="ev">+${evs.length-3}</span>`:""}</button>`;
   }
-  $("calGrid").innerHTML=h;
+  g.innerHTML=h;
 }
 function shortPlace(p){ return String(p||"").replace(/^(JR|京急|市営地下鉄)/,"").replace(/駅前?$/,"").replace(/^実施なし$/,"休"); }
-function selDay(k){ calSel=k; renderCal(); renderDay(); }
+function selDay(k){ calSel=k; calCur=dayStart(k)||calCur; renderCal(); renderDay(); }
 function renderDay(){
   const box=$("dayCard");
+  if(calView==="day" && !calSel) calSel=ymd(calCur);
   if(!calSel){ box.innerHTML='<p class="empty">日付をタップすると、その日の予定と記録が出ます。</p>'; return; }
   const d=dayStart(calSel);
   const ps=calPlans.filter(p=>p.plan_date===calSel), rs=calRecs.filter(r=>recDate(r)===calSel), es=calEvents.filter(e=>e.event_date===calSel);

@@ -1111,38 +1111,35 @@ function renderDay(){
   box.innerHTML=h;
 }
 
-/* ---------- 地域行事：Googleカレンダー（events.html の書き込み先）から取得。未設定・失敗時は Supabase の events 表 ---------- */
-const GCAL_ID  = "";     // ← カレンダーID（例：abc123@group.calendar.google.com）。空なら Supabase の events 表だけ使う
-const GCAL_KEY = "";     // ← Google Cloud の APIキー（Calendar API 用）
+/* ---------- 地域行事：Googleカレンダー（非公開のまま、Apps Script 経由で読む）。未設定・失敗時は Supabase の events 表 ---------- */
+const GCAL_GAS_URL = "";   // ← Apps Script をウェブアプリとして公開したときの URL（…/exec）。空なら Supabase の events 表だけ使う
+const GCAL_GAS_KEY = "";   // ← Apps Script の中に書いた合言葉（READ_KEY）と同じ文字列
 function gcalToEvents(items){
   const out=[];
   for(const it of (items||[])){
-    if(it.status==="cancelled") continue;
-    const title=(it.summary||"").trim(); if(!title) continue;
-    const venue=(it.location||"").trim()||null, url=it.htmlLink||null;
-    if(it.start?.dateTime){
-      const s=new Date(it.start.dateTime), e=it.end?.dateTime? new Date(it.end.dateTime):null;
-      out.push({id:"g"+it.id, title, event_date:ymd(s), start_time:`${pad(s.getHours())}:${pad(s.getMinutes())}:00`,
-        end_time:e?`${pad(e.getHours())}:${pad(e.getMinutes())}:00`:null, venue, category:"", status:"開催予定", source_url:url, src:"gcal"});
-    }else if(it.start?.date){
-      const s=dayStart(it.start.date), e=it.end?.date? dayStart(it.end.date):null;     // 終日（終了日は翌日＝含まない）
-      let d=new Date(s), n=0;
+    const title=(it.title||"").trim(); if(!title) continue;
+    const venue=(it.location||"").trim()||null, url=it.url||null;
+    const s=new Date(it.start), e=it.end? new Date(it.end):null;
+    if(it.allDay){
+      let d=new Date(s.getFullYear(),s.getMonth(),s.getDate()), n=0;            // 終日（終了は翌日0時＝含まない）
       do{ out.push({id:"g"+it.id+"_"+n, title, event_date:ymd(d), start_time:null, end_time:null, venue, category:"", status:"開催予定", source_url:url, src:"gcal"});
           d.setDate(d.getDate()+1); n++; }while(e && d<e && n<7);
+    }else{
+      out.push({id:"g"+it.id, title, event_date:ymd(s), start_time:`${pad(s.getHours())}:${pad(s.getMinutes())}:00`,
+        end_time:e?`${pad(e.getHours())}:${pad(e.getMinutes())}:00`:null, venue, category:"", status:"開催予定", source_url:url, src:"gcal"});
     }
   }
   return out;
 }
 async function loadCommunityEvents(f,t){
-  if(GCAL_ID && GCAL_KEY){
+  if(GCAL_GAS_URL){
     try{
-      const u=`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_ID)}/events?key=${encodeURIComponent(GCAL_KEY)}`+
-        `&timeMin=${encodeURIComponent(f.toISOString())}&timeMax=${encodeURIComponent(t.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=500`;
-      const ctl=new AbortController(); const tm=setTimeout(()=>ctl.abort(),10000);
+      const u=`${GCAL_GAS_URL}?key=${encodeURIComponent(GCAL_GAS_KEY)}&from=${encodeURIComponent(f.toISOString())}&to=${encodeURIComponent(t.toISOString())}`;
+      const ctl=new AbortController(); const tm=setTimeout(()=>ctl.abort(),15000);
       try{
-        const r=await fetch(u,{signal:ctl.signal});
-        if(r.ok){ const js=await r.json(); return dedupeEvents(gcalToEvents(js.items)); }
-        console.warn("Googleカレンダー取得失敗", r.status);
+        const r=await fetch(u,{signal:ctl.signal, redirect:"follow"});
+        if(r.ok){ const js=await r.json(); if(js && Array.isArray(js.items)) return dedupeEvents(gcalToEvents(js.items)); console.warn("Googleカレンダー応答が不正", js); }
+        else console.warn("Googleカレンダー取得失敗", r.status);
       }finally{ clearTimeout(tm); }
     }catch(e){ console.warn("Googleカレンダー取得失敗", e.message); }
   }
@@ -1153,7 +1150,7 @@ async function loadCommunityEvents(f,t){
 function dedupeEvents(list){
   const seen=new Set(), out=[];
   for(const e of list){
-    if(/中止|延期/.test(e.status||"")) continue;
+    if(/中止|延期/.test(e.status||"") || /[【\[（(]\s*(中止|延期)/.test(e.title||"")) continue;
     const key=e.event_date+"|"+String(e.title||"").normalize("NFKC").replace(/[\s「」『』【】（）()・]/g,"").slice(0,10);
     if(seen.has(key)) continue; seen.add(key); out.push(e);
   }

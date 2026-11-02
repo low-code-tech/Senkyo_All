@@ -217,6 +217,15 @@
   .slot .stn.am.sel{background:#FFF1D6; border-color:#D9A21B; box-shadow:inset 0 0 0 1px #D9A21B; color:#7A5A0E;}
   .slot .stn.pm.sel{background:#E9E3FF; border-color:#6E55C8; box-shadow:inset 0 0 0 1px #6E55C8; color:#3B2E7A;}
   #pdfStage{position:absolute; left:-20000px; top:0; width:1123px; background:#fff;}
+  /* 配信シート */
+  .sheet{display:none; position:fixed; inset:0; z-index:60; background:rgba(20,30,55,.55); align-items:flex-end; justify-content:center;}
+  .sheet.show{display:flex;}
+  .sheet .box{background:#fff; width:100%; max-width:560px; border-radius:16px 16px 0 0; padding:16px 14px calc(18px + env(safe-area-inset-bottom,0px));}
+  .sheet h2{font-size:15px; color:var(--navy); display:flex; align-items:center; margin:0 0 10px;}
+  .sheet h2 .x{margin-left:auto; border:none; background:none; font-size:20px; color:var(--sub); cursor:pointer; padding:4px 8px;}
+  .qr{display:flex; justify-content:center; min-height:120px; align-items:center;} .qr canvas,.qr img{border:8px solid #fff; border-radius:8px; box-shadow:0 0 0 1px var(--line);}
+  .url{font-size:12px; color:var(--sub); text-align:center; word-break:break-all; margin:8px 0 10px;}
+  .sbtns{display:grid; grid-template-columns:1fr 1fr; gap:8px;} .sbtns .btn{text-align:center; text-decoration:none;}
   .legend{display:flex; gap:10px; font-size:11px; color:var(--sub); margin:6px 2px 0; flex-wrap:wrap;}
   .legend i{display:inline-block; width:10px; height:10px; border-radius:2px; vertical-align:-1px; margin-right:3px;}
   .dayttl{font-weight:700; color:var(--navy); font-size:15px; margin-bottom:8px; display:flex; align-items:center; gap:8px;}
@@ -340,7 +349,7 @@
     <div class="calbtns">
       <button class="btn" onclick="newPlan()">＋ 予定を追加</button>
       <button class="btn sub" id="btnPdf" onclick="exportPdf()">PDF出力</button>
-      <button class="btn sub" onclick="copyShare()">共有リンク</button>
+      <button class="btn sub" onclick="openShare()">支援者に配信</button>
     </div>
   </div>
   <div class="card planform" id="planForm" hidden>
@@ -420,6 +429,20 @@
 </section>
 </main>
 
+<div class="sheet" id="shareSheet" role="dialog" aria-label="支援者に配信">
+  <div class="box">
+    <h2>支援者向けカレンダーを配信 <button class="x" onclick="$('shareSheet').classList.remove('show')" aria-label="閉じる">&#10005;</button></h2>
+    <div id="qrBox" class="qr"></div>
+    <div class="url" id="shareUrlTxt"></div>
+    <div class="sbtns">
+      <a class="btn green" id="shareLine" target="_blank" rel="noopener">LINEで送る</a>
+      <button class="btn" onclick="nativeShare()">他のアプリで送る</button>
+      <button class="btn sub" onclick="copyShare()">リンクをコピー</button>
+      <button class="btn sub" onclick="saveQr()">QRコードを保存</button>
+    </div>
+    <p class="note" style="margin-top:10px;">受け取った方が「ホーム画面に追加」すると、アプリのように1タップで開けます。QRコードはビラや掲示物に載せられます。</p>
+  </div>
+</div>
 <div id="toast"></div>
 <div id="pdfStage" aria-hidden="true"></div>
 
@@ -1023,9 +1046,9 @@ async function loadCal(){
     const [pl,rc,ev]=await Promise.all([
       api(`/rest/v1/${T_PL}?select=*&plan_date=gte.${ymd(f)}&plan_date=lt.${ymd(t)}&order=plan_date.asc,start_time.asc`),
       api(`/rest/v1/${T_SP}?select=id,started_at,ended_at,minutes,place,total_count,memo,status,skip_reason,weather,temp_c,plan_id,lat,lng,items&started_at=gte.${encodeURIComponent(f.toISOString())}&started_at=lt.${encodeURIComponent(t.toISOString())}&order=started_at.asc`),
-      api(`/rest/v1/${T_EV}?select=id,title,event_date,start_time,end_time,venue,category,score,status,source_url&event_date=gte.${ymd(f)}&event_date=lt.${ymd(t)}&hidden=is.false&order=event_date.asc,start_time.asc`).catch(()=>[])
+      loadCommunityEvents(f,t)
     ]);
-    calPlans=pl||[]; calRecs=rc||[]; calVols={}; calEvents=dedupeEvents(ev||[]);
+    calPlans=pl||[]; calRecs=rc||[]; calVols={}; calEvents=ev||[];
     if(calPlans.length){
       const vs=await api(`/rest/v1/${T_VO}?select=id,plan_id,name,contact,message,created_at&plan_id=in.(${calPlans.map(p=>p.id).join(",")})&order=created_at.asc`).catch(()=>[]);
       (vs||[]).forEach(v=>{ (calVols[v.plan_id]=calVols[v.plan_id]||[]).push(v); });
@@ -1086,6 +1109,45 @@ function renderDay(){
   rs.forEach(r=>{ h+=recCard(r,true); });
   es.forEach(e=>{ h+=eventCard(e); });
   box.innerHTML=h;
+}
+
+/* ---------- 地域行事：Googleカレンダー（events.html の書き込み先）から取得。未設定・失敗時は Supabase の events 表 ---------- */
+const GCAL_ID  = "";     // ← カレンダーID（例：abc123@group.calendar.google.com）。空なら Supabase の events 表だけ使う
+const GCAL_KEY = "";     // ← Google Cloud の APIキー（Calendar API 用）
+function gcalToEvents(items){
+  const out=[];
+  for(const it of (items||[])){
+    if(it.status==="cancelled") continue;
+    const title=(it.summary||"").trim(); if(!title) continue;
+    const venue=(it.location||"").trim()||null, url=it.htmlLink||null;
+    if(it.start?.dateTime){
+      const s=new Date(it.start.dateTime), e=it.end?.dateTime? new Date(it.end.dateTime):null;
+      out.push({id:"g"+it.id, title, event_date:ymd(s), start_time:`${pad(s.getHours())}:${pad(s.getMinutes())}:00`,
+        end_time:e?`${pad(e.getHours())}:${pad(e.getMinutes())}:00`:null, venue, category:"", status:"開催予定", source_url:url, src:"gcal"});
+    }else if(it.start?.date){
+      const s=dayStart(it.start.date), e=it.end?.date? dayStart(it.end.date):null;     // 終日（終了日は翌日＝含まない）
+      let d=new Date(s), n=0;
+      do{ out.push({id:"g"+it.id+"_"+n, title, event_date:ymd(d), start_time:null, end_time:null, venue, category:"", status:"開催予定", source_url:url, src:"gcal"});
+          d.setDate(d.getDate()+1); n++; }while(e && d<e && n<7);
+    }
+  }
+  return out;
+}
+async function loadCommunityEvents(f,t){
+  if(GCAL_ID && GCAL_KEY){
+    try{
+      const u=`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(GCAL_ID)}/events?key=${encodeURIComponent(GCAL_KEY)}`+
+        `&timeMin=${encodeURIComponent(f.toISOString())}&timeMax=${encodeURIComponent(t.toISOString())}&singleEvents=true&orderBy=startTime&maxResults=500`;
+      const ctl=new AbortController(); const tm=setTimeout(()=>ctl.abort(),10000);
+      try{
+        const r=await fetch(u,{signal:ctl.signal});
+        if(r.ok){ const js=await r.json(); return dedupeEvents(gcalToEvents(js.items)); }
+        console.warn("Googleカレンダー取得失敗", r.status);
+      }finally{ clearTimeout(tm); }
+    }catch(e){ console.warn("Googleカレンダー取得失敗", e.message); }
+  }
+  const ev=await api(`/rest/v1/${T_EV}?select=id,title,event_date,start_time,end_time,venue,category,status,source_url&event_date=gte.${ymd(f)}&event_date=lt.${ymd(t)}&hidden=is.false&order=event_date.asc,start_time.asc`).catch(()=>[]);
+  return dedupeEvents(ev||[]);
 }
 /* 地域行事（イベント情報）：中止・延期を除き、同じ日の同名行事は1つにまとめる */
 function dedupeEvents(list){
@@ -1181,10 +1243,35 @@ async function delPlan(id){
   try{ await api(`/rest/v1/${T_PL}?id=eq.${id}`,{method:"DELETE",headers:JSONH}); toast("削除しました"); await loadCal(); }
   catch(e){ toast("削除に失敗しました："+e.message,true); }
 }
+const SHARE_TEXT = "さの英志 街頭活動カレンダーです。予定の確認とボランティア参加はこちらから：";
 async function copyShare(){
-  try{ await navigator.clipboard.writeText(SHARE_URL); toast("共有リンクをコピーしました（支援者に送ってください）"); }
+  try{ await navigator.clipboard.writeText(SHARE_URL); toast("リンクをコピーしました"); }
   catch(e){ prompt("このリンクを支援者に送ってください", SHARE_URL); }
 }
+async function openShare(){
+  $("shareUrlTxt").textContent=SHARE_URL;
+  $("shareLine").href="https://line.me/R/share?text="+encodeURIComponent(SHARE_TEXT+"\n"+SHARE_URL);
+  $("shareSheet").classList.add("show");
+  const box=$("qrBox");
+  if(!box.querySelector("canvas,img")){
+    box.innerHTML='<span class="note">QRコードを作成中…</span>';
+    try{
+      if(!window.QRCode) await loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js");
+      box.innerHTML=""; new QRCode(box,{text:SHARE_URL,width:180,height:180,correctLevel:QRCode.CorrectLevel.M});
+    }catch(e){ box.innerHTML='<span class="note err">QRコードを作成できませんでした（通信を確認してください）</span>'; }
+  }
+}
+async function nativeShare(){
+  if(navigator.share){ try{ await navigator.share({title:"さの英志 街頭活動カレンダー", text:SHARE_TEXT, url:SHARE_URL}); }catch(e){} }
+  else copyShare();
+}
+function saveQr(){
+  const c=$("qrBox").querySelector("canvas"), img=$("qrBox").querySelector("img");
+  const src=c? c.toDataURL("image/png") : (img&&img.src);
+  if(!src){ toast("QRコードがまだありません",true); return; }
+  const a=document.createElement("a"); a.href=src; a.download="enzetsu_schedule_qr.png"; document.body.appendChild(a); a.click(); a.remove();
+}
+document.querySelectorAll(".sheet").forEach(sh=>sh.addEventListener("click",e=>{ if(e.target===sh) sh.classList.remove("show"); }));
 
 /* ---------- PDF出力（A4横・月のカレンダー形式。スマホでもそのまま保存できる） ---------- */
 function reportHtml(){

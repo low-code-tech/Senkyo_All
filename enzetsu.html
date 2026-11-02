@@ -1112,8 +1112,8 @@ function renderDay(){
 }
 
 /* ---------- 地域行事：Googleカレンダー（非公開のまま、Apps Script 経由で読む）。未設定・失敗時は Supabase の events 表 ---------- */
-const GCAL_GAS_URL = "";   // ← Apps Script をウェブアプリとして公開したときの URL（…/exec）。空なら Supabase の events 表だけ使う
-const GCAL_GAS_KEY = "";   // ← Apps Script の中に書いた合言葉（READ_KEY）と同じ文字列
+const GCAL_GAS_URL = "https://script.google.com/macros/s/AKfycby…/exec";   // ← Apps Script をウェブアプリとして公開したときの URL（…/exec）。空なら Supabase の events 表だけ使う
+const GCAL_GAS_KEY = "senkyo";   // ← Apps Script の中に書いた合言葉（READ_KEY）と同じ文字列
 function gcalToEvents(items){
   const out=[];
   for(const it of (items||[])){

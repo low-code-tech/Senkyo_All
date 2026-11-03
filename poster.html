@@ -826,6 +826,7 @@ function initMap(){
   markerLayer = L.layerGroup().addTo(map);
   addLocateControl(map);
   map.on("zoomend", ()=>renderMarkers(true));   // ズームで 旗⇔サムネイル を切替
+  if(window.VOTE) VOTE.attach(map);              // 投票所レイヤー
   // 初期表示：現在地があればそこ、なければ東京駅付近
   if(curPos) map.setView([curPos.lat, curPos.lon], 14);
   else map.setView([35.681, 139.767], 12);
@@ -861,6 +862,7 @@ function buildLegend(){
     return `<div class="lg${mapSel.has(c.key)?" active":""}" data-key="${escapeHtml(c.key)}" onclick="setMapFilter(this.dataset.key)">
        <span class="sw" style="background:${c.color}"></span>${escapeHtml(c.label)}<span class="n">${n}</span></div>`;
   }).join("");
+  if(window.VOTE) VOTE.afterLegend();            // 投票所チップを末尾に追加
 }
 
 function setMapFilter(key){
@@ -1377,6 +1379,131 @@ function escapeHtml(s){
 }
 
 loadCands();   // 候補者ボタンを読み込み（全定義の後で実行）
+</script>
+<style>
+  /* ===== 投票所レイヤー ===== */
+  .vt{width:32px;height:32px;border-radius:8px;background:#7c3aed;color:#fff;border:2.5px solid #fff;
+    box-shadow:0 2px 6px rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;
+    font:700 13px/1 sans-serif;position:relative;transform:scale(var(--vt-scale,1));transform-origin:50% 100%;transition:transform .15s;}
+  .vt::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-6px;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid #7c3aed;}
+  .vt small{position:absolute;top:-7px;right:-7px;background:#fff;color:#7c3aed;border-radius:99px;font-size:9px;font-weight:700;padding:1px 4px;border:1px solid #7c3aed;}
+  .vt-pop{font-size:13px;line-height:1.6;max-width:330px;}
+  .vt-pop h4{margin:0 0 4px;font-size:14px;color:#1F3864;}
+  .vt-pop .ad{color:#5A6B8C;font-size:12px;}
+  .vt-pop .area{font-size:11.5px;color:#5A6B8C;background:#F4F7FC;border-radius:6px;padding:4px 8px;margin:6px 0;}
+  .vt-pop img{width:100%;border:1px solid #C8D2E4;border-radius:6px;margin:6px 0 4px;cursor:zoom-in;display:block;}
+  .vt-pop .cmp{font-weight:700;color:#1F3864;margin-top:4px;}
+  .vt-pop a{color:#2E5496;}
+  .leaflet-popup-content{margin:10px 12px;}
+  .lg.vote-chip .sw{background:#7c3aed;}
+  #vtZoom{display:none;position:fixed;inset:0;z-index:1500;background:rgba(0,0,0,.85);align-items:center;justify-content:center;cursor:zoom-out;}
+  #vtZoom.show{display:flex;}
+  #vtZoom img{max-width:96vw;max-height:92vh;background:#fff;border-radius:6px;}
+  .leaflet-marker-icon{overflow:visible;}
+</style>
+<div id="vtZoom" onclick="this.classList.remove('show')"><img id="vtZoomImg" alt="投票所周辺地図"></div>
+<script>
+/* ================================================================
+   投票所レイヤー（目的別Map「磯子区 投票所（36カ所）」を読み込んで重ねる）
+   - 凡例に「🗳投票所」チップを追加（ON/OFFは端末に記憶）
+   - ピンをタップ：投票所名・住所・投票区域・周辺地図画像・自分のポスターとの比較
+   - 依存：map / rows / cands / isSelfName / sb / $（各ページ既存）
+================================================================ */
+window.VOTE = (() => {
+  const RADIUS_M = 300;                         // 「近くの自分のポスター」を数える半径
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  let items = [], layer = null, attached = null, loaded = false;
+  let on = localStorage.getItem("vote_layer_on") === "1";
+
+  function dist(a1, o1, a2, o2) {
+    const R = 6371000, r = x => x * Math.PI / 180, dA = r(a2 - a1), dO = r(o2 - o1);
+    const h = Math.sin(dA / 2) ** 2 + Math.cos(r(a1)) * Math.cos(r(a2)) * Math.sin(dO / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+  }
+  async function load() {
+    if (loaded) return;
+    try {
+      const res = await sb(`/rest/v1/purpose_maps?select=id,title,items&title=ilike.*%E6%8A%95%E7%A5%A8%E6%89%80*&order=created_at.desc`);
+      if (!res.ok) throw new Error(res.status);
+      const maps = await res.json();
+      items = [];
+      maps.forEach(m => (m.items || []).forEach((it, i) => {
+        if ((it.kind === "投票所") && it.lat && it.lng) items.push({ ...it, _no: it.no || (i + 1), _map: m.title });
+      }));
+      loaded = true;
+    } catch (e) { console.error("vote layer:", e); }
+  }
+  function selfPosters() {
+    return (typeof rows === "undefined" ? [] : rows).filter(r =>
+      r.latitude != null && r.longitude != null &&
+      ((r.candidates || []).some(n => typeof isSelfName === "function" && isSelfName(n)) || r.cat_sano === true));
+  }
+  function icon(no) {
+    return L.divIcon({ className: "", html: `<div class="vt">🗳<small>${no}</small></div>`, iconSize: [32, 32], iconAnchor: [16, 40], popupAnchor: [0, -38] });
+  }
+  function scale(m) {
+    const z = m.getZoom();
+    document.documentElement.style.setProperty("--vt-scale", z >= 17 ? 1.3 : z >= 15 ? 1.05 : z >= 13 ? 0.9 : 0.75);
+  }
+  function popupHtml(it) {
+    const self = selfPosters();
+    const near = self.filter(r => dist(it.lat, it.lng, r.latitude, r.longitude) <= RADIUS_M).length;
+    let nearest = null;
+    self.forEach(r => { const d = dist(it.lat, it.lng, r.latitude, r.longitude); if (!nearest || d < nearest) nearest = d; });
+    const area = (it.note || "").replace(/^投票区域：/, "");
+    return `<div class="vt-pop">
+      <h4>🗳 ${esc(it.name)}</h4>
+      <div class="ad">${esc(it.address || "")}</div>
+      ${area ? `<div class="area">投票区域：${esc(area)}</div>` : ""}
+      ${it.image_url ? `<img src="${esc(it.image_url)}" loading="lazy" onclick="VOTE.zoom('${esc(it.image_url)}')" title="タップで拡大">` : ""}
+      <div class="cmp">自分のポスター：半径${RADIUS_M}m以内 ${near}枚${nearest != null ? `／最寄り 約${Math.round(nearest)}m` : "／未登録"}</div>
+      ${it.pdf_url ? `<a href="${esc(it.pdf_url)}" target="_blank" rel="noopener">📄 PDFを開く</a>　` : ""}
+      <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((it.address || "") + " " + (it.name || ""))}" target="_blank" rel="noopener">Googleマップ</a>
+    </div>`;
+  }
+  function draw() {
+    if (!attached) return;
+    if (!layer) layer = L.layerGroup();
+    layer.clearLayers();
+    if (!on) { if (attached.hasLayer(layer)) attached.removeLayer(layer); return; }
+    items.forEach(it => {
+      const m = L.marker([it.lat, it.lng], { icon: icon(it._no), zIndexOffset: 500 });
+      m.bindTooltip(esc(it.name), { direction: "top", offset: [0, -36] });
+      m.bindPopup(() => popupHtml(it), { maxWidth: 340, minWidth: 260 });
+      layer.addLayer(m);
+    });
+    if (!attached.hasLayer(layer)) layer.addTo(attached);
+  }
+  function chip() {
+    const lg = document.getElementById("legend"); if (!lg) return;
+    let c = lg.querySelector(".vote-chip");
+    if (!c) {
+      c = document.createElement("div");
+      c.className = "lg vote-chip";
+      c.onclick = () => VOTE.toggle();
+      lg.appendChild(c);
+    }
+    c.className = "lg vote-chip" + (on ? " active" : "");
+    c.innerHTML = `<span class="sw"></span>🗳投票所<span class="n">${items.length || ""}</span>`;
+  }
+  return {
+    async attach(m) {
+      attached = m;
+      m.on("zoomend", () => scale(m)); scale(m);
+      await load(); chip(); draw();
+    },
+    async afterLegend() { await load(); chip(); },
+    async toggle() {
+      on = !on; localStorage.setItem("vote_layer_on", on ? "1" : "0");
+      await load(); chip(); draw();
+      if (on && items.length && attached && !attached.getBounds().contains([items[0].lat, items[0].lng])) {
+        attached.fitBounds(items.map(i => [i.lat, i.lng]), { padding: [30, 30], maxZoom: 15 });
+      }
+    },
+    zoom(src) { const z = document.getElementById("vtZoom"); document.getElementById("vtZoomImg").src = src; z.classList.add("show"); },
+    redraw() { draw(); }
+  };
+})();
 </script>
 </body>
 </html>
